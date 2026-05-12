@@ -3,6 +3,7 @@
 import { exec } from "child_process"
 import { promisify } from "util"
 import path from "path"
+import { revalidatePath } from "next/cache"
 
 const execAsync = promisify(exec)
 
@@ -15,7 +16,7 @@ export async function runDataSyncPipeline(dateString?: string) {
     // --supabase-only: skip Excel master write (avoids crashes if the file is open)
     // --skip-email: use existing downloaded files
     // --skip-screenshots: skip OCR processing
-    let command = 'python main.py --skip-email --skip-screenshots --supabase-only'
+    let command = 'python main.py --skip-hs-downloads --skip-screenshots --supabase-only'
     if (dateString) {
       command += ` --date ${dateString}`
     }
@@ -28,6 +29,8 @@ export async function runDataSyncPipeline(dateString?: string) {
       maxBuffer: 1024 * 1024, // 1MB output buffer
     })
 
+    revalidatePath("/reports/daily")
+    revalidatePath("/reports/weekly")
     return {
       success: true,
       logs: stdout + (stderr ? "\n" + stderr : ""),

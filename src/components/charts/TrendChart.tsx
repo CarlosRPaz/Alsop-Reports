@@ -1,19 +1,28 @@
 "use client"
 
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+
+interface LineConfig {
+  key: string;
+  name?: string;
+  color: string;
+}
 
 interface TrendChartProps {
   title: string
   data: any[]
-  dataKey: string
+  dataKey?: string
   xAxisKey?: string
   color?: string
+  lines?: LineConfig[]
 }
 
-export function TrendChart({ title, data, dataKey, xAxisKey = "date", color = "#3b82f6" }: TrendChartProps) {
+export function TrendChart({ title, data, dataKey, xAxisKey = "date", color = "#3b82f6", lines }: TrendChartProps) {
+  const chartLines = lines || (dataKey ? [{ key: dataKey, color: color }] : []);
+
   return (
-    <Card className="w-full h-[300px] flex flex-col">
+    <Card className="w-full h-full flex flex-col min-h-[300px]">
       <CardHeader className="pb-2">
         <CardTitle>{title}</CardTitle>
       </CardHeader>
@@ -43,14 +52,19 @@ export function TrendChart({ title, data, dataKey, xAxisKey = "date", color = "#
                 color: '#0f172a'
               }} 
             />
-            <Line 
-              type="monotone" 
-              dataKey={dataKey} 
-              stroke={color} 
-              strokeWidth={3} 
-              dot={{ r: 4, strokeWidth: 2 }} 
-              activeDot={{ r: 6, strokeWidth: 0 }} 
-            />
+            {lines && <Legend wrapperStyle={{ paddingTop: '20px' }} />}
+            {chartLines.map((line) => (
+              <Line 
+                key={line.key}
+                name={line.name || line.key}
+                type="monotone" 
+                dataKey={line.key} 
+                stroke={line.color} 
+                strokeWidth={3} 
+                dot={{ r: 4, strokeWidth: 2 }} 
+                activeDot={{ r: 6, strokeWidth: 0 }} 
+              />
+            ))}
           </LineChart>
         </ResponsiveContainer>
       </CardContent>

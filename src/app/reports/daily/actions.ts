@@ -34,6 +34,13 @@ export async function getDailyData(dateStr: string) {
     const [year, month, day] = dateStr.split('-')
     const firstDayOfMonth = `${year}-${month}-01`
 
+    // 5b. Fetch holidays for the current year (for business day calculations)
+    const { data: holidays } = await supabase
+      .from("holidays")
+      .select("holiday_date, name")
+      .gte("holiday_date", `${year}-01-01`)
+      .lte("holiday_date", `${year}-12-31`)
+
     const { data: mtdMetrics } = await supabase
       .from("daily_metrics")
       .select("agent_id, items, prem_premium")
@@ -69,7 +76,8 @@ export async function getDailyData(dateStr: string) {
       data: {
         metrics: merged,
         goals: goals || [],
-        eagentSubmitted: meta?.eagent_submitted || false
+        eagentSubmitted: meta?.eagent_submitted || false,
+        holidays: holidays || []
       }
     }
 

@@ -190,14 +190,15 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
               </tr>
             </thead>
             <tbody>
-              {sortedAgents.map(agent => {
+              {sortedAgents.map((agent, index) => {
                 const d = formData[agent.agent_id]
                 if (!d) return null
                 const hasData = d.dismissed > 0 || d.pastDue > 0 || d.pivots > 0
+                const rowBg = index % 2 !== 0 ? "bg-slate-100" : "bg-white"
                 return (
                   <tr 
                     key={agent.agent_id} 
-                    className={`border-b border-slate-100 transition-colors ${hasData ? "bg-slate-50" : "hover:bg-slate-50"}`}
+                    className={`border-b border-slate-200 transition-colors ${rowBg} hover:bg-slate-200`}
                   >
                     <td className="py-1 px-2">
                       <span className="text-xs font-medium text-slate-700">{agent.agents?.name}</span>

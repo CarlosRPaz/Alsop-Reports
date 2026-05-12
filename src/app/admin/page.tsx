@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
-import { Users, Settings, Database, ArrowRight } from "lucide-react"
+import { Users, Settings, Database, ArrowRight, CalendarDays } from "lucide-react"
 import Link from "next/link"
 
 export default function AdminHub() {
@@ -51,6 +51,25 @@ export default function AdminHub() {
             <Link href="/admin/goals">
               <Button variant="outline" className="w-full group-hover:bg-amber-600 group-hover:text-white group-hover:border-amber-600">
                 Manage Goals <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* Holiday Calendar Card */}
+        <Card className="group hover:border-red-500/50 transition-colors">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-red-400" /> Holiday Calendar
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-slate-500 text-sm mb-6">
+              Manage observed holidays and view business day counts for pacing calculations.
+            </p>
+            <Link href="/admin/holidays">
+              <Button variant="outline" className="w-full group-hover:bg-red-600 group-hover:text-white group-hover:border-red-600">
+                Manage Holidays <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
           </CardContent>

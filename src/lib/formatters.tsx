@@ -5,6 +5,7 @@ import React from "react";
  * - Zero/falsy values are dimmed (text-slate-300)
  * - Values meeting/exceeding a daily goal are highlighted green
  * - Values meeting/exceeding a monthly goal are highlighted gold
+ * - 'orange' mode: shows a soft orange background when value is zero/empty (manual input pending)
  * - Otherwise, default styling
  */
 export function formatValue(
@@ -12,7 +13,7 @@ export function formatValue(
   prefix = "", 
   suffix = "",
   goal?: { target_value: number } | null,
-  highlightColor: "green" | "gold" = "green"
+  highlightColor?: "green" | "gold" | "orange"
 ) {
   const isZero = 
     value === 0 || 
@@ -23,15 +24,21 @@ export function formatValue(
 
   const displayVal = value !== null && value !== undefined ? `${prefix}${value}${suffix}` : "-";
 
+  // Orange highlight for manual-input cells that haven't been submitted yet
+  if (highlightColor === "orange" && isZero) {
+    return <span className="bg-orange-100 text-orange-400 italic rounded px-1.5 -mx-1 font-normal">–</span>;
+  }
+
   if (isZero) {
     return <span className="text-slate-300 font-normal">{displayVal}</span>;
   }
 
-  // Goal highlighting
+  // Goal highlighting (green for daily, gold for monthly)
+  const effectiveColor = highlightColor || "green";
   if (goal && goal.target_value > 0) {
     const numericVal = typeof value === "number" ? value : parseFloat(String(value));
     if (!isNaN(numericVal) && numericVal >= goal.target_value) {
-      const colorClass = highlightColor === "gold"
+      const colorClass = effectiveColor === "gold"
         ? "bg-amber-500 text-black italic rounded px-1.5 -mx-1"
         : "bg-emerald-200 text-emerald-900 rounded px-1.5 -mx-1";
       return <span className={colorClass}>{displayVal}</span>;

@@ -7,10 +7,11 @@ import { DataTable, ColumnDef } from "@/components/ui/DataTable"
 import { FilterBar, FilterState } from "@/components/ui/FilterBar"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
-import { Trophy, TrendingUp, Calendar, AlertCircle, Edit, CheckCircle2, Clock, DollarSign, Package, RefreshCw, Loader2 } from "lucide-react"
+import { Trophy, TrendingUp, Calendar, AlertCircle, Edit, CheckCircle2, Clock, DollarSign, Package, RefreshCw, Loader2, MessageSquare } from "lucide-react"
 import Link from "next/link"
 import { formatValue } from "@/lib/formatters"
 import { EAgentModal } from "@/components/reports/EAgentModal"
+import { toHolidaySet, getBusinessDaysInMonth, getElapsedBusinessDays, getRemainingBusinessDays, calcPacing } from "@/lib/businessDays"
 import { runDataSyncPipeline } from "@/app/admin/sync/actions"
 
 function getYesterday() {
@@ -49,7 +50,6 @@ const COLUMNS: ColumnDef[] = [
   { key: "premium",  label: "Premium",     group: "production", sortAccessor: (m: any) => Number(m.prem_premium) || 0 },
   { key: "items",    label: "Items",       group: "production", sortAccessor: (m: any) => m.items || 0 },
   { key: "itemsmtd", label: "Items MTD",   group: "production", sortAccessor: (m: any) => m.items_mtd || 0 },
-  { key: "premmtd",  label: "Prem MTD",    group: "production", sortAccessor: (m: any) => m.premium_mtd || 0 },
   // Leads Pipeline (Red/Orange)
   { key: "contact", label: "Contact",    group: "leads", sortAccessor: (m: any) => m.leads_snapshot?.contact || 0 },
   { key: "quoted",  label: "Quoted",     group: "leads", sortAccessor: (m: any) => m.leads_snapshot?.quoted || 0 },
@@ -158,6 +158,7 @@ export default function DailyReport() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<"idle" | "success" | "error">("idle")
+  const [holidays, setHolidays] = useState<{ holiday_date: string }[]>([])
 
   // Check if data for this date looks incomplete (no data, or most agents have all zeros)
   const isSyncIncomplete = useMemo(() => {
@@ -196,6 +197,7 @@ export default function DailyReport() {
       setMetrics(result.data.metrics)
       setGoals(result.data.goals)
       setEagentSubmitted(result.data.eagentSubmitted)
+      setHolidays(result.data.holidays || [])
     } else {
       console.error(result.error)
       setMetrics([])
@@ -342,42 +344,79 @@ export default function DailyReport() {
 
         const scaleMax = Math.max(AGENCY_GOAL, totalItemsMTD);
 
+        const holidaySet = toHolidaySet(holidays)
+        const now = new Date()
+        const currentYear = now.getFullYear()
+        const currentMonth = now.getMonth() + 1 // 1-indexed
+        const totalBizDays = getBusinessDaysInMonth(currentYear, currentMonth, holidaySet)
+        
+        // Pacing is based on data up through yesterday (since we meet in the AM)
+        let elapsed = 0
+        if (now.getDate() > 1) {
+          const yesterday = new Date(now)
+          yesterday.setDate(now.getDate() - 1)
+          elapsed = getElapsedBusinessDays(currentYear, currentMonth, holidaySet, yesterday)
+        }
+        
+        const remainingBizDays = totalBizDays - elapsed
+        const pacing = calcPacing(totalItemsMTD, elapsed, remainingBizDays, AGENCY_GOAL)
+
+        const statusColor = pacing.status === "ahead"
+          ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+          : pacing.status === "close"
+          ? "text-amber-600 bg-amber-50 border-amber-200"
+          : "text-red-600 bg-red-50 border-red-200"
+
+        const statusIcon = pacing.status === "ahead" ? "🟢" : pacing.status === "close" ? "🟡" : "🔴"
+        const statusLabel = pacing.status === "ahead" ? "On Track" : pacing.status === "close" ? "Close" : "Behind Pace"
+
         return (
           <Card className="bg-white border border-slate-200 shadow-sm overflow-hidden relative mb-6">
-            <CardContent className="p-6 relative z-10">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10">
+            <CardContent className="p-5 relative z-10">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6">
                 <div>
-                  <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2 tracking-tight">
-                    <TrendingUp className="w-5 h-5 text-blue-600" /> Agency MTD Pacing
-                  </h2>
-                  <p className="text-sm text-slate-500 mt-1">Auto items issued this month vs agency goal</p>
+                  <div className="flex items-center gap-3 mb-1">
+                    <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2 tracking-tight">
+                      <TrendingUp className="w-4 h-4 text-blue-600" /> Agency MTD Pacing
+                    </h2>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>
+                      {statusIcon} {statusLabel}
+                    </span>
+                  </div>
+                  <p className="text-[13px] text-slate-500 flex items-center gap-2">
+                    Items vs {AGENCY_GOAL} goal
+                    <span className="text-slate-300">•</span>
+                    <span className="text-slate-600 font-medium tracking-tight">
+                      📅 {elapsed} of {totalBizDays} biz days <span className="text-slate-400 font-normal">({remainingBizDays} left)</span>
+                    </span>
+                  </p>
                 </div>
-                <div className="text-left md:text-right mt-4 md:mt-0">
-                  <div className="flex items-baseline gap-2 justify-start md:justify-end">
-                    <span className="text-5xl font-black text-slate-900 font-mono tracking-tighter">{totalItemsMTD}</span>
-                    <span className="text-2xl text-slate-400 font-mono font-medium">/ {AGENCY_GOAL}</span>
+                <div className="text-left md:text-right mt-3 md:mt-0">
+                  <div className="flex items-baseline gap-1.5 justify-start md:justify-end leading-none">
+                    <span className="text-3xl font-black text-slate-900 font-mono tracking-tighter">{totalItemsMTD}</span>
+                    <span className="text-lg text-slate-400 font-mono font-medium">/ {AGENCY_GOAL}</span>
                   </div>
                   {remaining > 0 ? (
-                    <p className="text-sm font-medium text-amber-400 mt-1">{remaining} items needed to hit goal</p>
+                    <p className="text-[11px] font-medium text-amber-500 mt-1.5 tracking-wide uppercase">{remaining} needed</p>
                   ) : (
-                    <p className="text-sm font-medium text-emerald-400 mt-1">Goal exceeded by {totalItemsMTD - AGENCY_GOAL} items! 🚀</p>
+                    <p className="text-[11px] font-bold text-emerald-500 mt-1.5 tracking-wide uppercase">Goal exceeded by {totalItemsMTD - AGENCY_GOAL}! 🚀</p>
                   )}
                 </div>
               </div>
 
               {/* The Elite Stacked Bar */}
-              <div className="relative pt-6 pb-2">
+              <div className="relative pt-4 pb-2">
                 {/* Goal marker line */}
                 <div 
                   className="absolute top-0 bottom-0 border-l-2 border-dashed border-slate-300 z-10 transition-all duration-1000" 
                   style={{ left: `${(AGENCY_GOAL / scaleMax) * 100}%` }}
                 >
-                  <div className="absolute -top-7 -translate-x-1/2 bg-white border border-slate-200 text-slate-600 shadow-sm text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-widest whitespace-nowrap">
+                  <div className="absolute -top-5 -translate-x-1/2 bg-white border border-slate-200 text-slate-600 shadow-sm text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest whitespace-nowrap">
                     Goal
                   </div>
                 </div>
 
-                <div className="w-full h-8 bg-slate-100 rounded-lg overflow-hidden flex ring-1 ring-inset ring-slate-200 shadow-inner">
+                <div className="w-full h-6 bg-slate-100 rounded-md overflow-hidden flex ring-1 ring-inset ring-slate-200 shadow-inner">
                   {offices.map(([office, count]) => {
                     const w = (count / scaleMax) * 100;
                     if (w === 0) return null;
@@ -387,7 +426,7 @@ export default function DailyReport() {
                         className={`h-full ${officeColors[office]} border-r border-white/20 transition-all duration-1000 relative group`}
                         style={{ width: `${w}%` }}
                       >
-                        <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-2 py-1 rounded shadow-md whitespace-nowrap transition-opacity z-20 pointer-events-none">
+                        <div className="opacity-0 group-hover:opacity-100 absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-0.5 rounded shadow-md whitespace-nowrap transition-opacity z-20 pointer-events-none">
                           {office}: {count}
                         </div>
                       </div>
@@ -396,27 +435,56 @@ export default function DailyReport() {
                   {/* Remaining empty space if any */}
                   {remaining > 0 && (
                     <div 
-                      className="h-full bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(0,0,0,0.03)_10px,rgba(0,0,0,0.03)_20px)] transition-all duration-1000"
+                      className="h-full bg-[repeating-linear-gradient(45deg,transparent,transparent_8px,rgba(0,0,0,0.03)_8px,rgba(0,0,0,0.03)_16px)] transition-all duration-1000"
                       style={{ width: `${(remaining / scaleMax) * 100}%` }}
                     />
                   )}
                 </div>
               </div>
 
-              {/* Legend */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4 mt-8 pt-6 border-t border-slate-100">
-                {offices.map(([office, count]) => {
-                  const offPct = totalItemsMTD > 0 ? Math.round((count / totalItemsMTD) * 100) : 0;
-                  return (
-                    <div key={office} className="flex items-center gap-3">
-                      <div className={`w-3.5 h-3.5 rounded-full ${officeColors[office]} ring-2 ring-white shadow-sm`} />
-                      <div>
-                        <p className={`text-sm font-bold ${officeTextColors[office]}`}>{office}</p>
-                        <p className="text-xl font-mono font-bold text-slate-900 mt-0.5">{count} <span className="text-xs font-sans font-normal text-slate-500 ml-1">({offPct}%)</span></p>
+              {/* Legend & Stats Row */}
+              <div className="mt-5 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                {/* Office Legend */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {offices.map(([office, count]) => {
+                    const offPct = totalItemsMTD > 0 ? Math.round((count / totalItemsMTD) * 100) : 0;
+                    return (
+                      <div key={office} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded px-3 py-1.5">
+                        <div className={`w-2.5 h-2.5 rounded-full ${officeColors[office]} ring-1 ring-black/5`} />
+                        <span className={`text-[11px] font-bold ${officeTextColors[office]}`}>{office}</span>
+                        <span className="text-sm font-mono font-bold text-slate-700 ml-0.5">{count}</span>
+                        <span className="text-[10px] font-sans text-slate-400 hidden sm:inline">({offPct}%)</span>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+
+                {/* Pacing Stats */}
+                <div className="flex items-center gap-3">
+                  <div className="bg-slate-50 border border-slate-200/60 rounded px-4 py-2.5 text-center min-w-[110px]">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Current Rate</p>
+                    <p className="text-lg font-black font-mono text-slate-900 leading-none">{pacing.dailyRate.toFixed(1)}</p>
+                    <p className="text-[9px] text-slate-400 font-medium mt-1.5">items / day</p>
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200/60 rounded px-4 py-2.5 text-center min-w-[110px]">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Projected</p>
+                    <p className={`text-lg font-black font-mono leading-none ${
+                      pacing.projectedEOM >= AGENCY_GOAL ? "text-emerald-600" : "text-red-600"
+                    }`}>
+                      ~{pacing.projectedEOM}
+                    </p>
+                    <p className="text-[9px] text-slate-400 font-medium mt-1.5">total items at month end</p>
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200/60 rounded px-4 py-2.5 text-center min-w-[110px]">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Required</p>
+                    <p className={`text-lg font-black font-mono leading-none ${
+                      pacing.requiredDaily <= pacing.dailyRate ? "text-emerald-600" : "text-amber-600"
+                    }`}>
+                      {pacing.requiredDaily.toFixed(1)}
+                    </p>
+                    <p className="text-[9px] text-slate-400 font-medium mt-1.5">items / day required</p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -424,7 +492,7 @@ export default function DailyReport() {
       })()}
 
       {/* ── Top 3 Leaderboards (Agency-Wide, unfiltered) ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <LeaderboardCard
           title="Top Items (Issued)"
           subtitle="Auto items only"
@@ -453,6 +521,15 @@ export default function DailyReport() {
           format={(v) => formatTime(v)}
           colorClass="text-sky-400"
           borderClass="border-sky-500/30"
+        />
+        <LeaderboardCard
+          title="Top Texts"
+          icon={<MessageSquare className="w-3.5 h-3.5" />}
+          data={metrics}
+          accessor={(m) => m.texts || 0}
+          format={(v) => `${v.toLocaleString()}`}
+          colorClass="text-fuchsia-400"
+          borderClass="border-fuchsia-500/30"
         />
         <LeaderboardCard
           title="Items MTD"
@@ -579,7 +656,6 @@ export default function DailyReport() {
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{item.prem_premium ? formatValue(Number(item.prem_premium), "$", "", getGoal("prem_premium")) : formatValue(0)}</td>
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.items, "", "", getGoal("items"))}</td>
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.items_mtd, "", "", getMonthlyGoal("items"), "gold")}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{item.premium_mtd ? formatValue(Number(item.premium_mtd), "$", "", getMonthlyGoal("prem_premium"), "gold") : formatValue(0)}</td>
 
                     {/* ── Leads Pipeline (Rose/Red) ── */}
                     <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("leads")}`}>{formatValue(item.leads_snapshot?.contact || 0)}</td>
@@ -588,9 +664,16 @@ export default function DailyReport() {
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.leads_snapshot?.xsale || 0)}</td>
 
                     {/* ── eAgent Tasks (Violet) ── */}
-                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("eagent")}`}>{formatValue(item.dismissed_todos, "", "", getGoal("dismissed_todos"))}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.past_due_todos, "", "", getGoal("past_due_todos"))}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.pivots, "", "", getGoal("pivots"))}</td>
+                    {(() => {
+                      const manualHL = !eagentSubmitted ? "orange" as const : undefined;
+                      return (
+                        <>
+                          <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("eagent")}`}>{formatValue(item.dismissed_todos, "", "", getGoal("dismissed_todos"), manualHL)}</td>
+                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.past_due_todos, "", "", getGoal("past_due_todos"), manualHL)}</td>
+                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.pivots, "", "", getGoal("pivots"), manualHL)}</td>
+                        </>
+                      );
+                    })()}
                   </>
                 );
               }}

@@ -138,7 +138,7 @@ export function DataTable({
   const GROUP_LABELS: Record<string, string> = {
     agent: "Agent Info",
     calls: "RC / Ricochet",
-    texts: "Hearsay",
+    texts: "Texts",
     production: "Production",
     leads: "Leads Pipeline",
     eagent: "eAgent/RICO",
@@ -245,7 +245,7 @@ export function DataTable({
                   >
                     {isDataCol ? (
                       /* Angled header — fixed narrow cell, text positioned absolutely */
-                      <div style={{ height: "80px", position: "relative", overflow: "visible" }}>
+                      <div style={{ height: "105px", position: "relative", overflow: "visible" }}>
                         <span 
                           className={cn(
                             "absolute whitespace-nowrap text-[10px] uppercase tracking-wider font-semibold",

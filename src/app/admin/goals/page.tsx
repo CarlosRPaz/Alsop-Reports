@@ -54,7 +54,7 @@ const KPI_GROUPS = [
 ]
 
 const OFFICES = ["MCM", "MB", "RC", "CH"]
-const TEAMS = ["Sales", "Service", "CSR", "EA", "Managers"]
+const TEAMS = ["Sales", "CSR", "EA", "Managers"]
 
 const COLOR_MAP: Record<string, { bg: string; border: string; text: string; headerBg: string; badge: string }> = {
   sky:    { bg: "bg-sky-50",    border: "border-sky-200",    text: "text-sky-700",    headerBg: "bg-sky-100/60",    badge: "bg-sky-100 text-sky-700 border-sky-200" },
