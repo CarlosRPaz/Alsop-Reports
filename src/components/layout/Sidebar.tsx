@@ -12,13 +12,15 @@ import {
   Settings,
   Activity,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  FileBarChart
 } from "lucide-react"
 
 const navItems = [
   { name: 'Overview', href: '/', icon: Activity },
   { name: 'Daily Standup', href: '/reports/daily', icon: CalendarDays },
   { name: 'Weekly Report', href: '/reports/weekly', icon: LayoutDashboard },
+  { name: 'Quotes & NB', href: '/reports/quotes', icon: FileBarChart },
   { name: 'MTD Performance', href: '/reports/mtd', icon: TrendingUp },
   { name: 'Communication', href: '/communication', icon: MessageSquare },
   { name: 'Admin Panel', href: '/admin', icon: Settings },
@@ -31,10 +33,23 @@ export function Sidebar() {
   return (
     <aside 
       className={cn(
-        "bg-white border-r border-slate-200 h-screen sticky top-0 hidden md:flex flex-col z-10 transition-all duration-300",
+        "bg-white border-r border-slate-200 h-screen sticky top-0 hidden md:flex flex-col z-10 transition-all duration-300 relative",
         isExpanded ? "w-64" : "w-16"
       )}
     >
+      {/* Expand/Collapse Tab — hangs off the right edge */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        title={isExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
+        className="absolute -right-3 top-[72px] w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-50 hover:shadow transition-all z-20"
+      >
+        {isExpanded ? (
+          <ChevronLeft className="w-3.5 h-3.5" />
+        ) : (
+          <ChevronRight className="w-3.5 h-3.5" />
+        )}
+      </button>
+
       <div className={cn("p-4 flex items-center", !isExpanded ? "justify-center" : "justify-between")}>
         {isExpanded ? (
           <div>
@@ -77,7 +92,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="p-2 border-t border-slate-200 flex flex-col gap-1">
+      <div className="p-2 border-t border-slate-200">
         <button 
           title={!isExpanded ? "Settings" : undefined}
           className={cn(
@@ -87,24 +102,6 @@ export function Sidebar() {
         >
           <Settings className={cn("shrink-0 text-slate-500", !isExpanded ? "w-5 h-5" : "w-4 h-4")} />
           {isExpanded && <span className="whitespace-nowrap">Settings</span>}
-        </button>
-
-        <button 
-          onClick={() => setIsExpanded(!isExpanded)}
-          title={isExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
-          className={cn(
-            "flex items-center rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all mt-1",
-            !isExpanded ? "justify-center p-2" : "gap-3 px-3 py-2 w-full"
-          )}
-        >
-          {isExpanded ? (
-            <>
-              <ChevronLeft className="w-4 h-4 shrink-0 text-slate-500" />
-              <span className="whitespace-nowrap">Collapse</span>
-            </>
-          ) : (
-            <ChevronRight className={cn("shrink-0 text-slate-500", "w-5 h-5")} />
-          )}
         </button>
       </div>
     </aside>

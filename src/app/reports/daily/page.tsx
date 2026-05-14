@@ -91,18 +91,18 @@ function getTop3Ties(data: any[], accessor: (m: any) => number) {
 
 // ── Leaderboard Card ──
 function LeaderboardCard({ 
-  title, subtitle, icon, data, accessor, format, colorClass, borderClass 
+  title, subtitle, icon, data, accessor, format, colorClass 
 }: { 
   title: string; subtitle?: string; icon: React.ReactNode; data: any[]; 
   accessor: (m: any) => number; format: (v: number) => string;
-  colorClass: string; borderClass: string; 
+  colorClass: string; 
 }) {
   const topGroups = getTop3Ties(data, accessor)
   if (topGroups.length === 0) return null
   const medals = ["🥇", "🥈", "🥉"]
   
   return (
-    <Card className={`bg-white border border-slate-200 shadow-sm ${borderClass}`}>
+    <Card className="bg-white border border-slate-200 shadow-sm">
       <CardContent className="p-3">
         <div>
           <p className={`text-xs font-semibold ${colorClass} flex items-center gap-1.5`}>
@@ -501,7 +501,7 @@ export default function DailyReport() {
           accessor={(m) => m.items || 0}
           format={(v) => `${v} items`}
           colorClass="text-amber-400"
-          borderClass="border-amber-500/30"
+
         />
         <LeaderboardCard
           title="Top Premium (Daily)"
@@ -511,7 +511,7 @@ export default function DailyReport() {
           accessor={(m) => Number(m.prem_premium) || 0}
           format={(v) => `$${v.toLocaleString()}`}
           colorClass="text-emerald-400"
-          borderClass="border-emerald-500/30"
+
         />
         <LeaderboardCard
           title="Top Talk Time"
@@ -520,7 +520,7 @@ export default function DailyReport() {
           accessor={(m) => m.talk_time_seconds || 0}
           format={(v) => formatTime(v)}
           colorClass="text-sky-400"
-          borderClass="border-sky-500/30"
+
         />
         <LeaderboardCard
           title="Top Texts"
@@ -529,7 +529,7 @@ export default function DailyReport() {
           accessor={(m) => m.texts || 0}
           format={(v) => `${v.toLocaleString()}`}
           colorClass="text-fuchsia-400"
-          borderClass="border-fuchsia-500/30"
+
         />
         <LeaderboardCard
           title="Items MTD"
@@ -539,7 +539,7 @@ export default function DailyReport() {
           accessor={(m) => m.items_mtd || 0}
           format={(v) => `${v} items`}
           colorClass="text-amber-400"
-          borderClass="border-amber-500/30"
+
         />
         <LeaderboardCard
           title="Premium MTD"
@@ -549,7 +549,7 @@ export default function DailyReport() {
           accessor={(m) => m.premium_mtd || 0}
           format={(v) => `$${v.toLocaleString()}`}
           colorClass="text-emerald-400"
-          borderClass="border-emerald-500/30"
+
         />
       </div>
 
