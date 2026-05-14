@@ -519,8 +519,8 @@ export default function QuotesPage() {
                       boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
                       fontSize: "12px",
                     }}
-                    formatter={(value: number, name: string) => {
-                      if (name === "Close Rate") return [`${value.toFixed(1)}%`, name]
+                    formatter={(value: any, name: any) => {
+                      if (name === "Close Rate" && typeof value === "number") return [`${value.toFixed(1)}%`, name]
                       if (name === "_bizDay") return [null, null]
                       return [value, name]
                     }}
@@ -528,11 +528,6 @@ export default function QuotesPage() {
                   />
                   <Legend
                     wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
-                    payload={[
-                      { value: "Quotes", type: "line", color: "#3b82f6" },
-                      { value: "NB Policies", type: "line", color: "#10b981" },
-                      { value: "Close Rate", type: "line", color: "#f59e0b" },
-                    ]}
                   />
 
                   {/* Full-height bands for business days (Mon-Fri only) */}
