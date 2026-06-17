@@ -97,7 +97,7 @@ export function Sidebar() {
       
       const { data } = await supabase
         .from('agents')
-        .select('id, name, presence, status_message')
+        .select('id, name, presence, status_message, role')
         .eq('auth_user_id', user.id)
         .single()
       
@@ -233,7 +233,12 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 px-2 space-y-1 mt-4">
-        {navItems.map((item) => {
+        {navItems.filter(item => {
+          if (item.href === '/admin' && currentAgent?.role !== 'admin') {
+            return false
+          }
+          return true
+        }).map((item) => {
           const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
           return (
             <Link
