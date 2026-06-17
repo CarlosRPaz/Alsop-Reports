@@ -119,10 +119,12 @@ export async function reassignFileDate(fileId: string, newDate: string) {
     // 3. Fetch all daily_metrics rows for the old date with relevant columns
     const selectFields = ["agent_id", ...columns].join(", ");
 
-    const { data: oldRows, error: oldRowsError } = await supabase
+    const { data: oldRowsResult, error: oldRowsError } = await supabase
       .from("daily_metrics")
       .select(selectFields)
       .eq("report_date", oldDate);
+
+    const oldRows = oldRowsResult as any[] | null;
 
     if (oldRowsError) {
       return { success: false, error: oldRowsError.message };
@@ -151,12 +153,14 @@ export async function reassignFileDate(fileId: string, newDate: string) {
       const agentId = row.agent_id;
 
       // Fetch existing row for the new date (if any)
-      const { data: existingNewRow, error: fetchNewErr } = await supabase
+      const { data: existingNewRowResult, error: fetchNewErr } = await supabase
         .from("daily_metrics")
         .select(selectFields)
         .eq("report_date", newDate)
         .eq("agent_id", agentId)
         .maybeSingle();
+
+      const existingNewRow = existingNewRowResult as any;
 
       if (fetchNewErr) {
         console.error(
