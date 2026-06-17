@@ -10,8 +10,32 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const SUPABASE_URL = 'https://xejmpdfqaghamemjrhxa.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhlam1wZGZxYWdoYW1lbWpyaHhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0NTkxMTUsImV4cCI6MjA5MjAzNTExNX0.0m_8BHyk-2dVZUjCme-yDXwrpswhpBi8gFZVTdIyWOc';
+// Load environment variables from .env.local
+try {
+  const envPath = join(__dirname, '.env.local')
+  const envContent = readFileSync(envPath, 'utf-8')
+  envContent.split(/\r?\n/).forEach(line => {
+    const trimmed = line.trim()
+    if (trimmed && !trimmed.startsWith('#')) {
+      const idx = trimmed.indexOf('=')
+      if (idx !== -1) {
+        const key = trimmed.substring(0, idx).trim()
+        const val = trimmed.substring(idx + 1).trim()
+        process.env[key] = val
+      }
+    }
+  })
+} catch (e) {
+  // Ignore missing file
+}
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error('Error: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set in your environment or .env.local');
+  process.exit(1);
+}
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
