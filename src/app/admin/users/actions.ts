@@ -233,3 +233,19 @@ export async function revokeAccess(agentId: string): Promise<InviteResult> {
 
   return { success: true, message: `Login access for ${agent.name} has been revoked.` }
 }
+
+/**
+ * Update a user's role (admin action).
+ */
+export async function updateUserRole(agentId: string, role: string): Promise<InviteResult> {
+  const supabase = createSupabaseAdmin()
+  const { error } = await supabase
+    .from("agents")
+    .update({ role })
+    .eq("id", agentId)
+
+  if (error) {
+    return { success: false, message: `Failed to update role: ${error.message}` }
+  }
+  return { success: true, message: `Role updated successfully to ${role}.` }
+}

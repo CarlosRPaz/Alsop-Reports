@@ -72,12 +72,56 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // -----------------------------------------------------------------------
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      hydrateAgent(stored).finally(() => setIsLoading(false))
-    } else {
-      setIsLoading(false)
+    async function init() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          // 1. Try to find agent by matching auth_user_id
+          const { data: agent } = await supabase
+            .from('agents')
+            .select('id')
+            .eq('auth_user_id', user.id)
+            .single()
+
+          if (agent) {
+            localStorage.setItem(STORAGE_KEY, agent.id)
+            await hydrateAgent(agent.id)
+            return
+          }
+
+          // 2. Fallback: try finding by email if auth_user_id is not linked yet
+          if (user.email) {
+            const { data: agentByEmail } = await supabase
+              .from('agents')
+              .select('id')
+              .eq('email', user.email.trim().toLowerCase())
+              .single()
+
+            if (agentByEmail) {
+              // Auto-link the auth_user_id
+              await supabase
+                .from('agents')
+                .update({ auth_user_id: user.id })
+                .eq('id', agentByEmail.id)
+
+              localStorage.setItem(STORAGE_KEY, agentByEmail.id)
+              await hydrateAgent(agentByEmail.id)
+              return
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[chatContext] Failed to auto-resolve agent from session:', err)
+      }
+
+      // 3. Fallback to localStorage for legacy local development
+      const stored = localStorage.getItem(STORAGE_KEY)
+      if (stored) {
+        await hydrateAgent(stored)
+      }
     }
+
+    init().finally(() => setIsLoading(false))
 
     const handleAgentUpdate = () => {
       const storedId = localStorage.getItem(STORAGE_KEY)
@@ -93,7 +137,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         unsubscribeChannel(globalChannelRef.current)
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // -----------------------------------------------------------------------

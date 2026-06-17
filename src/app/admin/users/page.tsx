@@ -17,6 +17,7 @@ import {
   inviteNewUser,
   resetUserPassword,
   revokeAccess,
+  updateUserRole,
   type UnlinkedAgent,
 } from "./actions"
 
@@ -96,6 +97,16 @@ export default function UserManagementPage() {
     const result = await revokeAccess(agentId)
     setFeedback({ type: result.success ? "success" : "error", message: result.message })
     if (result.success) await fetchData()
+  }
+
+  const handleToggleRole = async (agentId: string, currentRole: string | null, name: string) => {
+    const newRole = currentRole === "admin" ? "agent" : "admin"
+    if (!confirm(`Are you sure you want to change ${name}'s role to ${newRole}?`)) return
+    setLoading(true)
+    const result = await updateUserRole(agentId, newRole)
+    setFeedback({ type: result.success ? "success" : "error", message: result.message })
+    if (result.success) await fetchData()
+    setLoading(false)
   }
 
   const filteredLinked = linkedAgents.filter(a =>
@@ -373,6 +384,17 @@ export default function UserManagementPage() {
                       </div>
                     ) : (
                       <>
+                        <button
+                          onClick={() => handleToggleRole(agent.id, agent.role, agent.name)}
+                          className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                            agent.role === "admin"
+                              ? "text-amber-600 hover:bg-amber-50"
+                              : "text-slate-500 hover:bg-slate-100"
+                          }`}
+                          title={agent.role === "admin" ? "Demote to Agent" : "Promote to Admin"}
+                        >
+                          <Shield className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           onClick={() => setResetAgentId(agent.id)}
                           className="px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 rounded-md transition-colors"
