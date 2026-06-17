@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { saveWeeklyManualData } from "@/app/reports/weekly/actions"
 import { Button } from "@/components/ui/Button"
-import { AlertCircle, X, Save, RotateCcw } from "lucide-react"
+import { AlertCircle, X, Save, RotateCcw, Sparkles, Camera } from "lucide-react"
 
 interface WeeklyManualModalProps {
   isOpen: boolean;
@@ -12,7 +12,16 @@ interface WeeklyManualModalProps {
   weekLabel: string;
   agents: any[];
   onSuccess: () => void;
+  autoSums?: Record<string, ManualRow>;
+  manualSubmitted: boolean;
+  eagentComplete?: boolean;
 }
+
+// Fields that are snapshots and should NOT be auto-summed (but still pre-populated from latest snapshot)
+const SNAPSHOT_FIELDS: (keyof ManualRow)[] = ["unique_leads", "rico_hot_pipeline", "past_due_todos", "rico_past_due_tasks"]
+// Fields not available in daily data
+const MANUAL_ONLY_FIELDS: (keyof ManualRow)[] = ["saved"]
+const AUTO_FIELDS: (keyof ManualRow)[] = ["pivot", "dismissed_todos"]
 
 // ── Compact Stepper Component ──
 function Stepper({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -72,16 +81,16 @@ const EMPTY_ROW: ManualRow = {
 }
 
 const FIELD_CONFIG = [
-  { key: "unique_leads" as const, label: "Unique Leads", short: "Leads", color: "text-blue-600" },
-  { key: "rico_hot_pipeline" as const, label: "Rico Hot", short: "Hot", color: "text-orange-600" },
-  { key: "pivot" as const, label: "#PIVOT", short: "Pivot", color: "text-cyan-600" },
-  { key: "saved" as const, label: "#SAVED", short: "Saved", color: "text-emerald-600" },
-  { key: "dismissed_todos" as const, label: "Dismissed", short: "Dism", color: "text-violet-600" },
-  { key: "past_due_todos" as const, label: "Past Due", short: "PD", color: "text-rose-600" },
-  { key: "rico_past_due_tasks" as const, label: "Rico PD", short: "RPD", color: "text-amber-600" },
+  { key: "unique_leads" as const, label: "Unique Leads", short: "Leads", color: "text-blue-600", auto: false },
+  { key: "rico_hot_pipeline" as const, label: "Rico Hot", short: "Hot", color: "text-orange-600", auto: false },
+  { key: "pivot" as const, label: "#PIVOT", short: "Pivot", color: "text-cyan-600", auto: true },
+  { key: "saved" as const, label: "#SAVED", short: "Saved", color: "text-emerald-600", auto: false },
+  { key: "dismissed_todos" as const, label: "Dismissed", short: "Dism", color: "text-violet-600", auto: true },
+  { key: "past_due_todos" as const, label: "Past Due", short: "PD", color: "text-rose-600", auto: false },
+  { key: "rico_past_due_tasks" as const, label: "Rico PD", short: "RPD", color: "text-amber-600", auto: false },
 ]
 
-export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, agents, onSuccess }: WeeklyManualModalProps) {
+export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, agents, onSuccess, autoSums, manualSubmitted, eagentComplete = false }: WeeklyManualModalProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState<Record<string, ManualRow>>({})
@@ -90,12 +99,12 @@ export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, ag
     (a.agents?.name || "").localeCompare(b.agents?.name || "")
   )
 
-  // Initialize form data when opened
+  // Initialize form data when opened — pre-populate from auto-sums if no manual data exists
   useEffect(() => {
     if (isOpen) {
       const initial: Record<string, ManualRow> = {}
       agents.forEach(a => {
-        initial[a.agent_id] = {
+        const existingManual = {
           unique_leads: a.unique_leads || 0,
           rico_hot_pipeline: a.rico_hot_pipeline || 0,
           pivot: a.pivot || 0,
@@ -104,11 +113,28 @@ export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, ag
           past_due_todos: a.w_past_due_todos || 0,
           rico_past_due_tasks: a.rico_past_due_tasks || 0,
         }
+        const agentAutoSums = autoSums?.[a.agent_id]
+
+        if (manualSubmitted) {
+          // If already submitted, use existing saved data
+          initial[a.agent_id] = existingManual
+        } else {
+          // Pre-populate ONLY the auto-summed fields, snapshots and manual fields are 0
+          initial[a.agent_id] = {
+            unique_leads: 0,
+            rico_hot_pipeline: 0,
+            pivot: agentAutoSums?.pivot || 0,
+            saved: 0,
+            dismissed_todos: agentAutoSums?.dismissed_todos || 0,
+            past_due_todos: 0,
+            rico_past_due_tasks: 0,
+          }
+        }
       })
       setFormData(initial)
       setError(null)
     }
-  }, [isOpen, agents])
+  }, [isOpen, agents, autoSums, manualSubmitted])
 
   const updateField = useCallback((agentId: string, field: keyof ManualRow, value: number) => {
     setFormData(prev => ({
@@ -161,13 +187,13 @@ export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, ag
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-6xl flex flex-col max-h-[90vh]">
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
           <div>
             <h2 className="text-base font-bold text-slate-900">Weekly Manual Entry</h2>
-            <p className="text-xs text-slate-500">{weekLabel} • Use steppers or type directly</p>
+            <p className="text-xs text-slate-500">{weekLabel} • Auto-populated from daily data — review & adjust</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -210,7 +236,31 @@ export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, ag
                 <th className="py-1.5 px-2 text-[9px] uppercase tracking-wider text-slate-500 font-semibold whitespace-nowrap">Agent</th>
                 {FIELD_CONFIG.map(f => (
                   <th key={f.key} className={`py-1.5 px-1 text-[9px] uppercase tracking-wider ${f.color} font-semibold text-center whitespace-nowrap`}>
-                    {f.label}
+                    <span className="flex flex-col items-center justify-center gap-0.5">
+                      <span className="flex items-center justify-center gap-1">
+                        {f.label}
+                        {f.auto ? (
+                          <span title="Auto-populated from daily data"><Sparkles className="w-2.5 h-2.5 text-amber-400" /></span>
+                        ) : SNAPSHOT_FIELDS.includes(f.key) ? (
+                          <span title="Snapshot — manual entry"><Camera className="w-2.5 h-2.5 text-slate-400" /></span>
+                        ) : null}
+                      </span>
+                      {f.auto ? (
+                        eagentComplete ? (
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded px-1 text-[8px] font-bold select-none mt-0.5" title="All business days have synced eAgent data">
+                            ✓ Summed
+                          </span>
+                        ) : (
+                          <span className="bg-amber-50 text-amber-700 border border-amber-200 rounded px-1 text-[8px] font-bold select-none mt-0.5 animate-pulse" title="One or more business days are missing synced eAgent data">
+                            ⚠️ Gaps
+                          </span>
+                        )
+                      ) : (
+                        <span className="bg-slate-50 text-slate-500 border border-slate-200 rounded px-1 text-[8px] font-bold select-none mt-0.5" title="Requires manual entry">
+                          Manual
+                        </span>
+                      )}
+                    </span>
                   </th>
                 ))}
               </tr>

@@ -1,11 +1,10 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
-import { getWeeklyData, getWeekCoverage } from "./actions"
+import { getWeeklyData, getWeekCoverage, getWeeklyAutoSums } from "./actions"
 import { runDataSyncPipeline } from "@/app/admin/sync/actions"
 import { getWeekStart, getWeekEnd, formatWeekRangeHeader, getPreviousWeekStart, getNextWeekStart, toDateStr, formatWeekRange } from "@/lib/weekUtils"
 import { formatValue } from "@/lib/formatters"
-import { getBusinessDaysInMonth, getElapsedBusinessDays, calcPacing, toHolidaySet } from "@/lib/businessDays"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
@@ -13,8 +12,9 @@ import { Badge } from "@/components/ui/Badge"
 import { DataTable, ColumnDef } from "@/components/ui/DataTable"
 import { FilterBar, FilterState } from "@/components/ui/FilterBar"
 import { WeeklyManualModal } from "@/components/reports/WeeklyManualModal"
+import AgencyMTDPacing from "@/components/ui/AgencyMTDPacing"
 
-import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, DollarSign, Package, TrendingUp, Trophy, Edit, RefreshCw, Loader2, Calendar, Database, Phone, MessageSquare, FileText, ShieldCheck, Zap } from "lucide-react"
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, DollarSign, Package, TrendingUp, Trophy, Edit, RefreshCw, Loader2, Calendar, Database, Phone, MessageSquare, FileText, ShieldCheck, Zap, Megaphone } from "lucide-react"
 import Link from "next/link"
 
 // ── Data Source Labels ──
@@ -83,50 +83,64 @@ function getTop3Ties(data: any[], accessor: (m: any) => number) {
 }
 
 function LeaderboardCard({ 
-  title, subtitle, icon, data, accessor, format, colorClass, borderClass 
+  title, subtitle, icon, data, accessor, format, colorClass, className 
 }: { 
   title: string; subtitle?: string; icon: React.ReactNode; data: any[]; 
   accessor: (m: any) => number; format: (v: number) => string;
-  colorClass: string; borderClass: string; 
+  colorClass: string; className?: string;
 }) {
   const topGroups = getTop3Ties(data, accessor)
   if (topGroups.length === 0) return null
   const medals = ["🥇", "🥈", "🥉"]
   
   return (
-    <Card className={`bg-white border border-slate-200 shadow-sm ${borderClass}`}>
-      <CardContent className="p-3">
-        <div>
-          <p className={`text-xs font-semibold ${colorClass} flex items-center gap-1.5`}>
-            {icon} {title}
-          </p>
-          {subtitle && <p className="text-[9px] text-slate-400 mb-2 leading-tight mt-0.5">{subtitle}</p>}
-          {!subtitle && <div className="mb-2" />}
-        </div>
-        <div className="space-y-2">
-          {topGroups.map((group, i) => (
-            <div key={i} className="flex items-start justify-between gap-2">
-              <span className="flex items-start gap-1.5 text-sm">
-                <span className="text-base leading-none shrink-0 mt-[1px]">{medals[i]}</span>
-                <span className="text-slate-700 font-medium leading-tight text-sm flex flex-wrap gap-x-1 mt-0.5">
-                  {group.agents.map((m, idx) => (
-                    <span key={m.agent_id}>
-                      <Link href={`/reports/agent/${m.agent_id}`} className="hover:text-blue-600 transition-colors">
-                        {m.agents?.name}
-                      </Link>
-                      {idx < group.agents.length - 1 ? <span className="text-slate-400">,</span> : ""}
-                    </span>
-                  ))}
-                </span>
-              </span>
-              <span className={`text-base font-bold font-mono ${colorClass} shrink-0`}>
-                {format(group.score)}
-              </span>
+    <div className={`${className || ""} flex flex-col`}>
+      <Card className="bg-white border border-slate-200 shadow-sm flex-1 flex flex-col">
+        <CardContent className="p-3 flex-1 flex flex-col">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <span className={colorClass}>{icon}</span> <span className="truncate">{title}</span>
+              </p>
+              {subtitle && <p className="text-[9px] text-slate-400 leading-tight mt-0.5">{subtitle}</p>}
             </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+            <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-wider shrink-0 select-none border ${
+              title.includes("MTD") 
+                ? "bg-indigo-50 text-indigo-700 border-indigo-100" 
+                : "bg-slate-50 text-slate-600 border-slate-200"
+            }`}>
+              {title.includes("MTD") ? "MTD" : "Weekly"}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {topGroups.map((group, i) => {
+              const valueColors = ["text-emerald-600", "text-blue-600", "text-blue-400"];
+              const valueColor = valueColors[i] || "text-slate-500";
+              return (
+                <div key={i} className="flex items-start justify-between gap-2">
+                  <span className="flex items-start gap-1.5 text-sm">
+                    <span className="text-base leading-none shrink-0 mt-[1px]">{medals[i]}</span>
+                    <span className="text-slate-900 font-medium leading-tight text-sm flex flex-wrap gap-x-1 mt-0.5">
+                      {group.agents.map((m, idx) => (
+                        <span key={m.agent_id}>
+                          <Link href={`/reports/agent/${m.agent_id}`} className="hover:text-blue-600 transition-colors">
+                            {m.agents?.name}
+                          </Link>
+                          {idx < group.agents.length - 1 ? <span className="text-slate-400">,</span> : ""}
+                        </span>
+                      ))}
+                    </span>
+                  </span>
+                  <span className={`text-base font-bold font-mono ${valueColor} shrink-0`}>
+                    {format(group.score)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 
@@ -151,6 +165,10 @@ export default function WeeklyReport() {
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [holidays, setHolidays] = useState<{ holiday_date: string }[]>([])
+  const [autoSums, setAutoSums] = useState<Record<string, any>>({})
+  const [talkingPointsExpanded, setTalkingPointsExpanded] = useState(true)
+  const [agencyItemsMTD, setAgencyItemsMTD] = useState(0)
+  const [agencyOfficeBreakdown, setAgencyOfficeBreakdown] = useState<Record<string, number>>({})
 
   // ── Coverage panel state ──
   const [coverage, setCoverage] = useState<any[]>([])
@@ -164,36 +182,79 @@ export default function WeeklyReport() {
 
   const fetchData = async () => {
     setLoading(true)
-    const [result, coverageResult] = await Promise.all([
+    const [result, coverageResult, autoSumsResult] = await Promise.all([
       getWeeklyData(weekStartStr, weekEndStr),
       getWeekCoverage(weekStartStr, weekEndStr),
+      getWeeklyAutoSums(weekStartStr, weekEndStr),
     ])
     if (result.success && result.data) {
       setMetrics(result.data.metrics)
       setGoals(result.data.goals)
       setManualSubmitted(result.data.manualSubmitted)
       setHolidays(result.data.holidays || [])
+      setAgencyItemsMTD(result.data.agencyItemsMTD || 0)
+      setAgencyOfficeBreakdown(result.data.agencyOfficeBreakdown || {})
     } else {
       setMetrics([])
     }
     if (coverageResult.success && coverageResult.data) {
       setCoverage(coverageResult.data)
     }
+    if (autoSumsResult.success && autoSumsResult.data) {
+      setAutoSums(autoSumsResult.data)
+    }
     setLoading(false)
   }
 
   useEffect(() => { fetchData() }, [weekStartStr, weekEndStr])
 
-  // Count total missing sources across all days
+  // Calculate daily eAgent completeness
+  const isEagentComplete = useMemo(() => {
+    if (!coverage.length) return false
+    const todayStr = new Date().toISOString().split("T")[0]
+    const bizDays = coverage.filter((d: any) => {
+      const dow = new Date(d.date + "T12:00:00").getDay()
+      return dow >= 1 && dow <= 5 && d.date < todayStr
+    })
+    if (!bizDays.length) return false
+    return bizDays.every((d: any) => d.sources.eagent)
+  }, [coverage])
+
+  // Count total missing file-based sources across past business days only
   const totalGaps = useMemo(() => {
     if (!coverage.length) return 0
+    const todayStr = new Date().toISOString().split("T")[0]
+    const FILE_SOURCES = ["calls", "texts", "quotes", "items", "premium"]
     let gaps = 0
     for (const day of coverage) {
-      for (const key of SOURCE_KEYS) {
+      const dow = new Date(day.date + "T12:00:00").getDay()
+      if (dow < 1 || dow > 5 || day.date >= todayStr) continue // skip weekends, today, future
+      for (const key of FILE_SOURCES) {
         if (!day.sources[key]) gaps++
       }
     }
     return gaps
+  }, [coverage])
+
+  // Week-level completeness summary (business days = Mon–Fri, only past days)
+  const weekSummary = useMemo(() => {
+    if (!coverage.length) return { totalBizDays: 0, completeDays: 0, gapDays: 0, gapDayNames: [] as string[] }
+    const todayStr = new Date().toISOString().split("T")[0]
+    // Only check past business days (before today — today's data isn't finalized yet)
+    const bizDays = coverage.filter((d: any) => {
+      const dow = new Date(d.date + "T12:00:00").getDay()
+      return dow >= 1 && dow <= 5 && d.date < todayStr // Mon–Fri, past only
+    })
+    // Check file-based sources only (eAgent is manual entry, not a data gap)
+    const FILE_SOURCES = ["calls", "texts", "quotes", "items", "premium"] as const
+    const complete = bizDays.filter((d: any) => FILE_SOURCES.every(k => d.sources[k]))
+    const withGaps = bizDays.filter((d: any) => !FILE_SOURCES.every(k => d.sources[k]))
+    return {
+      totalBizDays: bizDays.length,
+      completeDays: complete.length,
+      gapDays: withGaps.length,
+      gapDayNames: withGaps.map((d: any) => d.dayName as string),
+    }
   }, [coverage])
 
   // Handle per-day sync
@@ -243,9 +304,6 @@ export default function WeeklyReport() {
 
   return (
     <div className="p-4 md:p-6 max-w-[1800px] mx-auto space-y-4">
-      <div className="bg-amber-50 text-amber-800 p-3 text-center text-sm font-medium rounded-md shadow-sm border border-amber-200 shrink-0 flex items-center justify-center gap-2 mb-2">
-        <span className="text-amber-500">🚧</span> Under Construction; message Charlie with requests
-      </div>
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900">Weekly Production</h1>
@@ -314,6 +372,36 @@ export default function WeeklyReport() {
           </Button>
         </div>
       </header>
+
+      {/* ── Week Completeness Summary Banner ── */}
+      {!loading && coverage.length > 0 && (
+        weekSummary.gapDays > 0 ? (
+          <div className="flex items-center justify-between gap-4 p-3 bg-amber-50 border border-amber-200 rounded-lg shadow-sm">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-amber-900">
+                  ⚠️ {weekSummary.gapDays} of {weekSummary.totalBizDays} business day{weekSummary.totalBizDays !== 1 ? "s" : ""} ha{weekSummary.gapDays === 1 ? "s" : "ve"} gaps
+                </p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Days with missing data: {weekSummary.gapDayNames.join(", ")}. Open the coverage panel or upload files to resolve.
+                </p>
+              </div>
+            </div>
+            <Link
+              href={`/admin/sync`}
+              className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-md border border-amber-300 bg-white text-amber-700 hover:bg-amber-100 transition-colors shadow-sm shrink-0"
+            >
+              Upload missing files →
+            </Link>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 p-2.5 px-4 bg-emerald-50 border border-emerald-200 rounded-lg shadow-sm">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <span className="text-sm font-medium text-emerald-700">✅ Week Complete — All {weekSummary.totalBizDays} business days have full data coverage</span>
+          </div>
+        )
+      )}
 
       {/* ── Data Coverage Panel (collapsible) ── */}
       {coverageOpen && (
@@ -433,174 +521,64 @@ export default function WeeklyReport() {
 
       <FilterBar onFilterChange={setFilters} availableAgents={availableAgents} availableMeetings={availableMeetings} />
 
-      {/* ── Elite Agency-Wide MTD Pacing Tracker ── */}
-      {(() => {
-        const AGENCY_GOAL = 500;
-        const totalItemsMTD = metrics.reduce((sum: number, m: any) => sum + (m.items_mtd || 0), 0);
-        const remaining = Math.max(0, AGENCY_GOAL - totalItemsMTD);
-        
-        const officeMap: Record<string, number> = {};
-        metrics.forEach((m: any) => {
-          const office = m.agents?.office || "Other";
-          officeMap[office] = (officeMap[office] || 0) + (m.items_mtd || 0);
-        });
-        const offices = Object.entries(officeMap).sort((a, b) => b[1] - a[1]);
-        const officeColors: Record<string, string> = {
-          MCM: "bg-amber-500", MB: "bg-violet-500", RC: "bg-blue-500",
-          CH: "bg-emerald-500", Other: "bg-slate-500"
-        };
-        const officeTextColors: Record<string, string> = {
-          MCM: "text-amber-400", MB: "text-violet-400", RC: "text-blue-400",
-          CH: "text-emerald-400", Other: "text-slate-400"
-        };
+      {/* ── Dashboard Leaderboards Grid ── */}
+      <div className="grid grid-cols-12 gap-4 mb-6">
+        {/* Section Header: Month-to-Date (MTD) */}
+        <div className="col-span-12 flex items-center gap-3">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Month-to-Date (MTD)</span>
+          <div className="h-[1px] w-full bg-slate-200/60" />
+        </div>
 
-        const scaleMax = Math.max(AGENCY_GOAL, totalItemsMTD);
-        const holidaySet = toHolidaySet(holidays)
-        
-        // Pacing logic (same as daily)
-        const now = new Date()
-        const currentYear = weekEnd.getFullYear()
-        const currentMonth = weekEnd.getMonth() + 1
-        const totalBizDays = getBusinessDaysInMonth(currentYear, currentMonth, holidaySet)
-        
-        let elapsed = 0
-        if (now.getDate() > 1) {
-          const yesterday = new Date(now)
-          yesterday.setDate(now.getDate() - 1)
-          elapsed = getElapsedBusinessDays(currentYear, currentMonth, holidaySet, yesterday)
-        }
-        
-        const remainingBizDays = totalBizDays - elapsed
-        const pacing = calcPacing(totalItemsMTD, elapsed, remainingBizDays, AGENCY_GOAL)
+        {/* Row 1, Col 1-2 (Desktop): Items MTD */}
+        <LeaderboardCard
+          title="Items MTD"
+          subtitle="Auto items only"
+          icon={<TrendingUp className="w-3.5 h-3.5" />}
+          data={metrics}
+          accessor={(m) => m.items_mtd || 0}
+          format={(v) => `${v} items`}
+          colorClass="text-amber-400"
+          className="col-span-12 md:col-span-6 lg:col-span-2 order-1 lg:order-none"
+        />
 
-        const statusColor = pacing.status === "ahead"
-          ? "text-emerald-600 bg-emerald-50 border-emerald-200"
-          : pacing.status === "close"
-          ? "text-amber-600 bg-amber-50 border-amber-200"
-          : "text-red-600 bg-red-50 border-red-200"
-        const statusIcon = pacing.status === "ahead" ? "🟢" : pacing.status === "close" ? "🟡" : "🔴"
-        const statusLabel = pacing.status === "ahead" ? "On Track" : pacing.status === "close" ? "Close" : "Behind Pace"
+        {/* Row 1 & 2, Col 3-12 (Desktop): Agency MTD Pacing */}
+        <AgencyMTDPacing
+          agencyItemsMTD={agencyItemsMTD}
+          agencyOfficeBreakdown={agencyOfficeBreakdown}
+          holidays={holidays}
+        />
 
-        return (
-          <Card className="bg-white border border-slate-200 shadow-sm overflow-hidden relative mb-6">
-            <CardContent className="p-5 relative z-10">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6">
-                <div>
-                  <div className="flex items-center gap-3 mb-1">
-                    <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2 tracking-tight">
-                      <TrendingUp className="w-4 h-4 text-blue-600" /> Agency MTD Pacing
-                    </h2>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>
-                      {statusIcon} {statusLabel}
-                    </span>
-                  </div>
-                  <p className="text-[13px] text-slate-500 flex items-center gap-2">
-                    Items vs {AGENCY_GOAL} goal
-                    <span className="text-slate-300">•</span>
-                    <span className="text-slate-600 font-medium tracking-tight">
-                      📅 {elapsed} of {totalBizDays} biz days <span className="text-slate-400 font-normal">({remainingBizDays} left)</span>
-                    </span>
-                  </p>
-                </div>
-                <div className="text-left md:text-right mt-3 md:mt-0">
-                  <div className="flex items-baseline gap-1.5 justify-start md:justify-end leading-none">
-                    <span className="text-3xl font-black text-slate-900 font-mono tracking-tighter">{totalItemsMTD}</span>
-                    <span className="text-lg text-slate-400 font-mono font-medium">/ {AGENCY_GOAL}</span>
-                  </div>
-                  {remaining > 0 ? (
-                    <p className="text-[11px] font-medium text-amber-500 mt-1.5 tracking-wide uppercase">{remaining} needed</p>
-                  ) : (
-                    <p className="text-[11px] font-bold text-emerald-500 mt-1.5 tracking-wide uppercase">Goal exceeded by {totalItemsMTD - AGENCY_GOAL}! 🚀</p>
-                  )}
-                </div>
-              </div>
+        {/* Row 2, Col 1-2 (Desktop): Premium MTD */}
+        <LeaderboardCard
+          title="Premium MTD"
+          subtitle="Total premium"
+          icon={<Trophy className="w-3.5 h-3.5" />}
+          data={metrics}
+          accessor={(m) => m.premium_mtd || 0}
+          format={(v) => `$${v.toLocaleString()}`}
+          colorClass="text-emerald-600"
+          className="col-span-12 md:col-span-6 lg:col-span-2 order-2 lg:order-none"
+        />
 
-              {/* The Elite Stacked Bar */}
-              <div className="relative pt-4 pb-2">
-                <div 
-                  className="absolute top-0 bottom-0 border-l-2 border-dashed border-slate-300 z-10 transition-all duration-1000" 
-                  style={{ left: `${(AGENCY_GOAL / scaleMax) * 100}%` }}
-                >
-                  <div className="absolute -top-5 -translate-x-1/2 bg-white border border-slate-200 text-slate-600 shadow-sm text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest whitespace-nowrap">
-                    Goal
-                  </div>
-                </div>
+        {/* Section Header: Weekly Leaders */}
+        <div className="col-span-12 mt-4 -mb-2 flex items-center gap-3 order-4 lg:order-none">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Weekly Leaders</span>
+          <div className="h-[1px] w-full bg-slate-200/60" />
+        </div>
 
-                <div className="w-full h-6 bg-slate-100 rounded-md overflow-hidden flex ring-1 ring-inset ring-slate-200 shadow-inner">
-                  {offices.map(([office, count]) => {
-                    const w = (count / scaleMax) * 100;
-                    if (w === 0) return null;
-                    return (
-                      <div 
-                        key={office}
-                        className={`h-full ${officeColors[office]} border-r border-white/20 transition-all duration-1000 relative group`}
-                        style={{ width: `${w}%` }}
-                      >
-                        <div className="opacity-0 group-hover:opacity-100 absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-0.5 rounded shadow-md whitespace-nowrap transition-opacity z-20 pointer-events-none">
-                          {office}: {count}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {remaining > 0 && (
-                    <div 
-                      className="h-full bg-[repeating-linear-gradient(45deg,transparent,transparent_8px,rgba(0,0,0,0.03)_8px,rgba(0,0,0,0.03)_16px)] transition-all duration-1000"
-                      style={{ width: `${(remaining / scaleMax) * 100}%` }}
-                    />
-                  )}
-                </div>
-              </div>
+        {/* Row 3 (Desktop): Weekly Leaders */}
+        {/* Top Premium (Week) — aligned exactly under Premium MTD */}
+        <LeaderboardCard
+          title="Top Premium (Week)"
+          icon={<DollarSign className="w-3.5 h-3.5" />}
+          data={metrics}
+          accessor={(m) => m.prem_premium || 0}
+          format={(v) => `$${v.toLocaleString()}`}
+          colorClass="text-emerald-600"
+          className="col-span-12 md:col-span-6 lg:col-span-2 order-5 lg:order-none"
+        />
 
-              {/* Legend & Stats Row */}
-              <div className="mt-5 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  {offices.map(([office, count]) => {
-                    const offPct = totalItemsMTD > 0 ? Math.round((count / totalItemsMTD) * 100) : 0;
-                    return (
-                      <div key={office} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded px-3 py-1.5">
-                        <div className={`w-2.5 h-2.5 rounded-full ${officeColors[office]} ring-1 ring-black/5`} />
-                        <span className={`text-[11px] font-bold ${officeTextColors[office]}`}>{office}</span>
-                        <span className="text-sm font-mono font-bold text-slate-700 ml-0.5">{count}</span>
-                        <span className="text-[10px] font-sans text-slate-400 hidden sm:inline">({offPct}%)</span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Updated Labels for context */}
-                <div className="flex items-center gap-3">
-                  <div className="bg-slate-50 border border-slate-200/60 rounded px-4 py-2.5 text-center min-w-[110px]">
-                    <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Current Rate</p>
-                    <p className="text-lg font-black font-mono text-slate-900 leading-none">{pacing.dailyRate.toFixed(1)}</p>
-                    <p className="text-[9px] text-slate-400 font-medium mt-1.5">items / day</p>
-                  </div>
-                  <div className="bg-slate-50 border border-slate-200/60 rounded px-4 py-2.5 text-center min-w-[110px]">
-                    <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Projected</p>
-                    <p className={`text-lg font-black font-mono leading-none ${
-                      pacing.projectedEOM >= AGENCY_GOAL ? "text-emerald-600" : "text-red-600"
-                    }`}>
-                      ~{pacing.projectedEOM}
-                    </p>
-                    <p className="text-[9px] text-slate-400 font-medium mt-1.5">total items at month end</p>
-                  </div>
-                  <div className="bg-slate-50 border border-slate-200/60 rounded px-4 py-2.5 text-center min-w-[110px]">
-                    <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Required</p>
-                    <p className={`text-lg font-black font-mono leading-none ${
-                      pacing.requiredDaily <= pacing.dailyRate ? "text-emerald-600" : "text-amber-600"
-                    }`}>
-                      {pacing.requiredDaily.toFixed(1)}
-                    </p>
-                    <p className="text-[9px] text-slate-400 font-medium mt-1.5">items / day required</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })()}
-
-      {/* ── Top 3 Leaderboards ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+        {/* Top Items (Week) */}
         <LeaderboardCard
           title="Top Items (Week)"
           icon={<Package className="w-3.5 h-3.5" />}
@@ -608,43 +586,18 @@ export default function WeeklyReport() {
           accessor={(m) => m.items || 0}
           format={(v) => `${v} items`}
           colorClass="text-amber-400"
-          borderClass="border-amber-500/30"
+          className="col-span-12 md:col-span-6 lg:col-span-2 order-6 lg:order-none"
         />
+
+        {/* Top Talk Time (Week) */}
         <LeaderboardCard
-          title="Top Premium (Week)"
-          icon={<DollarSign className="w-3.5 h-3.5" />}
-          data={metrics}
-          accessor={(m) => m.prem_premium || 0}
-          format={(v) => `$${v.toLocaleString()}`}
-          colorClass="text-emerald-400"
-          borderClass="border-emerald-500/30"
-        />
-        <LeaderboardCard
-          title="Top Talk Time"
+          title="Top Talk Time (Week)"
           icon={<Clock className="w-3.5 h-3.5" />}
           data={metrics}
           accessor={(m) => m.talk_time_seconds || 0}
           format={(v) => formatTime(v)}
           colorClass="text-sky-400"
-          borderClass="border-sky-500/30"
-        />
-        <LeaderboardCard
-          title="Items MTD"
-          icon={<TrendingUp className="w-3.5 h-3.5" />}
-          data={metrics}
-          accessor={(m) => m.items_mtd || 0}
-          format={(v) => `${v} items`}
-          colorClass="text-amber-400"
-          borderClass="border-amber-500/30"
-        />
-        <LeaderboardCard
-          title="Premium MTD"
-          icon={<Trophy className="w-3.5 h-3.5" />}
-          data={metrics}
-          accessor={(m) => m.premium_mtd || 0}
-          format={(v) => `$${v.toLocaleString()}`}
-          colorClass="text-emerald-400"
-          borderClass="border-emerald-500/30"
+          className="col-span-12 md:col-span-6 lg:col-span-2 order-7 lg:order-none"
         />
       </div>
 
@@ -690,7 +643,7 @@ export default function WeeklyReport() {
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.rico_hot_pipeline, "", "", null, manualHL)}</td>
 
                     {/* eAgent (manual) */}
-                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("eagent")}`}>{formatValue(item.pivot, "", "", null, manualHL)}</td>
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("eagent")}`}>{formatValue(item.pivot)}</td>
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.saved, "", "", null, manualHL)}</td>
 
                     {/* Production */}
@@ -702,7 +655,7 @@ export default function WeeklyReport() {
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.items_mtd, "", "", null, "gold")}</td>
 
                     {/* Past Due / Dismissed (manual) */}
-                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("eagent")}`}>{formatValue(item.w_dismissed_todos, "", "", null, manualHL)}</td>
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("eagent")}`}>{formatValue(item.w_dismissed_todos)}</td>
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.w_past_due_todos, "", "", null, manualHL)}</td>
                     
                     <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("leads")}`}>{formatValue(item.rico_past_due_tasks, "", "", null, manualHL)}</td>
@@ -714,6 +667,143 @@ export default function WeeklyReport() {
         </CardContent>
       </Card>
 
+      {/* ── Insights: Talking Points ──────────────────────────── */}
+      <div className="grid grid-cols-1 gap-4 mt-6">
+        <Card className="bg-white border border-slate-200 shadow-sm">
+          <CardHeader 
+            onClick={() => setTalkingPointsExpanded(!talkingPointsExpanded)}
+            className="pb-2 flex flex-row items-center justify-between space-y-0 cursor-pointer select-none hover:bg-slate-50/50 transition-colors rounded-t-xl"
+          >
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Megaphone className="w-4 h-4 text-blue-500" />
+              <span className="text-slate-700 font-bold">Weekly Talking Points</span>
+              <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-200">Auto-generated</Badge>
+            </CardTitle>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${talkingPointsExpanded ? "rotate-180" : ""}`} />
+          </CardHeader>
+          {talkingPointsExpanded && (
+            <CardContent className="pt-0">
+              {(() => {
+                const data = filteredMetrics;
+                if (data.length === 0) return <p className="text-sm text-slate-400 italic">No data available.</p>;
+
+                const points: { icon: React.ReactNode; text: string; color: string; isPositive: boolean }[] = [];
+
+                // Top caller
+                const topCaller = [...data].sort((a, b) => (b.outbound || 0) - (a.outbound || 0))[0];
+                if (topCaller?.outbound > 0) {
+                  points.push({
+                    icon: <Phone className="w-3.5 h-3.5" />,
+                    text: `${topCaller.agents?.name} led outbound calls with ${topCaller.outbound.toLocaleString()} this week`,
+                    color: "text-sky-600",
+                    isPositive: true
+                  });
+                }
+
+                // Top premium
+                const topPrem = [...data].sort((a, b) => (Number(b.prem_premium) || 0) - (Number(a.prem_premium) || 0))[0];
+                if (Number(topPrem?.prem_premium) > 0) {
+                  points.push({
+                    icon: <DollarSign className="w-3.5 h-3.5" />,
+                    text: `${topPrem.agents?.name} wrote $${Number(topPrem.prem_premium).toLocaleString()} in premium this week`,
+                    color: "text-emerald-600",
+                    isPositive: true
+                  });
+                }
+
+                // Auto item leader for the week
+                const topItem = [...data].sort((a, b) => (b.items || 0) - (a.items || 0))[0];
+                if (topItem?.items > 0) {
+                  const ties = data.filter(m => (m.items || 0) === topItem.items);
+                  const names = ties.map(m => m.agents?.name).join(" & ");
+                  points.push({
+                    icon: <Package className="w-3.5 h-3.5" />,
+                    text: `${names} led auto items with ${topItem.items} item${topItem.items !== 1 ? "s" : ""} this week`,
+                    color: "text-amber-600",
+                    isPositive: true
+                  });
+                }
+
+                // Total items written
+                const totalItems = data.reduce((sum, m) => sum + (m.items || 0), 0);
+                if (totalItems > 0) {
+                  points.push({
+                    icon: <Package className="w-3.5 h-3.5" />,
+                    text: `Agency wrote ${totalItems} item${totalItems !== 1 ? "s" : ""} in total this week`,
+                    color: "text-violet-600",
+                    isPositive: true
+                  });
+                }
+
+                // Top texter
+                const topTexter = [...data].sort((a, b) => (b.texts || 0) - (a.texts || 0))[0];
+                if (topTexter?.texts > 20) {
+                  points.push({
+                    icon: <MessageSquare className="w-3.5 h-3.5" />,
+                    text: `${topTexter.agents?.name} sent ${topTexter.texts.toLocaleString()} texts this week`,
+                    color: "text-teal-600",
+                    isPositive: true
+                  });
+                }
+
+                // Agents with Quotes Goal (e.g. 15+)
+                const quotesHitters = data.filter(m => (m.quotes || 0) >= 15);
+                if (quotesHitters.length > 0) {
+                  points.push({
+                    icon: <FileText className="w-3.5 h-3.5" />,
+                    text: `${quotesHitters.length} agent${quotesHitters.length > 1 ? "s" : ""} hit the weekly quotes goal (15+)`,
+                    color: "text-rose-600",
+                    isPositive: true
+                  });
+                }
+
+                // Agents with 0 calls (Negative)
+                const zeroCalls = data.filter(m => !m.outbound || m.outbound === 0).length;
+                if (zeroCalls > 0 && zeroCalls < data.length) {
+                  points.push({
+                    icon: <AlertCircle className="w-3.5 h-3.5" />,
+                    text: `${zeroCalls} agent${zeroCalls > 1 ? "s" : ""} had zero outbound calls this week`,
+                    color: "text-amber-600",
+                    isPositive: false
+                  });
+                }
+
+                // Agents with no premium (Negative)
+                const noPremiumAgents = data.filter(m => !m.prem_premium || Number(m.prem_premium) === 0);
+                if (noPremiumAgents.length > 0 && noPremiumAgents.length < data.length) {
+                  const names = noPremiumAgents.map(m => m.agents?.name).join(", ");
+                  points.push({
+                    icon: <AlertCircle className="w-3.5 h-3.5" />,
+                    text: `${noPremiumAgents.length === 1 ? "Agent" : "Agents"} with no premium this week: ${names}`,
+                    color: "text-rose-600",
+                    isPositive: false
+                  });
+                }
+
+                if (points.length === 0) return <p className="text-sm text-slate-400 italic">Not enough data for insights.</p>;
+
+                // Sort positive points before negative points
+                const sortedPoints = [...points].sort((a, b) => {
+                  if (a.isPositive === b.isPositive) return 0;
+                  return a.isPositive ? -1 : 1;
+                });
+
+                return (
+                  <ul className="space-y-2">
+                    {sortedPoints.map((p, i) => (
+                      <li key={i} className={`flex items-start gap-2.5 text-sm ${p.color}`}>
+                        <span className="mt-0.5 shrink-0">{p.icon}</span>
+                        <span className="text-slate-700">{p.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
+            </CardContent>
+          )}
+        </Card>
+      </div>
+
       <WeeklyManualModal 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -721,6 +811,9 @@ export default function WeeklyReport() {
         weekLabel={formatWeekRange(weekStart)}
         agents={metrics}
         onSuccess={fetchData}
+        autoSums={autoSums}
+        manualSubmitted={manualSubmitted}
+        eagentComplete={isEagentComplete}
       />
     </div>
   )

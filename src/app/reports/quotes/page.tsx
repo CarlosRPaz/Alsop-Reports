@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { getQuotesData, getDailyBreakdown, ViewMode, QuotesAgentRow, DailyBreakdownPoint } from "./actions"
+import { getQuotesData, getDailyBreakdown, getDuplicateQuotes, getYTDBreakdown, ViewMode, QuotesAgentRow, DailyBreakdownPoint, DuplicateGroup, YTDAggPoint } from "./actions"
 import {
   ResponsiveContainer, ComposedChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, LabelList, ReferenceArea
@@ -11,7 +11,8 @@ import { FilterBar, FilterState } from "@/components/ui/FilterBar"
 import {
   FileBarChart, TrendingUp, Target, Calendar, ChevronDown,
   ArrowUpDown, ArrowUp, ArrowDown, Users, Building2, BarChart3,
-  CalendarCheck, Package, AlertTriangle
+  CalendarCheck, Package, AlertTriangle, Copy, X, Eye, Check,
+  XCircle, Search
 } from "lucide-react"
 
 // ── Constants ──
@@ -56,7 +57,7 @@ interface ComputedRow extends QuotesAgentRow {
 
 export default function QuotesPage() {
   // ── State ──
-  const [mode, setMode] = useState<ViewMode>("mtd")
+  const [mode, setMode] = useState<ViewMode>("monthly")
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [data, setData] = useState<{
@@ -73,6 +74,45 @@ export default function QuotesPage() {
   const [sortField, setSortField] = useState<SortField>("nb")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
   const [chartData, setChartData] = useState<DailyBreakdownPoint[]>([])
+  const [showDupes, setShowDupes] = useState(false)
+  const [dupeGroups, setDupeGroups] = useState<DuplicateGroup[]>([])
+  const [dupeTotal, setDupeTotal] = useState(0)
+  const [dupeLoading, setDupeLoading] = useState(false)
+  const [dupeSearch, setDupeSearch] = useState("")
+  const [ytdChartData, setYtdChartData] = useState<YTDAggPoint[]>([])
+  const [ytdGroupBy, setYtdGroupBy] = useState<"weekly" | "monthly">("weekly")
+  const [highlightedLines, setHighlightedLines] = useState<Set<string>>(new Set())
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  // Toggle a line in the highlight set (multi-select)
+  const toggleLine = (dataKey: string) => {
+    setHighlightedLines(prev => {
+      const next = new Set(prev)
+      if (next.has(dataKey)) {
+        next.delete(dataKey)
+      } else {
+        next.add(dataKey)
+      }
+      return next
+    })
+  }
+
+  // Get opacity for a line based on highlight state
+  const lineOpacity = (dataKey: string) => {
+    if (highlightedLines.size === 0) return 1 // nothing selected = all visible
+    return highlightedLines.has(dataKey) ? 1 : 0.1
+  }
+  const lineWidth = (dataKey: string) => {
+    if (highlightedLines.size === 0) return 2.5
+    return highlightedLines.has(dataKey) ? 3 : 1.5
+  }
+
+  // ── Derived: is the selected month the current month? ──
+  const isCurrentMonth = selectedYear === new Date().getFullYear() && selectedMonth === new Date().getMonth() + 1
 
   // ── Fetch Data ──
   useEffect(() => {
@@ -81,22 +121,43 @@ export default function QuotesPage() {
       const month = mode === "ytd" ? undefined : selectedMonth
       const res = await getQuotesData(mode, selectedYear, month)
       if (res.success && res.data) {
+        // Auto-fallback: if current month has no data, show previous month
+        if (mode === "monthly" && isCurrentMonth && res.data.agents.length === 0) {
+          const prevDate = new Date(selectedYear, selectedMonth - 2, 1)
+          const fallbackRes = await getQuotesData("monthly", prevDate.getFullYear(), prevDate.getMonth() + 1)
+          if (fallbackRes.success && fallbackRes.data && fallbackRes.data.agents.length > 0) {
+            setSelectedYear(prevDate.getFullYear())
+            setSelectedMonth(prevDate.getMonth() + 1)
+            setLoading(false)
+            return // the state change will re-trigger this effect
+          }
+        }
+
         setData(res.data)
 
-        // Fetch daily breakdown for chart (MTD and Monthly only)
+        // Fetch daily breakdown for chart (Monthly only)
         if (mode !== "ytd") {
-          const chartRes = await getDailyBreakdown(res.data.dateRangeStart, res.data.dateRangeEnd)
+          const yesterday = new Date()
+          yesterday.setDate(yesterday.getDate() - 1)
+          const yesterdayStr = yesterday.toISOString().split("T")[0]
+          const chartEnd = res.data.dateRangeEnd <= yesterdayStr ? res.data.dateRangeEnd : yesterdayStr
+          const chartRes = await getDailyBreakdown(res.data.dateRangeStart, chartEnd)
           if (chartRes.success && chartRes.data) {
             setChartData(chartRes.data)
           }
         } else {
           setChartData([])
+          // Fetch YTD aggregated data
+          const ytdRes = await getYTDBreakdown(selectedYear, ytdGroupBy)
+          if (ytdRes.success && ytdRes.data) {
+            setYtdChartData(ytdRes.data)
+          }
         }
       }
       setLoading(false)
     }
     load()
-  }, [mode, selectedYear, selectedMonth])
+  }, [mode, selectedYear, selectedMonth, ytdGroupBy])
 
   // ── Filtered + Computed Rows ──
   const computedRows: ComputedRow[] = useMemo(() => {
@@ -265,17 +326,34 @@ export default function QuotesPage() {
             </p>
           )}
         </div>
+        <button
+          onClick={async () => {
+            setShowDupes(true)
+            setDupeLoading(true)
+            const dupeMonth = mode === "ytd" ? 0 : selectedMonth
+            const res = await getDuplicateQuotes(selectedYear, dupeMonth)
+            if (res.success && res.data) {
+              setDupeGroups(res.data)
+              setDupeTotal(res.totalRemoved || 0)
+            }
+            setDupeLoading(false)
+          }}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 hover:border-amber-300 transition-all"
+        >
+          <Copy className="w-4 h-4" />
+          View Duplicates
+        </button>
       </div>
 
       {/* ── View Mode Tabs + Period Picker ── */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <div className="flex bg-slate-100 rounded-lg p-0.5 border border-slate-200">
-          {(["mtd", "ytd", "monthly"] as ViewMode[]).map(m => (
+          {(["monthly", "ytd"] as ViewMode[]).map(m => (
             <button
               key={m}
               onClick={() => {
                 setMode(m)
-                if (m === "mtd") {
+                if (m === "monthly") {
                   setSelectedYear(new Date().getFullYear())
                   setSelectedMonth(new Date().getMonth() + 1)
                 }
@@ -289,12 +367,12 @@ export default function QuotesPage() {
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              {m.toUpperCase()}
+              {m === "monthly" ? "Monthly" : "YTD"}
             </button>
           ))}
         </div>
 
-        {/* Month picker for Monthly view */}
+        {/* Month picker — always visible in Monthly mode */}
         {mode === "monthly" && (
           <div className="relative">
             <select
@@ -306,11 +384,14 @@ export default function QuotesPage() {
               }}
               className="appearance-none bg-white border border-slate-300 rounded-lg px-4 py-1.5 pr-8 text-sm font-medium text-slate-700 cursor-pointer hover:border-blue-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
             >
-              {monthOptions.map(opt => (
-                <option key={`${opt.year}-${opt.month}`} value={`${opt.year}-${opt.month}`}>
-                  {opt.label}
-                </option>
-              ))}
+              {monthOptions.map(opt => {
+                const isCurrent = opt.year === new Date().getFullYear() && opt.month === new Date().getMonth() + 1
+                return (
+                  <option key={`${opt.year}-${opt.month}`} value={`${opt.year}-${opt.month}`}>
+                    {opt.label}{isCurrent ? " (MTD)" : ""}
+                  </option>
+                )
+              })}
             </select>
             <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
           </div>
@@ -471,6 +552,129 @@ export default function QuotesPage() {
         </div>
       )}
 
+      {/* ── YTD Trend Chart (YTD only) ── */}
+      {data && !loading && mode === "ytd" && ytdChartData.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-blue-500" />
+                YTD Trend — {selectedYear}
+              </CardTitle>
+              <div className="flex bg-slate-100 rounded-lg p-0.5 border border-slate-200">
+                {(["weekly", "monthly"] as const).map(g => (
+                  <button
+                    key={g}
+                    onClick={() => setYtdGroupBy(g)}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                      ytdGroupBy === g
+                        ? "bg-white text-blue-700 shadow-sm border border-blue-200"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    {g === "weekly" ? "Weekly (Thu–Wed)" : "Monthly"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[380px] w-full relative">
+              {isMounted ? (
+                <div className="absolute inset-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={ytdChartData} margin={{ top: 25, right: 20, left: 0, bottom: ytdGroupBy === "weekly" ? 60 : 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: ytdGroupBy === "weekly" ? 9 : 11, fill: "#64748b" }}
+                      tickLine={false}
+                      axisLine={{ stroke: "#e2e8f0" }}
+                      interval={0}
+                      angle={ytdGroupBy === "weekly" ? -45 : 0}
+                      textAnchor={ytdGroupBy === "weekly" ? "end" : "middle"}
+                      height={ytdGroupBy === "weekly" ? 65 : 30}
+                    />
+                    <YAxis
+                      yAxisId="count"
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#fff",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
+                        boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+                        fontSize: "12px",
+                      }}
+                      formatter={(value: any, name: any) => {
+                        if (name === "Close Rate" && typeof value === "number") return [`${value.toFixed(1)}%`, name]
+                        return [value, name]
+                      }}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: "12px", paddingTop: "8px", cursor: "pointer" }}
+                      onClick={(e: any) => toggleLine(e.dataKey)}
+                      formatter={(value: any, entry: any) => {
+                        const active = highlightedLines.size === 0 || highlightedLines.has(entry.dataKey)
+                        return <span style={{ color: active ? entry.color : "#cbd5e1", fontWeight: active ? 600 : 400 }}>{value}</span>
+                      }}
+                    />
+
+                    <Line
+                      yAxisId="count"
+                      type="monotone"
+                      dataKey="quotes"
+                      name="Quotes"
+                      stroke="#3b82f6"
+                      strokeWidth={lineWidth("quotes")}
+                      strokeOpacity={lineOpacity("quotes")}
+                      dot={{ r: 3, fill: "#3b82f6", fillOpacity: lineOpacity("quotes") }}
+                      activeDot={{ r: 5 }}
+                    >
+                      {lineOpacity("quotes") > 0.5 && <LabelList dataKey="quotes" position="top" style={{ fontSize: 9, fill: "#3b82f6", fontWeight: 600 }} offset={10} />}
+                    </Line>
+                    <Line
+                      yAxisId="count"
+                      type="monotone"
+                      dataKey="nb"
+                      name="NB Policies"
+                      stroke="#ef4444"
+                      strokeWidth={lineWidth("nb")}
+                      strokeOpacity={lineOpacity("nb")}
+                      dot={{ r: 3, fill: "#ef4444", fillOpacity: lineOpacity("nb") }}
+                      activeDot={{ r: 5 }}
+                    >
+                      {lineOpacity("nb") > 0.5 && <LabelList dataKey="nb" position="bottom" style={{ fontSize: 9, fill: "#ef4444", fontWeight: 600 }} offset={8} />}
+                    </Line>
+                    <Line
+                      yAxisId="count"
+                      type="monotone"
+                      dataKey="items"
+                      name="Items"
+                      stroke="#22c55e"
+                      strokeWidth={lineWidth("items")}
+                      strokeOpacity={lineOpacity("items")}
+                      dot={{ r: 3, fill: "#22c55e", fillOpacity: lineOpacity("items") }}
+                      activeDot={{ r: 5 }}
+                    >
+                      {lineOpacity("items") > 0.5 && <LabelList dataKey="items" position="top" style={{ fontSize: 9, fill: "#22c55e", fontWeight: 600 }} offset={10} />}
+                    </Line>
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+                <div className="w-full h-full min-h-[300px] flex items-center justify-center text-slate-400">
+                  Loading chart...
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Daily Trend Chart (MTD / Monthly only) ── */}
       {data && !loading && mode !== "ytd" && chartData.length > 0 && (
         <Card className="mb-6">
@@ -481,109 +685,138 @@ export default function QuotesPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[340px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                  <XAxis
-                    dataKey="dayLabel"
-                    tick={{ fontSize: 10, fill: "#64748b" }}
-                    tickLine={false}
-                    axisLine={{ stroke: "#e2e8f0" }}
-                    interval={0}
-                    angle={-45}
-                    textAnchor="end"
-                    height={50}
-                  />
-                  <YAxis
-                    yAxisId="count"
-                    tick={{ fontSize: 11, fill: "#94a3b8" }}
-                    tickLine={false}
-                    axisLine={false}
-                    label={{ value: "Count", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "#94a3b8" } }}
-                  />
-                  <YAxis
-                    yAxisId="pct"
-                    orientation="right"
-                    tick={{ fontSize: 11, fill: "#94a3b8" }}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(v: number) => `${v}%`}
-                    label={{ value: "Close Rate", angle: 90, position: "insideRight", style: { fontSize: 11, fill: "#94a3b8" } }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#fff",
-                      border: "1px solid #e2e8f0",
-                      borderRadius: "8px",
-                      boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
-                      fontSize: "12px",
-                    }}
-                    formatter={(value: any, name: any) => {
-                      if (name === "Close Rate" && typeof value === "number") return [`${value.toFixed(1)}%`, name]
-                      if (name === "_bizDay") return [null, null]
-                      return [value, name]
-                    }}
-                    itemSorter={() => 0}
-                  />
-                  <Legend
-                    wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
-                  />
+            <div className="h-[340px] w-full relative">
+              {isMounted ? (
+                <div className="absolute inset-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={chartData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                    <XAxis
+                      dataKey="dayLabel"
+                      tick={{ fontSize: 10, fill: "#64748b" }}
+                      tickLine={false}
+                      axisLine={{ stroke: "#e2e8f0" }}
+                      interval={0}
+                      angle={-45}
+                      textAnchor="end"
+                      height={50}
+                    />
+                    <YAxis
+                      yAxisId="count"
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                      tickLine={false}
+                      axisLine={false}
+                      label={{ value: "Count", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "#94a3b8" } }}
+                    />
+                    <YAxis
+                      yAxisId="pct"
+                      orientation="right"
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v: number) => `${v}%`}
+                      label={{ value: "Close Rate", angle: 90, position: "insideRight", style: { fontSize: 11, fill: "#94a3b8" } }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#fff",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
+                        boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+                        fontSize: "12px",
+                      }}
+                      formatter={(value: any, name: any) => {
+                        if (name === "Close Rate" && typeof value === "number") return [`${value.toFixed(1)}%`, name]
+                        if (name === "_bizDay") return [null, null]
+                        return [value, name]
+                      }}
+                      itemSorter={() => 0}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: "12px", paddingTop: "8px", cursor: "pointer" }}
+                      onClick={(e: any) => toggleLine(e.dataKey)}
+                      formatter={(value: any, entry: any) => {
+                        const active = highlightedLines.size === 0 || highlightedLines.has(entry.dataKey)
+                        return <span style={{ color: active ? entry.color : "#cbd5e1", fontWeight: active ? 600 : 400 }}>{value}</span>
+                      }}
+                    />
 
-                  {/* Full-height bands for business days (Mon-Fri only) */}
-                  {chartData.map((entry, index) => {
-                    if (!entry.isBusinessDay) return null
-                    return (
-                      <ReferenceArea
-                        key={`biz-${index}`}
-                        yAxisId="count"
-                        x1={entry.dayLabel}
-                        x2={entry.dayLabel}
-                        fill="#3b82f6"
-                        fillOpacity={0.06}
-                        strokeOpacity={0}
-                      />
-                    )
-                  })}
+                    {/* Full-height bands for business days (Mon-Fri only) */}
+                    {chartData.map((entry, index) => {
+                      if (!entry.isBusinessDay) return null
+                      return (
+                        <ReferenceArea
+                          key={`biz-${index}`}
+                          yAxisId="count"
+                          x1={entry.dayLabel}
+                          x2={entry.dayLabel}
+                          fill="#3b82f6"
+                          fillOpacity={0.06}
+                          strokeOpacity={0}
+                        />
+                      )
+                    })}
 
-                  {/* Lines */}
-                  <Line
-                    yAxisId="count"
-                    type="monotone"
-                    dataKey="quotes"
-                    name="Quotes"
-                    stroke="#3b82f6"
-                    strokeWidth={2.5}
-                    dot={{ r: 3, fill: "#3b82f6" }}
-                    activeDot={{ r: 5 }}
-                  >
-                    <LabelList dataKey="quotes" position="top" style={{ fontSize: 9, fill: "#3b82f6", fontWeight: 600 }} offset={8} />
-                  </Line>
-                  <Line
-                    yAxisId="count"
-                    type="monotone"
-                    dataKey="nb"
-                    name="NB Policies"
-                    stroke="#10b981"
-                    strokeWidth={2.5}
-                    dot={{ r: 3, fill: "#10b981" }}
-                    activeDot={{ r: 5 }}
-                  >
-                    <LabelList dataKey="nb" position="bottom" style={{ fontSize: 9, fill: "#10b981", fontWeight: 600 }} offset={8} />
-                  </Line>
-                  <Line
-                    yAxisId="pct"
-                    type="monotone"
-                    dataKey="closeRate"
-                    name="Close Rate"
-                    stroke="#f59e0b"
-                    strokeWidth={2}
-                    strokeDasharray="5 3"
-                    dot={{ r: 3, fill: "#f59e0b" }}
-                    activeDot={{ r: 5 }}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
+                    {/* Lines */}
+                    <Line
+                      yAxisId="count"
+                      type="monotone"
+                      dataKey="quotes"
+                      name="Quotes"
+                      stroke="#3b82f6"
+                      strokeWidth={lineWidth("quotes")}
+                      strokeOpacity={lineOpacity("quotes")}
+                      dot={{ r: 3, fill: "#3b82f6", fillOpacity: lineOpacity("quotes") }}
+                      activeDot={{ r: 5 }}
+                    >
+                      {lineOpacity("quotes") > 0.5 && <LabelList dataKey="quotes" position="top" style={{ fontSize: 9, fill: "#3b82f6", fontWeight: 600 }} offset={8} />}
+                    </Line>
+                    <Line
+                      yAxisId="count"
+                      type="monotone"
+                      dataKey="nb"
+                      name="NB Policies"
+                      stroke="#10b981"
+                      strokeWidth={lineWidth("nb")}
+                      strokeOpacity={lineOpacity("nb")}
+                      dot={{ r: 3, fill: "#10b981", fillOpacity: lineOpacity("nb") }}
+                      activeDot={{ r: 5 }}
+                    >
+                      {lineOpacity("nb") > 0.5 && <LabelList dataKey="nb" position="bottom" style={{ fontSize: 9, fill: "#10b981", fontWeight: 600 }} offset={8} />}
+                    </Line>
+                    <Line
+                      yAxisId="count"
+                      type="monotone"
+                      dataKey="items"
+                      name="Items"
+                      stroke="#8b5cf6"
+                      strokeWidth={lineWidth("items")}
+                      strokeOpacity={lineOpacity("items")}
+                      dot={{ r: 3, fill: "#8b5cf6", fillOpacity: lineOpacity("items") }}
+                      activeDot={{ r: 5 }}
+                    >
+                      {lineOpacity("items") > 0.5 && <LabelList dataKey="items" position="top" style={{ fontSize: 9, fill: "#8b5cf6", fontWeight: 600 }} offset={8} />}
+                    </Line>
+                    <Line
+                      yAxisId="pct"
+                      type="monotone"
+                      dataKey="closeRate"
+                      name="Close Rate"
+                      stroke="#f59e0b"
+                      strokeWidth={highlightedLines.size === 0 ? 2 : (highlightedLines.has("closeRate") ? 2.5 : 1)}
+                      strokeOpacity={lineOpacity("closeRate")}
+                      strokeDasharray="5 3"
+                      dot={{ r: 3, fill: "#f59e0b", fillOpacity: lineOpacity("closeRate") }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+                <div className="w-full h-full min-h-[300px] flex items-center justify-center text-slate-400">
+                  Loading chart...
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -597,6 +830,42 @@ export default function QuotesPage() {
             <span className="text-sm">Loading quotes data...</span>
           </div>
         </div>
+      )}
+
+      {/* ── Empty State ── */}
+      {data && !loading && sortedRows.length === 0 && (
+        <Card>
+          <CardContent className="py-16">
+            <div className="flex flex-col items-center justify-center text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-amber-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-700">No Data Available</h3>
+              <p className="text-sm text-slate-500 max-w-md">
+                No quotes or NB data found for <span className="font-medium text-slate-700">{data.periodLabel}</span>.
+                Try selecting a previous month from the dropdown, or run a data sync from the admin page.
+              </p>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => {
+                    const prev = new Date(selectedYear, selectedMonth - 2, 1)
+                    setSelectedYear(prev.getFullYear())
+                    setSelectedMonth(prev.getMonth() + 1)
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-all"
+                >
+                  ← View Previous Month
+                </button>
+                <button
+                  onClick={() => setMode("ytd")}
+                  className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-all"
+                >
+                  View YTD
+                </button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* ── Main Data Table ── */}
@@ -712,6 +981,206 @@ export default function QuotesPage() {
           Benchmark: 15% CR = {fmtNum(POLICIES_NEEDED / BENCHMARK_CR, 0)} quotes/mo
         </span>
       </div>
+
+      {/* ── Duplicates Modal ── */}
+      {showDupes && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => { setShowDupes(false); setDupeSearch("") }}
+          />
+          {/* Modal */}
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden border border-slate-200">
+            {/* Header */}
+            <div className="flex-shrink-0 px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-amber-50 to-orange-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-100 rounded-lg">
+                    <Copy className="w-5 h-5 text-amber-700" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Duplicate Quotes Review</h2>
+                    <p className="text-sm text-slate-500">
+                      {dupeTotal} duplicates removed &middot; {dupeGroups.length} groups
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setShowDupes(false); setDupeSearch("") }}
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Definition */}
+              <div className="mt-3 p-3 bg-white/80 rounded-lg border border-amber-200/60 text-sm text-slate-600">
+                <p className="font-semibold text-amber-800 mb-1">Duplicate Definition:</p>
+                <p>A quote is a <strong>duplicate</strong> if all of these match another quote:</p>
+                <div className="flex gap-3 mt-1.5 flex-wrap">
+                  {["Sub Producer", "Customer First Name", "Customer Last Name", "Customer Street Address"].map(f => (
+                    <span key={f} className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-xs font-medium">{f}</span>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-slate-500">Only the <strong>most recent</strong> quote is kept. Earlier duplicates are excluded from this report.</p>
+              </div>
+
+              {/* Search */}
+              {dupeGroups.length > 0 && (
+                <div className="mt-3 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by name, address, or agent..."
+                    value={dupeSearch}
+                    onChange={e => setDupeSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {dupeLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <div className="flex items-center gap-3 text-slate-500">
+                    <Copy className="w-5 h-5 animate-pulse" />
+                    <span className="text-sm">Loading duplicates...</span>
+                  </div>
+                </div>
+              ) : dupeGroups.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                  <Check className="w-10 h-10 mb-3 text-emerald-400" />
+                  <p className="text-sm font-medium">No duplicates found for this period</p>
+                  <p className="text-xs mt-1">All quotes are unique</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {dupeGroups
+                    .filter(g => {
+                      if (!dupeSearch) return true
+                      const s = dupeSearch.toLowerCase()
+                      return (
+                        g.kept.first_name.toLowerCase().includes(s) ||
+                        g.kept.last_name.toLowerCase().includes(s) ||
+                        g.kept.address.toLowerCase().includes(s) ||
+                        g.kept.sub_producer.toLowerCase().includes(s)
+                      )
+                    })
+                    .map((group, idx) => (
+                    <div key={group.dedup_key} className="border border-slate-200 rounded-xl overflow-hidden">
+                      {/* Group header */}
+                      <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-400">#{idx + 1}</span>
+                          <span className="text-sm font-semibold text-slate-700">
+                            {group.kept.first_name} {group.kept.last_name}
+                          </span>
+                          <span className="text-xs text-slate-400">&middot;</span>
+                          <span className="text-xs text-slate-500 truncate max-w-[200px]">{group.kept.address}</span>
+                        </div>
+                        <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                          {group.removed.length} duplicate{group.removed.length > 1 ? "s" : ""}
+                        </span>
+                      </div>
+
+                      {/* Kept quote */}
+                      <div className="px-4 py-2.5 bg-emerald-50/50 border-b border-emerald-100 flex items-center gap-2">
+                        <div className="flex-shrink-0 w-5 flex items-center justify-center">
+                          <Check className="w-4 h-4 text-emerald-600" />
+                        </div>
+                        <div className="flex-1 grid grid-cols-5 gap-2 text-xs">
+                          <div>
+                            <span className="text-slate-400 block text-[10px]">Agent</span>
+                            <span className="font-medium text-slate-700">{group.kept.sub_producer}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[10px]">Customer</span>
+                            <span className="font-medium text-slate-700">{group.kept.first_name} {group.kept.last_name}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[10px]">Address</span>
+                            <span className="font-medium text-slate-700 truncate block">{group.kept.address}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[10px]">Date</span>
+                            <span className="font-medium text-emerald-700">{group.kept.quote_date}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[10px]">Quote #</span>
+                            <span className="font-medium text-slate-700 text-[11px] font-mono">{group.kept.quote_control_number || "—"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Removed quotes */}
+                      {group.removed.map((dup) => (
+                        <div key={dup.id} className="px-4 py-2.5 border-b border-slate-100 last:border-b-0 flex items-center gap-2 bg-red-50/30">
+                          <div className="flex-shrink-0 w-5 flex items-center justify-center">
+                            <XCircle className="w-4 h-4 text-red-400" />
+                          </div>
+                          <div className="flex-1 grid grid-cols-5 gap-2 text-xs">
+                            <div>
+                              <span className="text-slate-400 block text-[10px]">Agent</span>
+                              <span className={`font-medium ${dup.sub_producer === group.kept.sub_producer ? "text-amber-600" : "text-slate-700"}`}>
+                                {dup.sub_producer}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block text-[10px]">Customer</span>
+                              <span className="font-medium text-amber-600">
+                                {dup.first_name} {dup.last_name}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block text-[10px]">Address</span>
+                              <span className="font-medium text-amber-600 truncate block">
+                                {dup.address}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block text-[10px]">Date</span>
+                              <span className="font-medium text-red-600">{dup.quote_date}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block text-[10px]">Quote #</span>
+                              <span className="font-medium text-slate-700 text-[11px] font-mono">{dup.quote_control_number || "—"}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex-shrink-0 px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-4 text-xs text-slate-500">
+                <span className="flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-emerald-600" /> Kept (counted)
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <XCircle className="w-3.5 h-3.5 text-red-400" /> Removed (not counted)
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="text-amber-500">Amber text</span> = matching field
+                </span>
+              </div>
+              <button
+                onClick={() => { setShowDupes(false); setDupeSearch("") }}
+                className="px-4 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

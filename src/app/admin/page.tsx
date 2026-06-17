@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
-import { Users, Settings, Database, ArrowRight, CalendarDays } from "lucide-react"
+import { Users, Settings, Database, ArrowRight, CalendarDays, ShieldCheck } from "lucide-react"
 import Link from "next/link"
 
 export default function AdminHub() {
@@ -32,6 +32,25 @@ export default function AdminHub() {
             <Link href="/admin/agents">
               <Button variant="outline" className="w-full group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600">
                 Manage Agents <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* User Access Management Card */}
+        <Card className="group hover:border-violet-500/50 transition-colors">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-violet-400" /> User Access
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-slate-500 text-sm mb-6">
+              Invite agents to the dashboard, manage login credentials, and control site access.
+            </p>
+            <Link href="/admin/users">
+              <Button variant="outline" className="w-full group-hover:bg-violet-600 group-hover:text-white group-hover:border-violet-600">
+                Manage Access <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
           </CardContent>

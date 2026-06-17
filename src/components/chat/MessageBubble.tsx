@@ -1,0 +1,390 @@
+'use client'
+
+import { useState, useMemo, useCallback, Fragment } from 'react'
+import {
+  Reply,
+  Smile,
+  Pin,
+  Pencil,
+  Trash2,
+  MoreHorizontal,
+  AlertTriangle,
+  AlertCircle,
+  ExternalLink,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import type { Message, Reaction } from './types'
+import UserPresenceBadge from './UserPresenceBadge'
+
+interface MessageBubbleProps {
+  message: Message
+  currentAgentId: string
+  isGrouped: boolean
+  onReply: (messageId: string) => void
+  onEdit: (messageId: string) => void
+  onDelete: (messageId: string) => void
+  onPin: (messageId: string) => void
+  onReact: (messageId: string, emoji: string) => void
+  hasPermission: (key: string) => boolean
+}
+
+const AVATAR_COLORS = [
+  'bg-blue-500',
+  'bg-emerald-500',
+  'bg-violet-500',
+  'bg-amber-500',
+  'bg-rose-500',
+  'bg-cyan-500',
+  'bg-indigo-500',
+  'bg-teal-500',
+]
+
+function getAvatarColor(name: string): string {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
+
+const QUICK_EMOJIS = ['👍', '❤️', '😂', '🎉', '👀', '🙏']
+
+function formatTime(dateStr: string): string {
+  const d = new Date(dateStr)
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function parseStatusMessage(msg: string | null): { emoji: string | null; text: string | null } {
+  if (!msg) return { emoji: null, text: null }
+  
+  const emojiRegex = /^([\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F000}-\u{1F02F}]|[\u{1F0A0}-\u{1F0FF}]|[\u{1F100}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1F300}-\u{1F5FF}])/u
+  const match = msg.match(emojiRegex)
+  if (match) {
+    const emoji = match[1]
+    const text = msg.slice(emoji.length).trim()
+    return { emoji, text }
+  }
+  
+  return { emoji: null, text: msg }
+}
+
+/**
+ * Renders message content with inline markdown and mentions.
+ * Supports: **bold**, *italic*, `code`, @Mentions, URLs
+ */
+function renderContent(content: string): React.ReactNode[] {
+  // Split by patterns: **bold**, *italic*, `code`, @Name, URLs
+  const parts: React.ReactNode[] = []
+  const regex =
+    /(\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|(@\w[\w\s]*\w)|https?:\/\/[^\s<]+)/g
+
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = regex.exec(content)) !== null) {
+    // Push plain text before match
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index))
+    }
+
+    const full = match[0]
+
+    if (match[2]) {
+      // **bold**
+      parts.push(
+        <strong key={match.index} className="font-bold">
+          {match[2]}
+        </strong>
+      )
+    } else if (match[3]) {
+      // *italic*
+      parts.push(
+        <em key={match.index} className="italic">
+          {match[3]}
+        </em>
+      )
+    } else if (match[4]) {
+      // `code`
+      parts.push(
+        <code
+          key={match.index}
+          className="bg-slate-100 text-pink-600 px-1 py-0.5 rounded text-[13px] font-mono"
+        >
+          {match[4]}
+        </code>
+      )
+    } else if (full.startsWith('@')) {
+      // @Mention
+      parts.push(
+        <span
+          key={match.index}
+          className="text-blue-600 font-semibold bg-blue-50 px-1 rounded cursor-pointer hover:bg-blue-100 transition-colors"
+        >
+          {full}
+        </span>
+      )
+    } else if (full.startsWith('http')) {
+      // URL
+      parts.push(
+        <a
+          key={match.index}
+          href={full}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-0.5"
+        >
+          {full.length > 50 ? full.slice(0, 50) + '…' : full}
+          <ExternalLink className="w-3 h-3 inline shrink-0" />
+        </a>
+      )
+    }
+
+    lastIndex = match.index + full.length
+  }
+
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex))
+  }
+
+  return parts.length > 0 ? parts : [content]
+}
+
+export default function MessageBubble({
+  message,
+  currentAgentId,
+  isGrouped,
+  onReply,
+  onEdit,
+  onDelete,
+  onPin,
+  onReact,
+  hasPermission,
+}: MessageBubbleProps) {
+  const [showActions, setShowActions] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+
+  const isOwn = message.sender_id === currentAgentId
+  const isAdmin = hasPermission('admin')
+  const senderName = message.sender?.name ?? 'Unknown'
+
+  const statusInfo = useMemo(() => parseStatusMessage(message.sender?.status_message ?? null), [message.sender?.status_message])
+
+  // System messages
+  if (message.is_system) {
+    return (
+      <div className="flex justify-center py-1">
+        <span className="text-xs text-slate-400 italic bg-slate-50 px-3 py-1 rounded-full">
+          {message.content}
+        </span>
+      </div>
+    )
+  }
+
+  // Deleted messages
+  if (message.is_deleted) {
+    return (
+      <div id={`message-${message.id}`} className={cn('flex gap-3 px-4 py-1', isGrouped ? 'pl-[60px]' : '')}>
+        {!isGrouped && <div className="w-8 h-8 shrink-0" />}
+        <p className="text-sm text-slate-400 italic">This message was deleted</p>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      id={`message-${message.id}`}
+      className={cn(
+        'group relative flex flex-col transition-colors duration-150',
+        isGrouped ? 'py-0.5' : 'py-1.5',
+        'hover:bg-slate-50/80'
+      )}
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => {
+        setShowActions(false)
+        setShowEmojiPicker(false)
+      }}
+    >
+      {/* Reply Context Header */}
+      {message.parent_preview && (
+        <div className="flex items-center gap-2 pl-[60px] pr-4 mb-0.5 text-[11px] text-slate-400 select-none relative">
+          {/* Curved line connector */}
+          <div className="absolute left-[28px] top-[7px] w-[24px] h-[14px] border-l-2 border-t-2 border-slate-200 rounded-tl-md" />
+          
+          {/* Mini Avatar for reply parent */}
+          <div className="w-4 h-4 rounded-full bg-slate-200/80 flex items-center justify-center text-[9px] font-bold text-slate-600 shrink-0 select-none">
+            {message.parent_preview.sender_name.charAt(0).toUpperCase()}
+          </div>
+          
+          <span className="font-semibold text-slate-600 hover:text-blue-500 hover:underline cursor-pointer transition-colors">
+            {message.parent_preview.sender_name}
+          </span>
+          <span className="truncate max-w-[400px] text-slate-400 italic">
+            "{message.parent_preview.content}"
+          </span>
+        </div>
+      )}
+
+      {/* Message Row */}
+      <div className={cn('flex gap-3 px-4', isGrouped ? 'pl-[60px]' : '')}>
+        {/* Avatar with presence status dot overlay */}
+        {!isGrouped && (
+          <div className="relative shrink-0 mt-0.5 w-8 h-8">
+            <div
+              className={cn(
+                'w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold select-none',
+                getAvatarColor(senderName)
+              )}
+            >
+              {senderName.charAt(0).toUpperCase()}
+            </div>
+            {message.sender?.presence && (
+              <UserPresenceBadge
+                status={message.sender.presence}
+                size="sm"
+                className="absolute -bottom-0.5 -right-0.5 ring-[2px] ring-white"
+              />
+            )}
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          {/* Name + status + timestamp (only on first in group) */}
+          {!isGrouped && (
+            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+              <span className="text-[13px] font-bold text-slate-800">
+                {senderName}
+              </span>
+              
+              {/* Premium Inline Status Badge */}
+              {statusInfo.text && (
+                <span 
+                  className="inline-flex items-center gap-1 text-[11px] font-normal text-slate-500 bg-slate-50 border border-slate-200/50 px-1.5 py-0.5 rounded-full select-none max-w-[200px]"
+                  title={message.sender?.status_message || ''}
+                >
+                  {statusInfo.emoji && <span className="text-xs shrink-0 select-none">{statusInfo.emoji}</span>}
+                  <span className="truncate">{statusInfo.text}</span>
+                </span>
+              )}
+              
+              <span className="text-[11px] text-slate-400 font-medium">
+                {formatTime(message.created_at)}
+              </span>
+              {message.is_pinned && (
+                <Pin className="w-3 h-3 text-amber-500 shrink-0" />
+              )}
+              {message.priority === 'important' && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                  <AlertTriangle className="w-3 h-3" />
+                  Important
+                </span>
+              )}
+              {message.priority === 'urgent' && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full">
+                  <AlertCircle className="w-3 h-3" />
+                  Urgent
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Message text */}
+          <div className="text-sm text-slate-800 leading-relaxed break-words whitespace-pre-wrap">
+            {renderContent(message.content)}
+            {message.is_edited && (
+              <span className="text-[11px] text-slate-400 ml-1">(edited)</span>
+            )}
+          </div>
+
+          {/* Reactions */}
+          {message.reactions && message.reactions.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {message.reactions.map((r) => (
+                <button
+                  key={r.emoji}
+                  onClick={() => onReact(message.id, r.emoji)}
+                  className={cn(
+                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors',
+                    r.agent_ids.includes(currentAgentId)
+                      ? 'bg-blue-50 border-blue-200 text-blue-700'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                  )}
+                >
+                  <span>{r.emoji}</span>
+                  <span className="font-medium">{r.count}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Hover action bar */}
+      {showActions && (
+        <div className="absolute right-3 -top-3 flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg shadow-sm px-1 py-0.5 z-10">
+          <button
+            onClick={() => onReply(message.id)}
+            className="w-7 h-7 flex items-center justify-center rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+            title="Reply"
+          >
+            <Reply className="w-3.5 h-3.5" />
+          </button>
+
+          <div className="relative">
+            <button
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              className="w-7 h-7 flex items-center justify-center rounded text-slate-400 hover:text-amber-500 hover:bg-amber-50 transition-colors"
+              title="React"
+            >
+              <Smile className="w-3.5 h-3.5" />
+            </button>
+            {showEmojiPicker && (
+              <div className="absolute right-0 top-full mt-1 flex items-center gap-1 bg-white border border-slate-200 rounded-lg shadow-lg p-1.5 z-20">
+                {QUICK_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => {
+                      onReact(message.id, emoji)
+                      setShowEmojiPicker(false)
+                    }}
+                    className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 transition-colors text-sm"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={() => onPin(message.id)}
+            className="w-7 h-7 flex items-center justify-center rounded text-slate-400 hover:text-amber-500 hover:bg-amber-50 transition-colors"
+            title={message.is_pinned ? 'Unpin' : 'Pin'}
+          >
+            <Pin className="w-3.5 h-3.5" />
+          </button>
+
+          {isOwn && (
+            <button
+              onClick={() => onEdit(message.id)}
+              className="w-7 h-7 flex items-center justify-center rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              title="Edit"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {(isOwn || isAdmin) && (
+            <button
+              onClick={() => onDelete(message.id)}
+              className="w-7 h-7 flex items-center justify-center rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+              title="Delete"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

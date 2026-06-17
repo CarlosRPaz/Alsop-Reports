@@ -1,0 +1,395 @@
+// ============================================================================
+// Chat System — Conversation CRUD
+// ============================================================================
+
+import { supabase } from '@/lib/supabaseClient'
+import type {
+  Conversation,
+  ConversationMember,
+  CreateConversationInput,
+  MessagePreview,
+} from './types'
+
+// ---------------------------------------------------------------------------
+// Fetch conversations for an agent
+// ---------------------------------------------------------------------------
+
+/**
+ * Load every conversation the agent belongs to (via `chat_conversation_members`).
+ * Enriches each conversation with:
+ *  - `unread_count` (messages after the member's `last_read_at`)
+ *  - `last_message` preview (most recent non-deleted message)
+ *  - `is_pinned` from the member row
+ *
+ * Sort: pinned first, then by last message time descending.
+ */
+export async function fetchConversationsForAgent(
+  agentId: string,
+): Promise<Conversation[]> {
+  // 1. Get all memberships for this agent
+  const { data: memberships, error: memErr } = await supabase
+    .from('chat_conversation_members')
+    .select('conversation_id, last_read_at, is_pinned:pinned')
+    .eq('agent_id', agentId)
+
+  if (memErr) {
+    console.error('[conversations] Failed to fetch memberships:', memErr)
+    throw memErr
+  }
+
+  if (!memberships || memberships.length === 0) return []
+
+  const conversationIds = memberships.map((m) => m.conversation_id)
+
+  // 2. Fetch conversation rows (excluding is_private since it's a derived/JS property)
+  const { data: conversations, error: convErr } = await supabase
+    .from('chat_conversations')
+    .select('id, type, name, description, is_archived:archived, created_by, created_at, updated_at')
+    .in('id', conversationIds)
+    .eq('archived', false)
+    .order('updated_at', { ascending: false })
+
+  if (convErr) {
+    console.error('[conversations] Failed to fetch conversations:', convErr)
+    throw convErr
+  }
+
+  if (!conversations) return []
+
+  // Build a lookup from membership data
+  const membershipMap = new Map(
+    memberships.map((m) => [m.conversation_id, m]),
+  )
+
+  // 3. For each conversation, fetch last message + compute unread count
+  const enriched = await Promise.all(
+    conversations.map(async (conv) => {
+      const membership = membershipMap.get(conv.id)
+      const lastReadAt = membership?.last_read_at ?? '1970-01-01T00:00:00Z'
+      const isPinned = membership?.is_pinned ?? false
+
+      // Last message preview
+      const { data: lastMsgRows } = await supabase
+        .from('chat_messages')
+        .select('id, content, created_at, sender_id, agents!chat_messages_sender_id_fkey(name)')
+        .eq('conversation_id', conv.id)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      let lastMessage: MessagePreview | null = null
+      if (lastMsgRows && lastMsgRows.length > 0) {
+        const msg = lastMsgRows[0] as any
+        lastMessage = {
+          id: msg.id,
+          content: msg.content,
+          sender_name: msg.agents?.name ?? 'Unknown',
+          created_at: msg.created_at,
+        }
+      }
+
+      // Unread count
+      const { count } = await supabase
+        .from('chat_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', conv.id)
+        .eq('is_deleted', false)
+        .neq('sender_id', agentId)
+        .gt('created_at', lastReadAt)
+
+      return {
+        ...conv,
+        is_private: conv.type === 'private_channel' || conv.type === 'direct_dm' || conv.type === 'group_dm',
+        last_message: lastMessage,
+        unread_count: count ?? 0,
+        is_pinned: isPinned,
+      } as Conversation
+    }),
+  )
+
+  // 4. Sort: pinned first, then by last message time
+  enriched.sort((a, b) => {
+    if (a.is_pinned && !b.is_pinned) return -1
+    if (!a.is_pinned && b.is_pinned) return 1
+    const aTime = a.last_message?.created_at ?? a.updated_at
+    const bTime = b.last_message?.created_at ?? b.updated_at
+    return new Date(bTime).getTime() - new Date(aTime).getTime()
+  })
+
+  return enriched
+}
+
+// ---------------------------------------------------------------------------
+// Create conversation
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a new conversation (channel, group_dm, or direct_dm).
+ * Adds the creator as `owner` and each specified member_id as `member`.
+ */
+export async function createConversation(
+  data: CreateConversationInput,
+): Promise<Conversation> {
+  let dbType = data.type
+  if (dbType === 'channel' && data.is_private) {
+    dbType = 'private_channel' as any
+  }
+
+  const { data: conv, error } = await supabase
+    .from('chat_conversations')
+    .insert({
+      type: dbType,
+      name: data.name ?? null,
+      description: data.description ?? null,
+      created_by: data.created_by,
+    })
+    .select('id, type, name, description, is_archived:archived, created_by, created_at, updated_at')
+    .single()
+
+  if (error || !conv) {
+    console.error('[conversations] Failed to create conversation:', error)
+    throw error
+  }
+
+  // Build member rows — creator is owner, others are members
+  const allIds = new Set([data.created_by, ...data.member_ids])
+  const memberRows = [...allIds].map((agentId) => ({
+    conversation_id: conv.id,
+    agent_id: agentId,
+    role: agentId === data.created_by ? 'owner' : 'member',
+  }))
+
+  const { error: memErr } = await supabase
+    .from('chat_conversation_members')
+    .insert(memberRows)
+
+  if (memErr) {
+    console.error('[conversations] Failed to add members:', memErr)
+    throw memErr
+  }
+
+  return {
+    ...conv,
+    is_private: conv.type === 'private_channel' || conv.type === 'direct_dm' || conv.type === 'group_dm',
+  } as Conversation
+}
+
+// ---------------------------------------------------------------------------
+// Get or create direct DM
+// ---------------------------------------------------------------------------
+
+/**
+ * Find an existing `direct_dm` conversation between two agents.
+ * If none exists, create one.
+ */
+export async function getOrCreateDirectDM(
+  agentId1: string,
+  agentId2: string,
+): Promise<Conversation> {
+  // Find conversations where both agents are members and type is direct_dm
+  const { data: memberships1 } = await supabase
+    .from('chat_conversation_members')
+    .select('conversation_id')
+    .eq('agent_id', agentId1)
+
+  const convIds1 = (memberships1 ?? []).map((m) => m.conversation_id)
+
+  if (convIds1.length > 0) {
+    const { data: matches } = await supabase
+      .from('chat_conversations')
+      .select('id, type, name, description, is_archived:archived, created_by, created_at, updated_at, chat_conversation_members!inner(agent_id)')
+      .in('id', convIds1)
+      .eq('type', 'direct_dm')
+      .eq('chat_conversation_members.agent_id', agentId2)
+
+    if (matches && matches.length > 0) {
+      const match = matches[0] as any
+      return {
+        ...match,
+        is_private: true,
+      } as unknown as Conversation
+    }
+  }
+
+  // No existing DM — create one
+  return createConversation({
+    type: 'direct_dm',
+    created_by: agentId1,
+    member_ids: [agentId2],
+    is_private: true,
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Update conversation metadata
+// ---------------------------------------------------------------------------
+
+export async function updateConversation(
+  id: string,
+  data: Partial<Pick<Conversation, 'name' | 'description' | 'is_private'>>,
+): Promise<void> {
+  const updateData: any = {
+    name: data.name,
+    description: data.description,
+    updated_at: new Date().toISOString(),
+  }
+
+  if (data.is_private !== undefined) {
+    const { data: current } = await supabase
+      .from('chat_conversations')
+      .select('type')
+      .eq('id', id)
+      .single()
+
+    if (current && (current.type === 'channel' || current.type === 'private_channel')) {
+      updateData.type = data.is_private ? 'private_channel' : 'channel'
+    }
+  }
+
+  const { error } = await supabase
+    .from('chat_conversations')
+    .update(updateData)
+    .eq('id', id)
+
+  if (error) {
+    console.error('[conversations] Failed to update conversation:', error)
+    throw error
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Member management
+// ---------------------------------------------------------------------------
+
+export async function addMembers(
+  conversationId: string,
+  agentIds: string[],
+): Promise<void> {
+  const rows = agentIds.map((agentId) => ({
+    conversation_id: conversationId,
+    agent_id: agentId,
+    role: 'member' as const,
+  }))
+
+  const { error } = await supabase
+    .from('chat_conversation_members')
+    .upsert(rows, { onConflict: 'conversation_id,agent_id' })
+
+  if (error) {
+    console.error('[conversations] Failed to add members:', error)
+    throw error
+  }
+}
+
+export async function removeMember(
+  conversationId: string,
+  agentId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('chat_conversation_members')
+    .delete()
+    .eq('conversation_id', conversationId)
+    .eq('agent_id', agentId)
+
+  if (error) {
+    console.error('[conversations] Failed to remove member:', error)
+    throw error
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Archive
+// ---------------------------------------------------------------------------
+
+export async function archiveConversation(
+  conversationId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('chat_conversations')
+    .update({
+      archived: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', conversationId)
+
+  if (error) {
+    console.error('[conversations] Failed to archive conversation:', error)
+    throw error
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Auto-join default channels
+// ---------------------------------------------------------------------------
+
+/** Canonical channel names that map to teams/roles. */
+const DEFAULT_CHANNEL_MAP: Record<string, { teams?: string[]; roles?: string[] }> = {
+  'All': {},                             // everyone
+  'Sales': { teams: ['Sales'] },
+  'Service': { teams: ['CSR', 'EA'] },
+  'Managers': { teams: ['Managers'] },
+  'Admin': { roles: ['admin'] },
+}
+
+/**
+ * Auto-join an agent to the default public channels they should belong to
+ * based on their team and role.
+ */
+export async function autoJoinDefaultChannels(
+  agentId: string,
+  team: string,
+  role: string,
+): Promise<void> {
+  const channelNames = Object.entries(DEFAULT_CHANNEL_MAP)
+    .filter(([, rule]) => {
+      // If no specific teams/roles restriction, everyone gets it
+      const hasTeamRule = rule.teams && rule.teams.length > 0
+      const hasRoleRule = rule.roles && rule.roles.length > 0
+
+      if (!hasTeamRule && !hasRoleRule) return true // All
+      if (hasTeamRule && rule.teams!.includes(team)) return true
+      if (hasRoleRule && rule.roles!.includes(role)) return true
+      return false
+    })
+    .map(([name]) => name)
+
+  if (channelNames.length === 0) return
+
+  // Find conversations matching these channel names
+  const { data: channels } = await supabase
+    .from('chat_conversations')
+    .select('id')
+    .in('name', channelNames)
+
+  if (!channels || channels.length === 0) return
+
+  const rows = channels.map((ch) => ({
+    conversation_id: ch.id,
+    agent_id: agentId,
+    role: 'member' as const,
+  }))
+
+  await supabase
+    .from('chat_conversation_members')
+    .upsert(rows, { onConflict: 'conversation_id,agent_id' })
+}
+
+// ---------------------------------------------------------------------------
+// Get members for a conversation
+// ---------------------------------------------------------------------------
+
+export async function getConversationMembers(
+  conversationId: string,
+): Promise<ConversationMember[]> {
+  const { data, error } = await supabase
+    .from('chat_conversation_members')
+    .select('conversation_id, agent_id, role, last_read_at, joined_at, left_at, is_muted:muted, is_pinned:pinned, agent:agents(*)')
+    .eq('conversation_id', conversationId)
+
+  if (error) {
+    console.error('[conversations] Failed to fetch members:', error)
+    throw error
+  }
+
+  return (data ?? []) as unknown as ConversationMember[]
+}

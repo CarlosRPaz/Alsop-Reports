@@ -1,146 +1,396 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
-import { supabase } from "@/lib/supabaseClient"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import { Badge } from "@/components/ui/Badge"
-import { TrendChart } from "@/components/charts/TrendChart"
-import { DataTable } from "@/components/ui/DataTable"
-import { Button } from "@/components/ui/Button"
-import { ArrowLeft, UserCircle } from "lucide-react"
+import { useState, useEffect, useMemo } from "react"
+import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
+import { getAgentMonthlyData, AgentMonthlyData, RankingEntry } from "../actions"
 import { formatValue } from "@/lib/formatters"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { DataTable, ColumnDef } from "@/components/ui/DataTable"
+import { TrendChart } from "@/components/charts/TrendChart"
+import { Badge } from "@/components/ui/Badge"
+import {
+  ArrowLeft, CalendarDays, Phone, MessageSquare,
+  FileBarChart, ShieldCheck, Star, Trophy, Users, AlertTriangle, AlertCircle
+} from "lucide-react"
 
-export default function AgentReport() {
+// Month options (past 12 months)
+const monthOptions = Array.from({ length: 12 }).map((_, i) => {
+  const d = new Date()
+  d.setMonth(d.getMonth() - i)
+  return {
+    label: d.toLocaleString('default', { month: 'long', year: 'numeric' }),
+    value: `${d.getFullYear()}-${d.getMonth() + 1}`,
+    year: d.getFullYear(),
+    month: d.getMonth() + 1
+  }
+})
+
+function RankCard({ ranking }: { ranking: RankingEntry }) {
+  const isTop3 = ranking.rank <= 3
+  const isAboveAvg = ranking.value > ranking.teamAvg
+
+  return (
+    <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100">
+      <div className="flex items-center gap-3">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+          ranking.rank === 1 ? "bg-amber-100 text-amber-600" :
+          ranking.rank === 2 ? "bg-slate-200 text-slate-600" :
+          ranking.rank === 3 ? "bg-orange-100 text-orange-700" :
+          "bg-blue-50 text-blue-600"
+        }`}>
+          {isTop3 ? <Trophy className="w-4 h-4" /> : <span className="text-xs font-bold">#{ranking.rank}</span>}
+        </div>
+        <div>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{ranking.label}</p>
+          <p className="text-sm font-semibold text-slate-800">
+            {ranking.metric === "close_rate" 
+              ? (ranking.value * 100).toFixed(1) + "%" 
+              : ranking.value.toLocaleString()}
+          </p>
+        </div>
+      </div>
+      <div className="text-right">
+        <p className="text-xs font-medium text-slate-500">Rank</p>
+        <p className="text-sm font-bold text-slate-800">{ranking.rank} <span className="text-slate-400 font-normal">/ {ranking.total}</span></p>
+      </div>
+    </div>
+  )
+}
+
+export default function AgentDashboardPage() {
   const params = useParams()
+  const router = useRouter()
   const agentId = params.id as string
 
   const [loading, setLoading] = useState(true)
-  const [agent, setAgent] = useState<any>(null)
-  const [metrics, setMetrics] = useState<any[]>([])
+  const [data, setData] = useState<AgentMonthlyData | null>(null)
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
+  const [error, setError] = useState<string | null>(null)
+
+  const isCurrentMonth = selectedYear === new Date().getFullYear() && selectedMonth === new Date().getMonth() + 1
 
   useEffect(() => {
-    if (!agentId) return
-
-    const fetchAgentData = async () => {
-      try {
-        // Fetch Agent details
-        const { data: agentData } = await supabase
-          .from("agents")
-          .select("*")
-          .eq("id", agentId)
-          .single()
-        
-        setAgent(agentData)
-
-        // Fetch recent metrics for this agent
-        const { data: metricsData } = await supabase
-          .from("daily_metrics")
-          .select("*")
-          .eq("agent_id", agentId)
-          .order("report_date", { ascending: false })
-          .limit(30) // Last 30 entries
-        
-        setMetrics(metricsData || [])
-      } catch (err) {
-        console.error("Error fetching agent data:", err)
-      } finally {
+    async function load() {
+      setLoading(true)
+      setError(null)
+      const res = await getAgentMonthlyData(agentId, selectedYear, selectedMonth)
+      
+      if (!res.success) {
+        setError(res.error || "Failed to load agent data")
         setLoading(false)
+        return
       }
+
+      // Auto-fallback for current month if empty
+      if (res.data && res.data.dailyRows.length === 0 && isCurrentMonth) {
+        const prev = new Date(selectedYear, selectedMonth - 2, 1)
+        setSelectedYear(prev.getFullYear())
+        setSelectedMonth(prev.getMonth() + 1)
+        return // Effect re-triggers
+      }
+
+      setData(res.data || null)
+      setLoading(false)
     }
+    if (agentId) load()
+  }, [agentId, selectedYear, selectedMonth, isCurrentMonth])
 
-    fetchAgentData()
-  }, [agentId])
+  // Table Columns (matching ColumnDef interface)
+  const COLUMNS: ColumnDef[] = [
+    { key: "date",      label: "Date",         group: "agent",      sortAccessor: (m: any) => m.report_date },
+    { key: "calls",     label: "Calls",        group: "calls",      sortAccessor: (m: any) => m.calls || 0 },
+    { key: "outbound",  label: "Outbound",     group: "calls",      sortAccessor: (m: any) => m.outbound || 0 },
+    { key: "talktime",  label: "Talk Time",    group: "calls",      sortAccessor: (m: any) => m.talk_time_seconds || 0 },
+    { key: "texts",     label: "Texts",        group: "texts",      sortAccessor: (m: any) => m.texts || 0 },
+    { key: "quotes",    label: "Quotes",       group: "production", sortAccessor: (m: any) => m.quotes || 0 },
+    { key: "nb",        label: "NB",           group: "production", sortAccessor: (m: any) => m.nb_count || 0 },
+    { key: "items",     label: "Items",        group: "production", sortAccessor: (m: any) => m.items || 0 },
+    { key: "wp",        label: "Written Prem", group: "production", sortAccessor: (m: any) => m.written_premium || 0 },
+    { key: "pivots",    label: "Pivots",       group: "eagent",     sortAccessor: (m: any) => m.pivots || 0 },
+    { key: "dismissed", label: "Dismissed",    group: "eagent",     sortAccessor: (m: any) => m.dismissed_todos || 0 },
+  ]
 
-  // Prepare chart data (needs to be sorted ascending by date for charts)
-  const chartData = [...metrics].sort((a, b) => new Date(a.report_date).getTime() - new Date(b.report_date).getTime()).map(m => ({
-    date: m.report_date,
-    calls: m.calls,
-    premium: m.prem_premium
-  }))
-
-  if (loading) {
+  if (loading && !data) {
     return (
-      <div className="p-8 flex justify-center items-center h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 text-slate-500">
+        <Users className="w-6 h-6 animate-pulse" />
+        <span>Loading agent profile...</span>
       </div>
     )
   }
 
-  if (!agent) {
-    return <div className="p-8 text-slate-400">Agent not found.</div>
+  if (error || !data) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto text-center py-20">
+        <AlertTriangle className="w-8 h-8 text-rose-500 mx-auto mb-3" />
+        <h2 className="text-xl font-bold text-slate-800">Error Loading Agent</h2>
+        <p className="text-slate-500 mt-2 mb-6">{error || "Agent data not found."}</p>
+        <Link href="/reports/agent" className="text-blue-600 hover:underline">
+          &larr; Back to Agent Directory
+        </Link>
+      </div>
+    )
   }
 
+  const { agent, kpis, dailyRows, rankings, periodLabel, businessDaysTotal, businessDaysPassed } = data
+
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
-      {/* Header */}
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="flex items-center gap-4">
-          <Link href="/reports/daily">
-            <Button variant="ghost" size="sm" className="mb-1">
-              <ArrowLeft className="w-4 h-4 mr-2" /> Back
-            </Button>
+    <div className="p-6 max-w-[1400px] mx-auto space-y-6">
+      {/* ── Top Bar ── */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <Link href="/reports/agent" className="text-sm font-medium text-slate-500 hover:text-slate-900 flex items-center gap-1.5 mb-2 transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Directory
           </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <UserCircle className="w-8 h-8 text-blue-400" />
-              <h1 className="text-3xl font-extrabold tracking-tight text-slate-100">{agent.name}</h1>
-              <Badge variant={agent.presence === 'online' ? 'success' : 'outline'}>
-                {agent.presence || 'offline'}
-              </Badge>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-white text-lg shadow-sm">
+              {agent.name.split(" ").map(n => n[0]).join("").substring(0, 2)}
             </div>
-            <div className="flex gap-2 mt-2">
-              <Badge variant="outline">{agent.role}</Badge>
-              {agent.team && <Badge variant="outline">{agent.team}</Badge>}
-              {agent.office && <Badge variant="outline">{agent.office}</Badge>}
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">{agent.name}</h1>
+              <div className="flex gap-2 mt-1">
+                {agent.team && (
+                  <Badge variant={agent.team === "Sales" ? "default" : agent.team === "CSR" ? "success" : "default"}>
+                    {agent.team}
+                  </Badge>
+                )}
+                {agent.office && <Badge variant="outline">{agent.office}</Badge>}
+                {agent.role === "admin" && <Badge variant="warning">Admin</Badge>}
+              </div>
             </div>
           </div>
         </div>
-      </header>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TrendChart 
-          title="Daily Calls (Last 30 Days)" 
-          data={chartData} 
-          dataKey="calls" 
-          color="#3b82f6" 
-          xAxisKey="date"
-        />
-        <TrendChart 
-          title="Written Premium (Last 30 Days)" 
-          data={chartData} 
-          dataKey="premium" 
-          color="#10b981" 
-          xAxisKey="date"
-        />
+        {/* Month Selector */}
+        <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+          <CalendarDays className="w-5 h-5 text-slate-400 ml-2" />
+          <select
+            value={`${selectedYear}-${selectedMonth}`}
+            onChange={e => {
+              const [y, m] = e.target.value.split("-").map(Number)
+              setSelectedYear(y)
+              setSelectedMonth(m)
+            }}
+            className="appearance-none bg-transparent font-semibold text-slate-700 py-1.5 pr-8 pl-2 outline-none cursor-pointer"
+          >
+            {monthOptions.map(opt => {
+              const isCurr = opt.year === new Date().getFullYear() && opt.month === new Date().getMonth() + 1
+              return (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label} {isCurr ? "(MTD)" : ""}
+                </option>
+              )
+            })}
+          </select>
+        </div>
       </div>
 
-      {/* Data Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity Log</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DataTable 
-            columns={["Date", "Calls", "Inbound", "Outbound", "Talk Time", "Quotes", "New Business"]}
-            data={metrics}
-            keyExtractor={(item) => item.id}
-            renderRow={(item) => (
-              <>
-                  <td className="py-1.5 px-3 font-medium text-slate-200">{item.report_date}</td>
-                  <td className="py-1.5 px-3 font-mono">{formatValue(item.calls)}</td>
-                  <td className="py-1.5 px-3 font-mono text-emerald-400">{formatValue(item.inbound)}</td>
-                  <td className="py-1.5 px-3 font-mono text-blue-400">{formatValue(item.outbound)}</td>
-                  <td className="py-1.5 px-3 font-mono text-slate-400">{formatValue(Math.floor(item.talk_time_seconds / 60), "", "m")}</td>
-                  <td className="py-1.5 px-3 font-mono text-slate-300">{formatValue(item.quotes)}</td>
-                  <td className="py-1.5 px-3 font-mono text-slate-300">{formatValue(item.nb_count)}</td>
-              </>
-            )}
-          />
-        </CardContent>
-      </Card>
+      {dailyRows.length === 0 ? (
+        <Card className="border-dashed border-2 border-slate-200">
+          <CardContent className="py-16 text-center">
+            <AlertCircle className="w-8 h-8 text-slate-400 mx-auto mb-3" />
+            <h3 className="text-lg font-semibold text-slate-700">No Data Available</h3>
+            <p className="text-slate-500 mt-1">There is no recorded activity for {periodLabel}.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* ── KPI Grid ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-5 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                  <FileBarChart className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-500">Quotes {isCurrentMonth ? "MTD" : ""}</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-slate-900">{kpis.quotes}</span>
+                    <span className="text-xs font-medium text-slate-400">
+                      pacing: {Math.round((kpis.quotes / businessDaysPassed) * businessDaysTotal)}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-5 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-6 h-6 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-500">NB Policies {isCurrentMonth ? "MTD" : ""}</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-slate-900">{kpis.nb_count}</span>
+                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">
+                      {(kpis.close_rate * 100).toFixed(1)}% Close
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-5 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
+                  <Phone className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-500">Total Calls {isCurrentMonth ? "MTD" : ""}</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-slate-900">{kpis.calls.toLocaleString()}</span>
+                    <span className="text-xs font-medium text-slate-400">
+                      {kpis.outbound} out / {kpis.inbound} in
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-5 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+                  <Star className="w-6 h-6 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-500">Written Premium</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-slate-900">
+                      ${kpis.written_premium.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* ── Main Content: Chart & Table (Spans 3 cols) ── */}
+            <div className="lg:col-span-3 space-y-6">
+              <Card>
+                <CardHeader className="border-b border-slate-100 pb-4">
+                  <CardTitle className="text-base font-semibold text-slate-800">
+                    Performance Trend
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="h-[300px]">
+                    <TrendChart
+                      title="Activity Trends"
+                      data={dailyRows.map(r => ({
+                        date: r.report_date,
+                        Quotes: r.quotes,
+                        "New Business": r.nb_count,
+                        Calls: r.calls
+                      }))}
+                      xAxisKey="date"
+                      lines={[
+                        { key: "Quotes", color: "#3b82f6" },       // blue-500
+                        { key: "New Business", color: "#10b981" }, // emerald-500
+                        { key: "Calls", color: "#8b5cf6" },        // violet-500
+                      ]}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="border-b border-slate-100 pb-4 flex flex-row items-center justify-between">
+                  <CardTitle className="text-base font-semibold text-slate-800">
+                    Daily Log
+                  </CardTitle>
+                </CardHeader>
+                <div className="overflow-x-auto">
+                  <DataTable
+                    columns={COLUMNS}
+                    data={dailyRows}
+                    keyExtractor={(item) => item.report_date}
+                    renderRow={(item) => {
+                      const formatDate = (ds: string) => {
+                        const d = new Date(ds + "T12:00:00")
+                        return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+                      }
+                      const formatTime = (sec: number) => {
+                        if (!sec) return "0:00"
+                        const h = Math.floor(sec / 3600)
+                        const m = Math.floor((sec % 3600) / 60)
+                        return `${h}:${m.toString().padStart(2, '0')}`
+                      }
+                      return (
+                        <>
+                          <td className="py-[2px] px-1.5 text-[15px] whitespace-nowrap font-medium text-slate-700">{formatDate(item.report_date)}</td>
+                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 border-l-2 border-l-emerald-600/50">{formatValue(item.calls)}</td>
+                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.outbound)}</td>
+                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{item.talk_time_seconds ? formatTime(item.talk_time_seconds) : <span className="text-slate-300 font-normal">0:00</span>}</td>
+                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 border-l-2 border-l-fuchsia-600/50">{formatValue(item.texts)}</td>
+                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 border-l-2 border-l-amber-500/50">{formatValue(item.quotes)}</td>
+                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.nb_count)}</td>
+                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.items)}</td>
+                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{item.written_premium ? formatValue(Number(item.written_premium), "$") : formatValue(0)}</td>
+                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 border-l-2 border-l-orange-500/50">{formatValue(item.pivots)}</td>
+                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.dismissed_todos)}</td>
+                        </>
+                      )
+                    }}
+                  />
+                </div>
+              </Card>
+            </div>
+
+            {/* ── Sidebar Context: Rankings (Spans 1 col) ── */}
+            <div className="space-y-6">
+              <Card>
+                <CardHeader className="bg-slate-50 border-b border-slate-100 pb-4 rounded-t-xl">
+                  <CardTitle className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-wider">
+                    <Trophy className="w-4 h-4 text-amber-500" />
+                    {agent.team || "Agency"} Rankings
+                  </CardTitle>
+                  <p className="text-xs text-slate-500 mt-1">Compared to {rankings[0]?.total || 0} peers for {periodLabel}</p>
+                </CardHeader>
+                <CardContent className="p-4 space-y-3">
+                  {rankings.map(r => (
+                    <RankCard key={r.metric} ranking={r} />
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="border-b border-slate-100 pb-3">
+                  <CardTitle className="text-sm font-semibold text-slate-800">
+                    Additional Metrics
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="divide-y divide-slate-100">
+                    <div className="flex justify-between p-4">
+                      <span className="text-sm text-slate-600">Total Talk Time</span>
+                      <span className="text-sm font-semibold text-slate-900">
+                        {Math.floor(kpis.talk_time_seconds / 3600)}h {Math.floor((kpis.talk_time_seconds % 3600) / 60)}m
+                      </span>
+                    </div>
+                    <div className="flex justify-between p-4">
+                      <span className="text-sm text-slate-600">Items Sold</span>
+                      <span className="text-sm font-semibold text-slate-900">{kpis.items}</span>
+                    </div>
+                    <div className="flex justify-between p-4 bg-slate-50">
+                      <span className="text-sm text-slate-600">eAgent Pivots</span>
+                      <span className="text-sm font-semibold text-slate-900">{kpis.pivots}</span>
+                    </div>
+                    <div className="flex justify-between p-4 bg-slate-50">
+                      <span className="text-sm text-slate-600">Past Due To-Dos</span>
+                      <span className="text-sm font-semibold text-rose-600">{kpis.past_due_todos}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

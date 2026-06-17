@@ -1,254 +1,527 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
-import { supabase } from "@/lib/supabaseClient"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import { DataTable } from "@/components/ui/DataTable"
-import { Badge } from "@/components/ui/Badge"
-import { TrendChart } from "@/components/charts/TrendChart"
-import { Button } from "@/components/ui/Button"
-import { Download, Trophy, TrendingUp } from "lucide-react"
-import { FilterBar, FilterState } from "@/components/ui/FilterBar"
-import Link from "next/link"
+import { useState, useEffect, useMemo } from "react"
+import { getMTDData } from "./actions"
 import { formatValue } from "@/lib/formatters"
+import AgencyMTDPacing from "@/components/ui/AgencyMTDPacing"
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { Button } from "@/components/ui/Button"
+import { Badge } from "@/components/ui/Badge"
+import { DataTable, ColumnDef } from "@/components/ui/DataTable"
+import { FilterBar, FilterState } from "@/components/ui/FilterBar"
+
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, DollarSign, Package, TrendingUp, Trophy, Calendar, Database, Phone, MessageSquare, FileText, ShieldCheck, Zap, Megaphone } from "lucide-react"
+import Link from "next/link"
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+]
+
+const COLUMNS: ColumnDef[] = [
+  { key: "agent", label: "Agent", group: "agent", sortAccessor: (i) => i.agents?.name },
+  { key: "office", label: "Office", group: "agent", sortAccessor: (i) => i.agents?.office },
+  { key: "team", label: "Team", group: "agent", sortAccessor: (i) => i.agents?.team },
+
+  { key: "calls", label: "In Calls", group: "calls", sortAccessor: (i) => i.inbound },
+  { key: "outbound", label: "Out Calls", group: "calls", sortAccessor: (i) => i.outbound },
+  { key: "total_calls", label: "Total Calls", group: "calls", sortAccessor: (i) => i.calls },
+  { key: "talk", label: "Talk Time", group: "calls", sortAccessor: (i) => i.talk_time_seconds },
+  { key: "texts", label: "Texts", group: "texts", sortAccessor: (i) => i.texts },
+
+  { key: "unique_leads", label: "Unique Leads", group: "leads", sortAccessor: (i) => i.unique_leads },
+  { key: "rico_hot", label: "Rico Hot", group: "leads", sortAccessor: (i) => i.rico_hot_pipeline },
+
+  { key: "pivot", label: "#PIVOT", group: "eagent", sortAccessor: (i) => i.pivot },
+  { key: "saved", label: "#SAVED", group: "eagent", sortAccessor: (i) => i.saved },
+
+  { key: "auto_quotes", label: "Auto Quotes", group: "production", sortAccessor: (i) => i.quotes },
+  { key: "total_prem_wk", label: "Written Prem Mo", group: "production", sortAccessor: (i) => i.prem_premium },
+  { key: "mtd_total_prem", label: "MTD Total Prem", group: "production", sortAccessor: (i) => i.premium_mtd },
+  { key: "auto_pts_wk", label: "Auto Pts Mo", group: "production", sortAccessor: (i) => i.prem_points },
+  { key: "prev_mo_pts", label: "Prev Mo Pts", group: "production", sortAccessor: (i) => i.prev_month_points },
+  { key: "mtd_auto_items", label: "MTD Auto Items", group: "production", sortAccessor: (i) => i.items_mtd },
+
+  { key: "dismissed", label: "Dismissed To-do's", group: "eagent", sortAccessor: (i) => i.w_dismissed_todos },
+  { key: "past_due", label: "Past Due To-do's", group: "eagent", sortAccessor: (i) => i.w_past_due_todos },
+  
+  { key: "rico_pd", label: "Rico Past Due", group: "leads", sortAccessor: (i) => i.rico_past_due_tasks },
+]
+
+const formatTime = (seconds: number) => {
+  if (!seconds) return "0:00"
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  return `${h}:${m.toString().padStart(2, '0')}`
+}
+
+function getTop3Ties(data: any[], accessor: (m: any) => number) {
+  const scoreMap = new Map<number, any[]>()
+  data.forEach(m => {
+    const score = accessor(m)
+    if (score <= 0) return
+    if (!scoreMap.has(score)) scoreMap.set(score, [])
+    scoreMap.get(score)!.push(m)
+  })
+  const sortedScores = Array.from(scoreMap.keys()).sort((a, b) => b - a)
+  const topScores = sortedScores.slice(0, 3)
+  return topScores.map(score => ({
+    score,
+    agents: scoreMap.get(score)!.sort((a, b) => (a.agents?.name || "").localeCompare(b.agents?.name || ""))
+  }))
+}
+
+function LeaderboardCard({ 
+  title, icon, data, accessor, format, colorClass, className 
+}: { 
+  title: string; icon: React.ReactNode; data: any[]; 
+  accessor: (m: any) => number; format: (v: number) => string;
+  colorClass: string; className?: string;
+}) {
+  const topGroups = getTop3Ties(data, accessor)
+  if (topGroups.length === 0) return null
+  const medals = ["🥇", "🥈", "🥉"]
+  
+  return (
+    <div className={`${className || ""} flex flex-col`}>
+      <Card className="bg-white border border-slate-200 shadow-sm flex-1 flex flex-col">
+        <CardContent className="p-3 flex-1 flex flex-col">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <span className={colorClass}>{icon}</span> <span className="truncate">{title}</span>
+              </p>
+            </div>
+            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-wider shrink-0 select-none border bg-indigo-50 text-indigo-700 border-indigo-100">
+              MTD
+            </span>
+          </div>
+          <div className="space-y-2">
+            {topGroups.map((group, i) => {
+              const valueColors = ["text-emerald-600", "text-blue-600", "text-blue-400"]
+              const valueColor = valueColors[i] || "text-slate-500"
+              return (
+                <div key={i} className="flex items-start justify-between gap-2">
+                  <span className="flex items-start gap-1.5 text-sm">
+                    <span className="text-base leading-none shrink-0 mt-[1px]">{medals[i]}</span>
+                    <span className="text-slate-900 font-medium leading-tight text-sm flex flex-wrap gap-x-1 mt-0.5">
+                      {group.agents.map((m, idx) => (
+                        <span key={m.agent_id}>
+                          <Link href={`/reports/agent/${m.agent_id}`} className="hover:text-blue-600 transition-colors">
+                            {m.agents?.name}
+                          </Link>
+                          {idx < group.agents.length - 1 ? <span className="text-slate-400">,</span> : ""}
+                        </span>
+                      ))}
+                    </span>
+                  </span>
+                  <span className={`text-base font-bold font-mono ${valueColor} shrink-0`}>
+                    {format(group.score)}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+const GROUP_CELL_BORDER: Record<string, string> = {
+  calls:      "border-l-2 border-l-emerald-600/40",
+  texts:      "border-l-2 border-l-purple-600/40",
+  leads:      "border-l-2 border-l-rose-600/40",
+  eagent:     "border-l-2 border-l-amber-600/40",
+  production: "border-l-2 border-l-amber-500/40",
+}
 
 export default function MTDReport() {
-  const [loading, setLoading] = useState(true)
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth() + 1)
+  
   const [metrics, setMetrics] = useState<any[]>([])
   const [goals, setGoals] = useState<any[]>([])
+  const [holidays, setHolidays] = useState<{ holiday_date: string }[]>([])
+  const [manualSubmitted, setManualSubmitted] = useState(false)
   const [filters, setFilters] = useState<FilterState>({ offices: [], teams: [], agents: [], meetings: [] })
-  
-  // Dummy chart data representing aggregated MTD performance
-  const chartData = [
-    { date: 'Apr 1', closeRate: 12, newBusiness: 4000, quotes: 24 },
-    { date: 'Apr 5', closeRate: 15, newBusiness: 5500, quotes: 30 },
-    { date: 'Apr 10', closeRate: 14, newBusiness: 4800, quotes: 28 },
-    { date: 'Apr 15', closeRate: 18, newBusiness: 7200, quotes: 35 },
-    { date: 'Apr 17', closeRate: 22, newBusiness: 8900, quotes: 42 },
-  ]
+  const [loading, setLoading] = useState(true)
+  const [talkingPointsExpanded, setTalkingPointsExpanded] = useState(true)
+  const [agencyItemsMTD, setAgencyItemsMTD] = useState(0)
+  const [agencyOfficeBreakdown, setAgencyOfficeBreakdown] = useState<Record<string, number>>({})
+
+  const fetchData = async () => {
+    setLoading(true)
+    const result = await getMTDData(selectedYear, selectedMonth)
+    if (result.success && result.data) {
+      setMetrics(result.data.metrics)
+      setGoals(result.data.goals)
+      setHolidays(result.data.holidays || [])
+      setManualSubmitted(result.data.manualSubmitted)
+      setAgencyItemsMTD(result.data.agencyItemsMTD || 0)
+      setAgencyOfficeBreakdown(result.data.agencyOfficeBreakdown || {})
+    } else {
+      setMetrics([])
+    }
+    setLoading(false)
+  }
 
   useEffect(() => {
-    const fetchMTD = async () => {
-      try {
-        // Current month boundaries
-        const now = new Date()
-        const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-        const nextMonth = now.getMonth() === 11
-          ? `${now.getFullYear() + 1}-01-01`
-          : `${now.getFullYear()}-${String(now.getMonth() + 2).padStart(2, '0')}-01`
+    fetchData()
+  }, [selectedYear, selectedMonth])
 
-        // Fetch ALL metrics for the current month (no limit)
-        let allMetrics: any[] = []
-        let page = 0
-        const PAGE_SIZE = 1000
-        while (true) {
-          const { data, error } = await supabase
-            .from("daily_metrics")
-            .select("*, agents(id, name, team, office)")
-            .gte("report_date", monthStart)
-            .lt("report_date", nextMonth)
-            .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
-          if (error) throw error
-          if (!data || data.length === 0) break
-          allMetrics = allMetrics.concat(data)
-          if (data.length < PAGE_SIZE) break
-          page++
-        }
-        
-        const { data: goalsData } = await supabase.from("kpi_goals").select("*").eq("timeframe", "monthly")
-        setGoals(goalsData || [])
-
-        setMetrics(allMetrics)
-      } catch (err) {
-        console.error("Error fetching MTD metrics:", err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchMTD()
-  }, [])
+  const availableMeetings = useMemo(() => {
+    return Array.from(new Set(metrics.map(m => m.agents?.meeting_time).filter(Boolean))).sort()
+  }, [metrics])
 
   const availableAgents = useMemo(() => {
-    return metrics
-      .map(m => m.agents)
-      .filter(Boolean)
-      .filter(a => {
-        const matchOffice = filters.offices.length === 0 || filters.offices.includes(a.office);
-        const matchTeam = filters.teams.length === 0 || filters.teams.includes(a.team);
-        return matchOffice && matchTeam;
-      })
-      .map(a => a.name)
-      .filter((v, i, a) => a.indexOf(v) === i)
-      .sort();
-  }, [metrics, filters]);
+    return Array.from(new Set(metrics.map(m => m.agents?.name).filter(Boolean))).sort()
+  }, [metrics])
 
   const filteredMetrics = useMemo(() => {
     return metrics.filter(m => {
-      const agent = m.agents || {};
-      const matchOffice = filters.offices.length === 0 || filters.offices.includes(agent.office);
-      const matchTeam = filters.teams.length === 0 || filters.teams.includes(agent.team);
-      const matchAgent = filters.agents.length === 0 || filters.agents.includes(agent.name);
-      return matchOffice && matchTeam && matchAgent;
-    });
-  }, [metrics, filters]);
+      const agent = m.agents || {}
+      return (filters.offices.length === 0 || filters.offices.includes(agent.office)) &&
+             (filters.teams.length === 0 || filters.teams.includes(agent.team)) &&
+             (filters.agents.length === 0 || filters.agents.includes(agent.name)) &&
+             (filters.meetings.length === 0 || filters.meetings.includes(agent.meeting_time))
+    })
+  }, [metrics, filters])
 
-  // Aggregate MTD per agent
-  const aggregatedMTD = useMemo(() => {
-    const agg: Record<string, any> = {};
-    filteredMetrics.forEach(m => {
-      const id = m.agents?.id;
-      if (!id) return;
-      if (!agg[id]) {
-        agg[id] = {
-          id: id,
-          name: m.agents.name,
-          team: m.agents.team,
-          office: m.agents.office,
-          quotes: 0,
-          nb_count: 0,
-          items: 0,
-          prem_premium: 0,
-        };
-      }
-      agg[id].quotes += m.quotes || 0;
-      agg[id].nb_count += m.nb_count || 0;
-      agg[id].items += m.items || 0;
-      agg[id].prem_premium += parseFloat(m.prem_premium || 0);
-    });
-    return Object.values(agg).sort((a: any, b: any) => b.prem_premium - a.prem_premium);
-  }, [filteredMetrics]);
+  const availableMonths = useMemo(() => {
+    const today = new Date()
+    const months = []
+    const limit = today.getFullYear() === selectedYear ? today.getMonth() + 1 : 12
+    for (let i = 1; i <= limit; i++) {
+      months.push({ value: i, label: MONTH_NAMES[i - 1] })
+    }
+    return months
+  }, [selectedYear])
 
-  const topPremium = aggregatedMTD[0];
-  const topQuotes = [...aggregatedMTD].sort((a: any, b: any) => b.quotes - a.quotes)[0];
+  const availableYears = useMemo(() => {
+    const current = new Date().getFullYear()
+    return [current - 1, current]
+  }, [])
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
-      <div className="bg-amber-100 text-amber-800 p-3 text-center text-sm font-medium rounded-md shadow-sm border border-amber-200">
-        🚧 Under Construction; message Charlie with requests
-      </div>
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="p-4 md:p-6 max-w-[1800px] mx-auto space-y-4">
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">MTD Performance</h1>
-          <p className="text-slate-500 mt-1">Month-To-Date aggregated reporting.</p>
+          <h1 className="text-3xl font-extrabold text-slate-900">MTD Performance</h1>
+          <p className="text-slate-500">Aggregated performance and comparison metrics for the month.</p>
         </div>
-        <Button variant="outline">
-          <Download className="w-4 h-4 mr-2" />
-          Export CSV
-        </Button>
+        
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Year selector */}
+          <select 
+            value={selectedYear} 
+            onChange={(e) => {
+              const yr = parseInt(e.target.value)
+              setSelectedYear(yr)
+              // If changing year puts the selected month in the future, fallback to Dec or current month
+              const today = new Date()
+              if (yr === today.getFullYear() && selectedMonth > today.getMonth() + 1) {
+                setSelectedMonth(today.getMonth() + 1)
+              }
+            }}
+            className="bg-white border border-slate-200 shadow-sm rounded-md px-3 py-1.5 text-sm font-semibold text-slate-700 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+          >
+            {availableYears.map(yr => (
+              <option key={yr} value={yr}>{yr}</option>
+            ))}
+          </select>
+
+          {/* Month selector */}
+          <select 
+            value={selectedMonth} 
+            onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+            className="bg-white border border-slate-200 shadow-sm rounded-md px-3 py-1.5 text-sm font-semibold text-slate-700 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+          >
+            {availableMonths.map(m => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
+        </div>
       </header>
 
-      <FilterBar onFilterChange={setFilters} availableAgents={availableAgents} />
+      {/* ── Dashboard Leaderboards Grid ── */}
+      <div className="grid grid-cols-12 gap-4 mb-6">
+        {/* Section Header: Month-to-Date (MTD) */}
+        <div className="col-span-12 flex items-center gap-3">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Month-to-Date (MTD)</span>
+          <div className="h-[1px] w-full bg-slate-200/60" />
+        </div>
 
-      {/* Top Performers */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {topPremium && (
-          <Card className="bg-white border-emerald-200 shadow-sm">
-            <CardContent className="p-6 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-emerald-600 flex items-center gap-2 mb-1">
-                  <Trophy className="w-4 h-4" /> Top Premium (MTD)
-                </p>
-                <Link href={`/reports/agent/${topPremium.id}`} className="text-2xl font-bold text-slate-900 hover:text-emerald-600 transition-colors">
-                  {topPremium.name}
-                </Link>
-                <p className="text-sm text-slate-500 mt-1">{topPremium.office} • {topPremium.team}</p>
-              </div>
-              <div className="text-right">
-                <span className="text-3xl font-black text-emerald-600">${topPremium.prem_premium.toFixed(2)}</span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        
-        {topQuotes && (
-          <Card className="bg-white border-purple-200 shadow-sm">
-            <CardContent className="p-6 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-purple-600 flex items-center gap-2 mb-1">
-                  <TrendingUp className="w-4 h-4" /> Most Quotes (MTD)
-                </p>
-                <Link href={`/reports/agent/${topQuotes.id}`} className="text-2xl font-bold text-slate-900 hover:text-purple-600 transition-colors">
-                  {topQuotes.name}
-                </Link>
-                <p className="text-sm text-slate-500 mt-1">{topQuotes.office} • {topQuotes.team}</p>
-              </div>
-              <div className="text-right">
-                <span className="text-3xl font-black text-purple-600">{topQuotes.quotes} Quotes</span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Row 1, Col 1-2 (Desktop): Items MTD */}
+        <LeaderboardCard
+          title="Items MTD"
+          icon={<TrendingUp className="w-3.5 h-3.5" />}
+          data={metrics}
+          accessor={(m) => m.items_mtd || 0}
+          format={(v) => `${v} items`}
+          colorClass="text-amber-400"
+          className="col-span-12 md:col-span-6 lg:col-span-2 order-1 lg:order-none"
+        />
+
+        {/* Row 1 & 2, Col 3-12 (Desktop): Agency MTD Pacing */}
+        <AgencyMTDPacing
+          agencyItemsMTD={agencyItemsMTD}
+          agencyOfficeBreakdown={agencyOfficeBreakdown}
+          holidays={holidays}
+          year={selectedYear}
+          month={selectedMonth}
+        />
+
+        {/* Row 2, Col 1-2 (Desktop): Premium MTD */}
+        <LeaderboardCard
+          title="Premium MTD"
+          icon={<Trophy className="w-3.5 h-3.5" />}
+          data={metrics}
+          accessor={(m) => m.premium_mtd || 0}
+          format={(v) => `$${v.toLocaleString()}`}
+          colorClass="text-emerald-600"
+          className="col-span-12 md:col-span-6 lg:col-span-2 order-2 lg:order-none"
+        />
+
+        {/* Section Header: Monthly Leaders */}
+        <div className="col-span-12 mt-4 -mb-2 flex items-center gap-3 order-4 lg:order-none">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Monthly Leaders</span>
+          <div className="h-[1px] w-full bg-slate-200/60" />
+        </div>
+
+        {/* Row 3 (Desktop): Monthly Leaders */}
+        {/* Top Talk Time */}
+        <LeaderboardCard
+          title="Top Talk Time"
+          icon={<Clock className="w-3.5 h-3.5" />}
+          data={metrics}
+          accessor={(m) => m.talk_time_seconds || 0}
+          format={(v) => formatTime(v)}
+          colorClass="text-sky-400"
+          className="col-span-12 md:col-span-6 lg:col-span-3 order-5 lg:order-none"
+        />
+
+        {/* Top Outbound Calls */}
+        <LeaderboardCard
+          title="Top Outbound Calls"
+          icon={<Phone className="w-3.5 h-3.5" />}
+          data={metrics}
+          accessor={(m) => m.outbound || 0}
+          format={(v) => `${v} calls`}
+          colorClass="text-indigo-500"
+          className="col-span-12 md:col-span-6 lg:col-span-3 order-6 lg:order-none"
+        />
+
+        {/* Top Quotes */}
+        <LeaderboardCard
+          title="Top Quotes"
+          icon={<FileText className="w-3.5 h-3.5" />}
+          data={metrics}
+          accessor={(m) => m.quotes || 0}
+          format={(v) => `${v} quotes`}
+          colorClass="text-rose-500"
+          className="col-span-12 md:col-span-6 lg:col-span-3 order-7 lg:order-none"
+        />
+
+        {/* Top Texts */}
+        <LeaderboardCard
+          title="Top Texts"
+          icon={<MessageSquare className="w-3.5 h-3.5" />}
+          data={metrics}
+          accessor={(m) => m.texts || 0}
+          format={(v) => `${v} texts`}
+          colorClass="text-purple-500"
+          className="col-span-12 md:col-span-6 lg:col-span-3 order-8 lg:order-none"
+        />
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        <TrendChart 
-          title="New Business Premium ($)" 
-          data={chartData} 
-          dataKey="newBusiness" 
-          color="#10b981" 
-        />
-        <TrendChart 
-          title="Close Rate (%)" 
-          data={chartData} 
-          dataKey="closeRate" 
-          color="#8b5cf6" 
-        />
-        <TrendChart 
-          title="Quotes Generated" 
-          data={chartData} 
-          dataKey="quotes" 
-          color="#3b82f6" 
-        />
-      </div>
+      <FilterBar onFilterChange={setFilters} availableAgents={availableAgents} availableMeetings={availableMeetings} />
 
-      {/* Data Table */}
+      {/* ── Main Data Table ── */}
       <Card>
-        <CardHeader>
-          <CardTitle>MTD Agent Aggregation</CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">
+            Monthly Production Report — {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-0">
           {loading ? (
-            <div className="h-32 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
+            <div className="h-32 flex justify-center items-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
             </div>
           ) : (
             <DataTable 
-              columns={["Agent", "Team", "Office", "Quotes", "New Business", "Items", "Written Premium"]}
-              data={aggregatedMTD}
-              keyExtractor={(item) => item.id}
+              columns={COLUMNS}
+              data={filteredMetrics}
+              keyExtractor={(item) => item.agent_id}
               renderRow={(item) => {
-                const getGoal = (metric: string) => {
-                  return goals.find(g => 
-                    g.metric_name === metric && 
-                    (!g.office || g.office === item.office) &&
-                    (!g.team || g.team === item.team)
-                  );
-                };
-
+                const bdr = (group: string) => GROUP_CELL_BORDER[group] || ""
+                const manualHL = !manualSubmitted ? "orange" as const : undefined
                 return (
                   <>
-                    <td className="py-1.5 px-3">
-                      <Link href={`/reports/agent/${item.id}`} className="font-medium text-blue-600 hover:underline">
-                        {item.name}
+                    <td className="py-[2px] px-1.5 text-[15px] whitespace-nowrap">
+                      <Link href={`/reports/agent/${item.agent_id}`} className="font-bold text-blue-600 hover:underline">
+                        {item.agents?.name}
                       </Link>
                     </td>
-                    <td className="py-1.5 px-3 text-slate-500">
-                      {item.team ? <Badge variant="outline">{item.team}</Badge> : '-'}
+                    <td className="py-[2px] px-1.5 text-[15px] text-slate-400">{item.agents?.office || "-"}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] text-slate-400">
+                      {item.agents?.team ? <Badge variant="outline" className="text-[11px] py-0">{item.agents.team}</Badge> : '-'}
                     </td>
-                    <td className="py-1.5 px-3 text-slate-500">{item.office || "-"}</td>
-                    <td className="py-1.5 px-3 font-mono font-bold text-slate-900">{formatValue(item.quotes, "", "", getGoal("quotes"))}</td>
-                    <td className="py-1.5 px-3 font-mono font-bold text-slate-900">{formatValue(item.nb_count, "", "", getGoal("nb_count"))}</td>
-                    <td className="py-1.5 px-3 font-mono font-bold text-slate-900">{formatValue(item.items, "", "", getGoal("items"))}</td>
-                    <td className="py-1.5 px-3 font-mono font-bold text-slate-900">{formatValue(item.prem_premium.toFixed(2), "$", "", getGoal("prem_premium"))}</td>
+
+                    {/* RC / Ricochet */}
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("calls")}`}>{formatValue(item.inbound)}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.outbound)}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.calls)}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatTime(item.talk_time_seconds)}</td>
+                    
+                    {/* Hearsay */}
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("texts")}`}>{formatValue(item.texts)}</td>
+
+                    {/* Leads (manual) */}
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("leads")}`}>{formatValue(item.unique_leads, "", "", null, manualHL)}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.rico_hot_pipeline, "", "", null, manualHL)}</td>
+
+                    {/* eAgent (manual) */}
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("eagent")}`}>{formatValue(item.pivot)}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.saved, "", "", null, manualHL)}</td>
+
+                    {/* Production */}
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("production")}`}>{formatValue(item.quotes)}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.prem_premium, "$")}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.premium_mtd, "$", "", null, "gold")}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.prem_points)}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.prev_month_points)}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.items_mtd, "", "", null, "gold")}</td>
+
+                    {/* Past Due / Dismissed (manual) */}
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("eagent")}`}>{formatValue(item.w_dismissed_todos)}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.w_past_due_todos, "", "", null, manualHL)}</td>
+                    
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("leads")}`}>{formatValue(item.rico_past_due_tasks, "", "", null, manualHL)}</td>
                   </>
-                );
+                )
               }}
             />
           )}
         </CardContent>
       </Card>
+
+      {/* ── Insights: Talking Points ──────────────────────────── */}
+      <div className="grid grid-cols-1 gap-4 mt-6">
+        <Card className="bg-white border border-slate-200 shadow-sm">
+          <CardHeader 
+            onClick={() => setTalkingPointsExpanded(!talkingPointsExpanded)}
+            className="pb-2 flex flex-row items-center justify-between space-y-0 cursor-pointer select-none hover:bg-slate-50/50 transition-colors rounded-t-xl"
+          >
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Megaphone className="w-4 h-4 text-blue-500" />
+              <span className="text-slate-700 font-bold">Monthly Talking Points</span>
+              <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-200">Auto-generated</Badge>
+            </CardTitle>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${talkingPointsExpanded ? "rotate-180" : ""}`} />
+          </CardHeader>
+          {talkingPointsExpanded && (
+            <CardContent className="pt-0">
+              {(() => {
+                const data = filteredMetrics
+                if (data.length === 0) return <p className="text-sm text-slate-400 italic">No data available.</p>
+
+                const points: { icon: React.ReactNode; text: string; color: string; isPositive: boolean }[] = []
+
+                // Top caller
+                const topCaller = [...data].sort((a, b) => (b.outbound || 0) - (a.outbound || 0))[0]
+                if (topCaller?.outbound > 0) {
+                  points.push({
+                    icon: <Phone className="w-3.5 h-3.5" />,
+                    text: `${topCaller.agents?.name} led outbound calls with ${topCaller.outbound.toLocaleString()} this month`,
+                    color: "text-sky-600",
+                    isPositive: true
+                  })
+                }
+
+                // Top premium
+                const topPrem = [...data].sort((a, b) => (Number(a.prem_premium) || 0) - (Number(b.prem_premium) || 0))[0]
+                if (Number(topPrem?.prem_premium) > 0) {
+                  points.push({
+                    icon: <DollarSign className="w-3.5 h-3.5" />,
+                    text: `${topPrem.agents?.name} wrote $${Number(topPrem.prem_premium).toLocaleString()} in premium this month`,
+                    color: "text-emerald-600",
+                    isPositive: true
+                  })
+                }
+
+                // Auto item leader
+                const topItem = [...data].sort((a, b) => (b.items_mtd || 0) - (a.items_mtd || 0))[0]
+                if (topItem?.items_mtd > 0) {
+                  const ties = data.filter(m => (m.items_mtd || 0) === topItem.items_mtd)
+                  const names = ties.map(m => m.agents?.name).join(" & ")
+                  points.push({
+                    icon: <Package className="w-3.5 h-3.5" />,
+                    text: `${names} led auto items with ${topItem.items_mtd} item${topItem.items_mtd !== 1 ? "s" : ""} this month`,
+                    color: "text-amber-600",
+                    isPositive: true
+                  })
+                }
+
+                // Total items written
+                const totalItems = data.reduce((sum, m) => sum + (m.items_mtd || 0), 0)
+                if (totalItems > 0) {
+                  points.push({
+                    icon: <Package className="w-3.5 h-3.5" />,
+                    text: `Agency wrote ${totalItems} item${totalItems !== 1 ? "s" : ""} in total this month`,
+                    color: "text-violet-600",
+                    isPositive: true
+                  })
+                }
+
+                // Top quotes generator
+                const topQuotesGen = [...data].sort((a, b) => (b.quotes || 0) - (a.quotes || 0))[0]
+                if (topQuotesGen?.quotes > 0) {
+                  points.push({
+                    icon: <FileText className="w-3.5 h-3.5" />,
+                    text: `${topQuotesGen.agents?.name} generated ${topQuotesGen.quotes.toLocaleString()} quotes this month`,
+                    color: "text-rose-600",
+                    isPositive: true
+                  })
+                }
+
+                // Agents with no premium (Negative)
+                const noPremiumAgents = data.filter(m => !m.prem_premium || Number(m.prem_premium) === 0)
+                if (noPremiumAgents.length > 0 && noPremiumAgents.length < data.length) {
+                  const names = noPremiumAgents.map(m => m.agents?.name).join(", ")
+                  points.push({
+                    icon: <AlertCircle className="w-3.5 h-3.5" />,
+                    text: `${noPremiumAgents.length === 1 ? "Agent" : "Agents"} with no premium this month: ${names}`,
+                    color: "text-rose-600",
+                    isPositive: false
+                  })
+                }
+
+                if (points.length === 0) return <p className="text-sm text-slate-400 italic">Not enough data for insights.</p>
+
+                // Sort positive points before negative points
+                const sortedPoints = [...points].sort((a, b) => {
+                  if (a.isPositive === b.isPositive) return 0
+                  return a.isPositive ? -1 : 1
+                })
+
+                return (
+                  <ul className="space-y-2">
+                    {sortedPoints.map((p, i) => (
+                      <li key={i} className={`flex items-start gap-2.5 text-sm ${p.color}`}>
+                        <span className="mt-0.5 shrink-0">{p.icon}</span>
+                        <span className="text-slate-700">{p.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              })()}
+            </CardContent>
+          )}
+        </Card>
+      </div>
     </div>
   )
 }

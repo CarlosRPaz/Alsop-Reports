@@ -1,5 +1,6 @@
 "use server"
 
+import { unstable_noStore as noStore } from "next/cache"
 import { supabase } from "@/lib/supabaseClient"
 
 export async function getDailyData(dateStr: string) {
@@ -7,15 +8,30 @@ export async function getDailyData(dateStr: string) {
     // 1. Fetch Goals (daily + monthly for MTD highlighting)
     const { data: goals } = await supabase.from("kpi_goals").select("*").in("timeframe", ["daily", "monthly"])
 
-    // 2. Fetch Metrics for the specific date
-    const { data: metrics } = await supabase
+    // 2. Fetch Metrics for the specific date (only report-visible agents)
+    let metrics: any[] | null = null
+    const { data: filteredMetrics, error: metricsErr } = await supabase
       .from("daily_metrics")
       .select(`
         *,
-        agents(id, name, team, office, meeting_time)
+        agents!inner(id, name, team, office, meeting_time, report_visible, active)
       `)
       .eq("report_date", dateStr)
+      .eq("agents.report_visible", true)
+      .eq("agents.active", true)
       .order("created_at", { ascending: false })
+
+    if (metricsErr) {
+      // Fallback if report_visible column doesn't exist yet
+      const { data: fallbackMetrics } = await supabase
+        .from("daily_metrics")
+        .select(`*, agents(id, name, team, office, meeting_time)`)
+        .eq("report_date", dateStr)
+        .order("created_at", { ascending: false })
+      metrics = fallbackMetrics
+    } else {
+      metrics = filteredMetrics
+    }
       
     // 3. Fetch Leads Snapshot for the specific date
     const { data: leads } = await supabase
@@ -41,19 +57,30 @@ export async function getDailyData(dateStr: string) {
       .gte("holiday_date", `${year}-01-01`)
       .lte("holiday_date", `${year}-12-31`)
 
+    // MTD items: use nb_auto_items (Standard Auto only) for ALL agents (including hidden/on-leave/archived)
+    // because the agency-wide KPI should count every item regardless of agent visibility.
+    // Hiding only removes agents from the per-agent report table — their data always counts.
     const { data: mtdMetrics } = await supabase
       .from("daily_metrics")
-      .select("agent_id, items, prem_premium")
+      .select("agent_id, nb_auto_items, prem_premium, agents(office)")
       .gte("report_date", firstDayOfMonth)
       .lte("report_date", dateStr)
 
-    // Aggregate MTD items and premium per agent
+    // Aggregate MTD items and premium per agent + agency-wide office breakdown
     const mtdItemsMap: Record<string, number> = {}
     const mtdPremiumMap: Record<string, number> = {}
+    const agencyOfficeMap: Record<string, number> = {}
+    let agencyItemsMTD = 0
     if (mtdMetrics) {
-      mtdMetrics.forEach(m => {
-        mtdItemsMap[m.agent_id] = (mtdItemsMap[m.agent_id] || 0) + (m.items || 0)
+      mtdMetrics.forEach((m: any) => {
+        const autoItems = m.nb_auto_items || 0
+        mtdItemsMap[m.agent_id] = (mtdItemsMap[m.agent_id] || 0) + autoItems
         mtdPremiumMap[m.agent_id] = (mtdPremiumMap[m.agent_id] || 0) + (Number(m.prem_premium) || 0)
+        agencyItemsMTD += autoItems
+
+        // Office breakdown for the stacked bar (includes all agents)
+        const office = m.agents?.office || "Other"
+        agencyOfficeMap[office] = (agencyOfficeMap[office] || 0) + autoItems
       })
     }
 
@@ -77,7 +104,9 @@ export async function getDailyData(dateStr: string) {
         metrics: merged,
         goals: goals || [],
         eagentSubmitted: meta?.eagent_submitted || false,
-        holidays: holidays || []
+        holidays: holidays || [],
+        agencyItemsMTD, // Agency-wide total (all agents, Standard Auto only)
+        agencyOfficeBreakdown: agencyOfficeMap, // Per-office items (all agents)
       }
     }
 
@@ -118,6 +147,233 @@ export async function saveEAgentData(dateStr: string, updates: { agent_id: strin
     return { success: true }
   } catch (error: any) {
     console.error("Error saving eAgent data:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+export async function getDailyCoverage(dateStr: string) {
+  noStore()
+  try {
+    // Fetch all daily_metrics rows for this date in a single query
+    const { data: metrics, error: metricsError } = await supabase
+      .from("daily_metrics")
+      .select("agent_id, calls, inbound, outbound, texts, out_texts, quotes, items, nb_count, prem_premium, prem_points")
+      .eq("report_date", dateStr)
+
+    if (metricsError) throw metricsError
+
+    // Count agents with data per source
+    let callsCount = 0
+    let textsCount = 0
+    let quotesCount = 0
+    let itemsCount = 0
+    let premiumCount = 0
+
+    for (const m of metrics || []) {
+      if ((m.calls || 0) > 0 || (m.inbound || 0) > 0 || (m.outbound || 0) > 0) callsCount++
+      if ((m.texts || 0) > 0 || (m.out_texts || 0) > 0) textsCount++
+      if ((m.quotes || 0) > 0) quotesCount++
+      if ((m.items || 0) > 0 || (m.nb_count || 0) > 0) itemsCount++
+      if (Number(m.prem_premium || 0) > 0 || (m.prem_points || 0) > 0) premiumCount++
+    }
+
+    // Check eAgent submission in daily_reports_meta
+    const { data: meta } = await supabase
+      .from("daily_reports_meta")
+      .select("eagent_submitted")
+      .eq("report_date", dateStr)
+      .single()
+
+    const eagentPresent = meta?.eagent_submitted === true
+
+    // Check leads_snapshot for any rows with data
+    const { data: leads } = await supabase
+      .from("leads_snapshot")
+      .select("agent_id, contact, quoted, hot, xsale")
+      .eq("report_date", dateStr)
+
+    const leadsWithData = (leads || []).filter(l =>
+      (l.contact || 0) > 0 || (l.quoted || 0) > 0 || (l.hot || 0) > 0 || (l.xsale || 0) > 0
+    )
+
+    return {
+      success: true,
+      data: {
+        calls: { present: callsCount > 0, agentCount: callsCount },
+        texts: { present: textsCount > 0, agentCount: textsCount },
+        quotes: { present: quotesCount > 0, agentCount: quotesCount },
+        items: { present: itemsCount > 0, agentCount: itemsCount },
+        premium: { present: premiumCount > 0, agentCount: premiumCount },
+        eagent: { present: eagentPresent, agentCount: eagentPresent ? 1 : 0 },
+        leads: { present: leadsWithData.length > 0, agentCount: leadsWithData.length },
+      }
+    }
+
+  } catch (error: any) {
+    console.error("Error fetching daily coverage:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+export async function getDailyInsights(dateStr: string) {
+  noStore()
+  try {
+    // Fetch last 30 calendar days of metrics for streak calculations
+    const targetDate = new Date(dateStr + "T12:00:00")
+    const startDate = new Date(targetDate)
+    startDate.setDate(startDate.getDate() - 29) // 30 days total
+    const startStr = startDate.toISOString().split("T")[0]
+
+    const { data: history } = await supabase
+      .from("daily_metrics")
+      .select(`
+        agent_id, report_date, calls, outbound, items, quotes, inbound, out_texts, talk_time_seconds,
+        agents!inner(id, name, team, office, meeting_time, report_visible, active)
+      `)
+      .gte("report_date", startStr)
+      .lte("report_date", dateStr)
+      .eq("agents.report_visible", true)
+      .eq("agents.active", true)
+      .order("report_date", { ascending: true })
+
+    if (!history || history.length === 0) {
+      return { success: true, data: { streaks: [] } }
+    }
+
+    // Group by agent
+    const byAgent: Record<string, { name: string, team: string, office: string, meeting_time: string, days: { date: string, outbound: number, items: number, quotes: number, inbound: number, out_texts: number, talk_time_seconds: number }[] }> = {}
+    for (const row of history) {
+      const agent = row.agents as any
+      if (!byAgent[row.agent_id]) {
+        byAgent[row.agent_id] = {
+          name: agent.name, team: agent.team, office: agent.office, meeting_time: agent.meeting_time,
+          days: []
+        }
+      }
+      byAgent[row.agent_id].days.push({
+        date: row.report_date,
+        outbound: row.outbound || 0,
+        items: row.items || 0,
+        quotes: row.quotes || 0,
+        inbound: row.inbound || 0,
+        out_texts: row.out_texts || 0,
+        talk_time_seconds: row.talk_time_seconds || 0,
+      })
+    }
+
+    // Fetch Goals (for resolving dynamic streak thresholds)
+    const { data: goals } = await supabase.from("kpi_goals").select("*").eq("timeframe", "daily")
+
+    const streaks: { name: string, team: string, office: string, meeting_time: string, metric: string, streak: number, label: string }[] = []
+
+    const STREAK_METRICS = [
+      { key: "outbound", label: "Outbound Calls", threshold: 20 },
+      { key: "items", label: "Items Written", threshold: 1 },
+      { key: "quotes", label: "Quotes", threshold: 4 },
+      { key: "out_texts", label: "Outbound Texts", threshold: 20 },
+      { key: "inbound", label: "Inbound Calls", threshold: 10 },
+      { key: "talk_time_seconds", label: "Talk Time (60m+)", threshold: 3600 },
+    ] as const
+
+    const getPrecedingFriday = (dStr: string): string => {
+      const dt = new Date(dStr + "T12:00:00");
+      const day = dt.getDay();
+      if (day === 0) { // Sunday
+        dt.setDate(dt.getDate() - 2);
+      } else if (day === 6) { // Saturday
+        dt.setDate(dt.getDate() - 1);
+      }
+      return dt.toISOString().split("T")[0];
+    };
+
+    const getAgentGoalValue = (agent: { office: string, team: string }, metricName: string, fallbackThreshold: number): number => {
+      if (!goals || goals.length === 0) return fallbackThreshold;
+      const matching = goals.filter((g: any) => g.metric_name === metricName);
+      if (matching.length === 0) return fallbackThreshold;
+
+      const teamAndOffice = matching.find((g: any) => g.team === agent.team && g.office === agent.office);
+      if (teamAndOffice) return teamAndOffice.target_value;
+
+      const teamOnly = matching.find((g: any) => g.team === agent.team && !g.office);
+      if (teamOnly) return teamOnly.target_value;
+
+      const officeOnly = matching.find((g: any) => g.office === agent.office && !g.team);
+      if (officeOnly) return officeOnly.target_value;
+
+      const defaultGoal = matching.find((g: any) => !g.office && !g.team);
+      return defaultGoal ? defaultGoal.target_value : fallbackThreshold;
+    };
+
+    for (const [_, agentData] of Object.entries(byAgent)) {
+      // Create a map of date string -> metrics for quick lookup
+      const valuesMap: Record<string, { outbound: number, items: number, quotes: number, inbound: number, out_texts: number, talk_time_seconds: number }> = {};
+      agentData.days.forEach(day => {
+        valuesMap[day.date] = {
+          outbound: day.outbound,
+          items: day.items,
+          quotes: day.quotes,
+          inbound: day.inbound,
+          out_texts: day.out_texts,
+          talk_time_seconds: day.talk_time_seconds
+        };
+      });
+
+      for (const sm of STREAK_METRICS) {
+        let streak = 0
+        let currentDate = new Date(targetDate)
+
+        // Resolve threshold dynamically based on agent overrides
+        const resolvedGoal = getAgentGoalValue(agentData, sm.key, sm.threshold);
+        const threshold = sm.key === "talk_time_seconds" ? resolvedGoal * 60 : resolvedGoal;
+
+        // Check up to 30 calendar days going backward
+        for (let i = 0; i < 30; i++) {
+          const dStr = currentDate.toISOString().split("T")[0]
+          
+          const val = valuesMap[dStr]?.[sm.key] || 0
+          const dt = new Date(dStr + "T12:00:00")
+          const dayOfWeek = dt.getDay()
+          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+
+          if (val >= threshold) {
+            streak++
+          } else if (isWeekend) {
+            // Weekend day counts if bridged by an active Friday
+            const fridayStr = getPrecedingFriday(dStr)
+            const fridayVal = valuesMap[fridayStr]?.[sm.key] || 0
+            if (fridayVal >= threshold) {
+              streak++
+            } else {
+              break
+            }
+          } else {
+            break
+          }
+
+          currentDate.setDate(currentDate.getDate() - 1)
+        }
+
+        if (streak >= 5) {
+          streaks.push({
+            name: agentData.name,
+            team: agentData.team,
+            office: agentData.office,
+            meeting_time: agentData.meeting_time,
+            metric: sm.key,
+            streak,
+            label: sm.label
+          })
+        }
+      }
+    }
+
+    // Sort by streak length descending
+    streaks.sort((a, b) => b.streak - a.streak)
+
+    return { success: true, data: { streaks } }
+
+  } catch (error: any) {
+    console.error("Error fetching daily insights:", error)
     return { success: false, error: error.message }
   }
 }

@@ -22,7 +22,17 @@ export function formatValue(
     value === "-" ||
     !value;
 
-  const displayVal = value !== null && value !== undefined ? `${prefix}${value}${suffix}` : "-";
+  // Format numbers with commas (e.g. 1000 → 1,000)
+  const formatNum = (v: string | number): string => {
+    if (typeof v === "number") return v.toLocaleString("en-US");
+    const parsed = parseFloat(v);
+    if (!isNaN(parsed) && isFinite(parsed) && String(parsed) === v.trim()) {
+      return parsed.toLocaleString("en-US");
+    }
+    return v;
+  };
+
+  const displayVal = value !== null && value !== undefined ? `${prefix}${formatNum(value)}${suffix}` : "-";
 
   // Orange highlight for manual-input cells that haven't been submitted yet
   if (highlightColor === "orange" && isZero) {

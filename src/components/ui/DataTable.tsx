@@ -249,8 +249,8 @@ export function DataTable({
                         <span 
                           className={cn(
                             "absolute whitespace-nowrap text-[10px] uppercase tracking-wider font-semibold",
-                            sortState.direction ? "text-blue-600" : "text-slate-500",
-                            isSortable && "hover:text-slate-900"
+                            sortState.direction ? "text-blue-600" : "text-blue-400",
+                            isSortable && "hover:text-blue-600"
                           )}
                           style={{ 
                             transform: "rotate(-55deg)", 
@@ -269,8 +269,8 @@ export function DataTable({
                       /* Normal horizontal header for agent info columns */
                       <div className={cn(
                         "flex items-center gap-1 text-[10px] uppercase tracking-wider font-semibold",
-                        sortState.direction ? "text-blue-600" : "text-slate-500",
-                        isSortable && "hover:text-slate-900"
+                        sortState.direction ? "text-blue-600" : "text-blue-400",
+                        isSortable && "hover:text-blue-600"
                       )}>
                         {col.label}
                         {isSortable && (

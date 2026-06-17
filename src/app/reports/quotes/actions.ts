@@ -59,10 +59,11 @@ export async function getQuotesData(
       const lastDay = new Date(year, month, 0).getDate()
       const monthEnd = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
       // If this month is the current month, cap at today
+      const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1
       endDate = monthEnd <= todayStr ? monthEnd : todayStr
       const monthNames = ["", "January", "February", "March", "April", "May", "June",
         "July", "August", "September", "October", "November", "December"]
-      periodLabel = `${monthNames[month]} ${year}`
+      periodLabel = `${monthNames[month]} ${year}${isCurrentMonth ? " (MTD)" : ""}`
     } else {
       // MTD — default to current month
       const m = month || (today.getMonth() + 1)
@@ -74,17 +75,18 @@ export async function getQuotesData(
       periodLabel = `${monthNames[m]} ${y} (MTD)`
     }
 
-    // Fetch active agents
+    // Fetch active and report-visible agents
     const { data: agents } = await supabase
       .from("agents")
       .select("id, name, team, office")
       .eq("active", true)
+      .eq("report_visible", true)
       .order("name")
 
-    // Fetch daily_metrics in the date range (include items for MTD count)
+    // Fetch daily_metrics in the date range (include nb_auto_items for MTD count)
     const { data: metrics } = await supabase
       .from("daily_metrics")
-      .select("agent_id, report_date, quotes, quotes_deduped, nb_count, items")
+      .select("agent_id, report_date, quotes, quotes_deduped, nb_auto_count, nb_auto_items")
       .gte("report_date", startDate)
       .lte("report_date", endDate)
 
@@ -109,11 +111,11 @@ export async function getQuotesData(
         // Use quotes_deduped if available and > 0, else fallback to raw quotes
         const effectiveQuotes = m.quotes_deduped > 0 ? m.quotes_deduped : (m.quotes || 0)
         agentQuotes[m.agent_id].quotes += effectiveQuotes
-        agentQuotes[m.agent_id].nb += m.nb_count || 0
-        mtdItems += m.items || 0
+        agentQuotes[m.agent_id].nb += m.nb_auto_count || 0
+        mtdItems += m.nb_auto_items || 0
 
         // Track the most recent date that has quote or NB data
-        if ((effectiveQuotes > 0 || m.nb_count > 0) && m.report_date > lastDataDate) {
+        if ((effectiveQuotes > 0 || m.nb_auto_count > 0) && m.report_date > lastDataDate) {
           lastDataDate = m.report_date
         }
       }
@@ -160,6 +162,7 @@ export interface DailyBreakdownPoint {
   dayLabel: string   // "Mo 5/1", "Tu 5/2", etc.
   quotes: number
   nb: number
+  items: number
   closeRate: number  // 0-100 (percentage)
   isBusinessDay: boolean
   dayOfWeek: string  // "Mo", "Tu", etc.
@@ -177,7 +180,7 @@ export async function getDailyBreakdown(
   try {
     const { data: metrics } = await supabase
       .from("daily_metrics")
-      .select("report_date, quotes, quotes_deduped, nb_count")
+      .select("report_date, quotes, quotes_deduped, nb_auto_count, nb_auto_items")
       .gte("report_date", startDate)
       .lte("report_date", endDate)
 
@@ -191,13 +194,14 @@ export async function getDailyBreakdown(
     const holidaySet = new Set((holidays || []).map(h => h.holiday_date))
 
     // Group by date
-    const byDate: Record<string, { quotes: number; nb: number }> = {}
+    const byDate: Record<string, { quotes: number; nb: number; items: number }> = {}
     if (metrics) {
       for (const m of metrics) {
-        if (!byDate[m.report_date]) byDate[m.report_date] = { quotes: 0, nb: 0 }
+        if (!byDate[m.report_date]) byDate[m.report_date] = { quotes: 0, nb: 0, items: 0 }
         const effectiveQuotes = m.quotes_deduped > 0 ? m.quotes_deduped : (m.quotes || 0)
         byDate[m.report_date].quotes += effectiveQuotes
-        byDate[m.report_date].nb += m.nb_count || 0
+        byDate[m.report_date].nb += m.nb_auto_count || 0
+        byDate[m.report_date].items += m.nb_auto_items || 0
       }
     }
 
@@ -210,7 +214,7 @@ export async function getDailyBreakdown(
 
     while (cursor <= end) {
       const dateStr = cursor.toISOString().split("T")[0]
-      const d = byDate[dateStr] || { quotes: 0, nb: 0 }
+      const d = byDate[dateStr] || { quotes: 0, nb: 0, items: 0 }
       const month = cursor.getMonth() + 1
       const day = cursor.getDate()
       const dow = DOW[cursor.getDay()]
@@ -221,6 +225,7 @@ export async function getDailyBreakdown(
         dayLabel: `${dow} ${month}/${day}`,
         quotes: d.quotes,
         nb: d.nb,
+        items: d.items,
         closeRate: d.quotes > 0 ? Math.round((d.nb / d.quotes) * 10000) / 100 : 0,
         isBusinessDay: isBizDay,
         dayOfWeek: dow,
@@ -232,6 +237,131 @@ export async function getDailyBreakdown(
     return { success: true, data: points }
   } catch (error: any) {
     console.error("Error fetching daily breakdown:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+// ── YTD Aggregated Breakdown (Weekly / Monthly) ──
+
+export interface YTDAggPoint {
+  label: string       // "1/2 - 1/8" or "Jan"
+  sortKey: string     // for ordering
+  quotes: number
+  nb: number
+  items: number
+  closeRate: number
+}
+
+/**
+ * Get weekly (Thu–Wed) or monthly aggregated data for the YTD chart.
+ */
+export async function getYTDBreakdown(
+  year: number,
+  groupBy: "weekly" | "monthly"
+): Promise<{ success: boolean; data?: YTDAggPoint[]; error?: string }> {
+  noStore()
+  try {
+    // Fetch all data for the year up to yesterday
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const yesterdayStr = yesterday.toISOString().split("T")[0]
+    const startDate = `${year}-01-01`
+
+    const { data: metrics } = await supabase
+      .from("daily_metrics")
+      .select("report_date, quotes, quotes_deduped, nb_auto_count, nb_auto_items")
+      .gte("report_date", startDate)
+      .lte("report_date", yesterdayStr)
+
+    if (!metrics || metrics.length === 0) {
+      return { success: true, data: [] }
+    }
+
+    // Aggregate by date first
+    const byDate: Record<string, { quotes: number; nb: number; items: number }> = {}
+    for (const m of metrics) {
+      if (!byDate[m.report_date]) byDate[m.report_date] = { quotes: 0, nb: 0, items: 0 }
+      const effectiveQuotes = m.quotes_deduped > 0 ? m.quotes_deduped : (m.quotes || 0)
+      byDate[m.report_date].quotes += effectiveQuotes
+      byDate[m.report_date].nb += m.nb_auto_count || 0
+      byDate[m.report_date].items += m.nb_auto_items || 0
+    }
+
+    const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    if (groupBy === "monthly") {
+      // Group by calendar month
+      const monthBuckets: Record<string, { quotes: number; nb: number; items: number }> = {}
+      for (const [dateStr, vals] of Object.entries(byDate)) {
+        const monthKey = dateStr.substring(0, 7) // "2026-01"
+        if (!monthBuckets[monthKey]) monthBuckets[monthKey] = { quotes: 0, nb: 0, items: 0 }
+        monthBuckets[monthKey].quotes += vals.quotes
+        monthBuckets[monthKey].nb += vals.nb
+        monthBuckets[monthKey].items += vals.items
+      }
+
+      const points: YTDAggPoint[] = Object.entries(monthBuckets)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([monthKey, vals]) => {
+          const monthIdx = parseInt(monthKey.split("-")[1]) - 1
+          return {
+            label: MONTH_SHORT[monthIdx],
+            sortKey: monthKey,
+            quotes: vals.quotes,
+            nb: vals.nb,
+            items: vals.items,
+            closeRate: vals.quotes > 0 ? Math.round((vals.nb / vals.quotes) * 10000) / 100 : 0,
+          }
+        })
+
+      return { success: true, data: points }
+    } else {
+      // Weekly: Thu–Wed buckets
+      // For each date, find the Thursday that starts that week
+      function getThursWeekStart(dateStr: string): Date {
+        const d = new Date(dateStr + "T00:00:00")
+        const day = d.getDay() // 0=Sun, 4=Thu
+        // How many days back to the most recent Thursday?
+        const diff = (day - 4 + 7) % 7
+        d.setDate(d.getDate() - diff)
+        return d
+      }
+
+      const weekBuckets: Record<string, { quotes: number; nb: number; items: number; start: Date; end: Date }> = {}
+      for (const [dateStr, vals] of Object.entries(byDate)) {
+        const thuStart = getThursWeekStart(dateStr)
+        const wedEnd = new Date(thuStart)
+        wedEnd.setDate(wedEnd.getDate() + 6)
+        const weekKey = thuStart.toISOString().split("T")[0]
+
+        if (!weekBuckets[weekKey]) {
+          weekBuckets[weekKey] = { quotes: 0, nb: 0, items: 0, start: thuStart, end: wedEnd }
+        }
+        weekBuckets[weekKey].quotes += vals.quotes
+        weekBuckets[weekKey].nb += vals.nb
+        weekBuckets[weekKey].items += vals.items
+      }
+
+      const points: YTDAggPoint[] = Object.entries(weekBuckets)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([weekKey, vals]) => {
+          const s = vals.start
+          const e = vals.end
+          const label = `${s.getMonth() + 1}/${s.getDate()} - ${e.getMonth() + 1}/${e.getDate()}`
+          return {
+            label,
+            sortKey: weekKey,
+            quotes: vals.quotes,
+            nb: vals.nb,
+            items: vals.items,
+            closeRate: vals.quotes > 0 ? Math.round((vals.nb / vals.quotes) * 10000) / 100 : 0,
+          }
+        })
+
+      return { success: true, data: points }
+    }
+  } catch (error: any) {
+    console.error("Error fetching YTD breakdown:", error)
     return { success: false, error: error.message }
   }
 }
@@ -300,4 +430,102 @@ function calcBusinessDays(
 function isWeekend(date: Date): boolean {
   const day = date.getDay()
   return day === 0 || day === 6
+}
+
+// ── Duplicate Quotes Viewer ──
+
+export interface DuplicateQuote {
+  id: string
+  dedup_key: string
+  sub_producer: string
+  first_name: string
+  last_name: string
+  address: string
+  quote_date: string
+  agent_number: string
+  quote_control_number: string
+  premium: number
+  is_kept: boolean
+}
+
+export interface DuplicateGroup {
+  dedup_key: string
+  kept: DuplicateQuote
+  removed: DuplicateQuote[]
+}
+
+/**
+ * Fetch all duplicate quote records for a given month.
+ * Returns groups where each group has the kept quote and its duplicates.
+ */
+export async function getDuplicateQuotes(
+  year: number,
+  month: number
+): Promise<{ success: boolean; data?: DuplicateGroup[]; totalRemoved?: number; error?: string }> {
+  noStore()
+  try {
+    // month=0 means YTD (all months)
+    let query = supabase
+      .from("quote_duplicates")
+      .select("*")
+
+    if (month > 0) {
+      const reportMonth = `${year}-${String(month).padStart(2, "0")}`
+      query = query.eq("report_month", reportMonth)
+    } else {
+      query = query.like("report_month", `${year}-%`)
+    }
+
+    const { data: records, error } = await query
+      .order("dedup_key")
+      .order("is_kept", { ascending: false })
+      .order("quote_date", { ascending: false })
+
+    if (error) throw error
+    if (!records || records.length === 0) {
+      return { success: true, data: [], totalRemoved: 0 }
+    }
+
+    // Group by dedup_key
+    const groupMap: Record<string, { kept: DuplicateQuote | null; removed: DuplicateQuote[] }> = {}
+    for (const r of records) {
+      if (!groupMap[r.dedup_key]) {
+        groupMap[r.dedup_key] = { kept: null, removed: [] }
+      }
+      const entry: DuplicateQuote = {
+        id: r.id,
+        dedup_key: r.dedup_key,
+        sub_producer: r.sub_producer,
+        first_name: r.first_name,
+        last_name: r.last_name,
+        address: r.address,
+        quote_date: r.quote_date,
+        agent_number: r.agent_number,
+        quote_control_number: r.quote_control_number || "",
+        premium: r.premium || 0,
+        is_kept: r.is_kept,
+      }
+      if (r.is_kept) {
+        groupMap[r.dedup_key].kept = entry
+      } else {
+        groupMap[r.dedup_key].removed.push(entry)
+      }
+    }
+
+    const groups: DuplicateGroup[] = Object.entries(groupMap)
+      .filter(([, g]) => g.kept !== null)
+      .map(([key, g]) => ({
+        dedup_key: key,
+        kept: g.kept!,
+        removed: g.removed,
+      }))
+      .sort((a, b) => b.removed.length - a.removed.length) // Most dupes first
+
+    const totalRemoved = groups.reduce((sum, g) => sum + g.removed.length, 0)
+
+    return { success: true, data: groups, totalRemoved }
+  } catch (error: any) {
+    console.error("Error fetching duplicate quotes:", error)
+    return { success: false, error: error.message }
+  }
 }

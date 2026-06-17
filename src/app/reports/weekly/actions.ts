@@ -88,15 +88,17 @@ export async function getWeekCoverage(weekStartStr: string, weekEndStr: string) 
 export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
   noStore()
   try {
-    // 1. Fetch all daily_metrics for the week range, joined with agents
+    // 1. Fetch all daily_metrics for the week range, joined with active & report-visible agents
     const { data: dailyRows } = await supabase
       .from("daily_metrics")
       .select(`
         *,
-        agents(id, name, team, office, meeting_time)
+        agents!inner(id, name, team, office, meeting_time, active, report_visible)
       `)
       .gte("report_date", weekStartStr)
       .lte("report_date", weekEndStr)
+      .eq("agents.active", true)
+      .eq("agents.report_visible", true)
 
     // 2. Fetch weekly manual metrics for this week
     const { data: weeklyManual } = await supabase
@@ -118,7 +120,26 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
       .select("manual_submitted")
       .eq("week_start", weekStartStr)
       .single()
+    // 4b. Fetch quote records for the week range
+    const { data: quoteRows } = await supabase
+      .from("quote_records")
+      .select("agent_id, quote_control_number")
+      .gte("report_date", weekStartStr)
+      .lte("report_date", weekEndStr)
 
+    const hasQuoteRecords = quoteRows && quoteRows.length > 0
+
+    const agentQuotesMap: Record<string, Set<string>> = {}
+    if (hasQuoteRecords) {
+      for (const r of quoteRows) {
+        if (!agentQuotesMap[r.agent_id]) {
+          agentQuotesMap[r.agent_id] = new Set()
+        }
+        if (r.quote_control_number) {
+          agentQuotesMap[r.agent_id].add(r.quote_control_number)
+        }
+      }
+    }
     // 5. Fetch goals
     const { data: goals } = await supabase
       .from("kpi_goals")
@@ -142,7 +163,7 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
 
     const { data: mtdMetrics } = await supabase
       .from("daily_metrics")
-      .select("agent_id, items, prem_premium")
+      .select("agent_id, nb_auto_items, prem_premium, agents(office)")
       .gte("report_date", firstOfMonth)
       .lte("report_date", weekEndStr)
 
@@ -183,6 +204,8 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
           prem_premium: 0,
           prem_items: 0,
           prem_points: 0,
+          pivots: 0,
+          dismissed_todos: 0,
         }
       }
       const a = agentMap[aid]
@@ -194,22 +217,39 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
       a.out_texts += row.out_texts || 0
       a.opt_ins += row.opt_ins || 0
       a.opt_outs += row.opt_outs || 0
-      a.quotes += row.quotes || 0
+      if (!hasQuoteRecords) {
+        a.quotes += row.quotes || 0
+      }
       a.nb_count += row.nb_count || 0
       a.items += row.items || 0
       a.written_premium += Number(row.written_premium) || 0
       a.prem_premium += Number(row.prem_premium) || 0
       a.prem_items += row.prem_items || 0
       a.prem_points += Number(row.prem_points) || 0
+      a.pivots += row.pivots || 0
+      a.dismissed_todos += row.dismissed_todos || 0
     }
 
-    // MTD aggregation
+    // Assign deduplicated quote counts if quote_records were found
+    if (hasQuoteRecords) {
+      for (const aid of Object.keys(agentMap)) {
+        agentMap[aid].quotes = agentQuotesMap[aid]?.size || 0
+      }
+    }
+
+    // MTD aggregation — agency-wide (ALL agents, Standard Auto only)
     const mtdItemsMap: Record<string, number> = {}
     const mtdPremiumMap: Record<string, number> = {}
+    const agencyOfficeMap: Record<string, number> = {}
+    let agencyItemsMTD = 0
     if (mtdMetrics) {
-      for (const m of mtdMetrics) {
-        mtdItemsMap[m.agent_id] = (mtdItemsMap[m.agent_id] || 0) + (m.items || 0)
+      for (const m of mtdMetrics as any[]) {
+        const autoItems = m.nb_auto_items || 0
+        mtdItemsMap[m.agent_id] = (mtdItemsMap[m.agent_id] || 0) + autoItems
         mtdPremiumMap[m.agent_id] = (mtdPremiumMap[m.agent_id] || 0) + (Number(m.prem_premium) || 0)
+        agencyItemsMTD += autoItems
+        const office = m.agents?.office || "Other"
+        agencyOfficeMap[office] = (agencyOfficeMap[office] || 0) + autoItems
       }
     }
 
@@ -249,9 +289,9 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
         // Weekly manual fields
         unique_leads: manual.unique_leads || 0,
         rico_hot_pipeline: manual.rico_hot_pipeline || 0,
-        pivot: manual.pivot || 0,
+        pivot: a.pivots || manual.pivot || 0,
         saved: manual.saved || 0,
-        w_dismissed_todos: manual.dismissed_todos || 0,
+        w_dismissed_todos: a.dismissed_todos || manual.dismissed_todos || 0,
         w_past_due_todos: manual.past_due_todos || 0,
         rico_past_due_tasks: manual.rico_past_due_tasks || 0,
         // Points = Items × 10 (from NB, not AgencyZoom)
@@ -274,6 +314,8 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
         goals: goals || [],
         manualSubmitted: meta?.manual_submitted || false,
         holidays: holidays || [],
+        agencyItemsMTD,
+        agencyOfficeBreakdown: agencyOfficeMap,
       }
     }
 
@@ -333,6 +375,79 @@ export async function saveWeeklyManualData(
     return { success: true }
   } catch (error: any) {
     console.error("Error saving weekly manual data:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
+ * Calculate auto-sums from daily data to pre-populate the weekly manual entry modal.
+ * Sums: unique_leads (leads contact), rico_hot (leads hot), pivot, dismissed_todos
+ * Snapshot (NOT summed): past_due_todos, rico_past_due_tasks
+ * Not available daily: saved
+ */
+export async function getWeeklyAutoSums(weekStartStr: string, weekEndStr: string) {
+  noStore()
+  try {
+    // 1. Sum pivots and dismissed_todos from daily_metrics
+    const { data: dailyRows } = await supabase
+      .from("daily_metrics")
+      .select("agent_id, pivots, dismissed_todos")
+      .gte("report_date", weekStartStr)
+      .lte("report_date", weekEndStr)
+
+    // 2. Latest leads snapshot per agent (NOT summed — snapshot only)
+    const { data: leadsRows } = await supabase
+      .from("leads_snapshot")
+      .select("agent_id, report_date, contact, hot")
+      .gte("report_date", weekStartStr)
+      .lte("report_date", weekEndStr)
+      .order("report_date", { ascending: false })
+
+    // Aggregate daily metrics per agent
+    const sums: Record<string, {
+      unique_leads: number
+      rico_hot_pipeline: number
+      pivot: number
+      saved: number
+      dismissed_todos: number
+      past_due_todos: number
+      rico_past_due_tasks: number
+    }> = {}
+
+    const ensure = (id: string) => {
+      if (!sums[id]) {
+        sums[id] = {
+          unique_leads: 0,
+          rico_hot_pipeline: 0,
+          pivot: 0,
+          saved: 0,
+          dismissed_todos: 0,
+          past_due_todos: 0,        // snapshot — stays 0
+          rico_past_due_tasks: 0,   // snapshot — stays 0
+        }
+      }
+    }
+
+    for (const row of (dailyRows || [])) {
+      ensure(row.agent_id)
+      sums[row.agent_id].pivot += row.pivots || 0
+      sums[row.agent_id].dismissed_todos += row.dismissed_todos || 0
+    }
+
+    // Use latest snapshot per agent (first occurrence since sorted desc)
+    const seenLeadsAgents = new Set<string>()
+    for (const row of (leadsRows || [])) {
+      if (seenLeadsAgents.has(row.agent_id)) continue
+      seenLeadsAgents.add(row.agent_id)
+      ensure(row.agent_id)
+      sums[row.agent_id].unique_leads = row.contact || 0
+      sums[row.agent_id].rico_hot_pipeline = row.hot || 0
+    }
+
+    return { success: true, data: sums }
+
+  } catch (error: any) {
+    console.error("Error fetching weekly auto sums:", error)
     return { success: false, error: error.message }
   }
 }
