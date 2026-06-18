@@ -1018,17 +1018,39 @@ export default function DailyReport() {
                           <div key={agentName} className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4 border-b border-slate-100 pb-2.5 last:border-b-0 last:pb-0">
                             <span className="text-sm font-semibold text-slate-800 shrink-0 sm:w-40">{agentName}</span>
                             <div className="flex flex-wrap gap-1.5 items-center">
-                              {sortedAgentStreaks.map((s, idx) => (
-                                <Badge 
-                                  key={idx} 
-                                  variant="outline" 
-                                  className={`text-[11px] px-2 py-0.5 flex items-center gap-1 font-medium shadow-sm border ${metricColors[s.metric] || ""}`}
-                                >
-                                  <Flame className="w-3 h-3 text-orange-500 fill-orange-500" />
-                                  <span className="font-bold tabular-nums">{s.streak}d</span>
-                                  <span className="opacity-80 font-normal">{s.label}</span>
-                                </Badge>
-                              ))}
+                              {sortedAgentStreaks.map((s, idx) => {
+                                const isLongStreak = s.streak >= 5;
+                                const isSuperStreak = s.streak >= 10;
+                                
+                                // Base color from metric type
+                                const baseColor = metricColors[s.metric] || "";
+                                
+                                // Add visual distinction for long streaks
+                                let badgeClasses = `text-[11px] px-2 py-0.5 flex items-center gap-1.5 font-bold shadow-sm border ${baseColor}`;
+                                if (isSuperStreak) {
+                                  // Glowing crimson background for super streaks
+                                  badgeClasses = `text-[11px] px-2 py-0.5 flex items-center gap-1.5 font-bold shadow-[0_0_10px_rgba(239,68,68,0.5)] border border-red-400 bg-red-100 text-red-900 animate-pulse`;
+                                } else if (isLongStreak) {
+                                  // Hot orange glow for long streaks
+                                  badgeClasses = `text-[11px] px-2 py-0.5 flex items-center gap-1.5 font-bold shadow-[0_0_8px_rgba(249,115,22,0.4)] border border-orange-400 bg-orange-50 text-orange-950`;
+                                }
+
+                                return (
+                                  <Badge
+                                    key={idx}
+                                    variant="outline"
+                                    className={badgeClasses}
+                                  >
+                                    <span className="flex items-center">
+                                      <Flame className={`w-3.5 h-3.5 text-orange-500 fill-orange-500 ${isSuperStreak ? "animate-bounce" : ""}`} />
+                                      {isLongStreak && <Flame className="w-3 h-3 -ml-1.5 text-red-500 fill-red-500" />}
+                                      {isSuperStreak && <Flame className="w-2.5 h-2.5 -ml-1 text-yellow-500 fill-yellow-500" />}
+                                    </span>
+                                    <span className="tabular-nums">{s.streak}d</span>
+                                    <span className="opacity-80 font-normal">{s.label}</span>
+                                  </Badge>
+                                );
+                              })}
                             </div>
                           </div>
                         );
