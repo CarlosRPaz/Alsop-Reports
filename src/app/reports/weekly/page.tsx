@@ -85,12 +85,13 @@ function getTop3Ties(data: any[], accessor: (m: any) => number) {
 
 function LeaderboardCard({ 
   title, subtitle, icon, data, accessor, format, colorClass, className,
-  holidays, year, month
+  holidays, year, month, goals
 }: { 
   title: string; subtitle?: string; icon: React.ReactNode; data: any[]; 
   accessor: (m: any) => number; format: (v: number) => string;
   colorClass: string; className?: string;
   holidays?: { holiday_date: string }[]; year?: number; month?: number;
+  goals?: any[];
 }) {
   const topGroups = getTop3Ties(data, accessor)
   if (topGroups.length === 0) return null
@@ -121,6 +122,24 @@ function LeaderboardCard({
     }
     hasProj = true
   }
+
+  // Helper to get agent monthly items goal (default to 40)
+  const getAgentMonthlyItemsGoal = (m: any) => {
+    if (!goals) return 40;
+    const matching = goals.filter((g: any) => g.metric_name === "items" && g.timeframe === "monthly");
+    if (!matching.length) return 40;
+    const agentOffice = m.agents?.office;
+    const agentTeam = m.agents?.team;
+
+    const teamAndOffice = matching.find((g: any) => g.team === agentTeam && g.office === agentOffice);
+    if (teamAndOffice) return teamAndOffice.target_value;
+    const teamOnly = matching.find((g: any) => g.team === agentTeam && !g.office);
+    if (teamOnly) return teamOnly.target_value;
+    const officeOnly = matching.find((g: any) => g.office === agentOffice && !g.team);
+    if (officeOnly) return officeOnly.target_value;
+    const globalGoal = matching.find((g: any) => !g.office && !g.team);
+    return globalGoal ? globalGoal.target_value : 40;
+  };
   
   return (
     <div className={`${className || ""} flex flex-col`}>
@@ -141,34 +160,60 @@ function LeaderboardCard({
               {isMTD ? "MTD" : "Weekly"}
             </span>
           </div>
+
+          {hasProj && (
+            <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-1.5 mb-2.5">
+              <span>Agent</span>
+              <div className="flex items-center gap-6 font-mono">
+                <span className="w-12 text-right">MTD</span>
+                <span className="w-16 text-center bg-slate-50 text-slate-500 rounded border border-slate-200/60 py-0.5">EoM Proj.</span>
+              </div>
+            </div>
+          )}
+
           <div className={isMTD ? "space-y-3" : "space-y-2"}>
             {topGroups.map((group, i) => {
               const valueColors = ["text-emerald-600", "text-blue-600", "text-blue-400"];
               const valueColor = valueColors[i] || "text-slate-500";
               const projValue = hasProj && elapsed > 0 ? Math.round((group.score / elapsed) * totalBizDays) : 0;
               return (
-                <div key={i} className="flex items-start justify-between gap-2">
-                  <span className={`flex items-start gap-1.5 ${isMTD ? "text-base" : "text-sm"}`}>
+                <div key={i} className="flex items-center justify-between gap-2 py-0.5">
+                  <span className={`flex items-start gap-1.5 ${isMTD ? "text-base" : "text-sm"} min-w-0 flex-1`}>
                     <span className={`${isMTD ? "text-xl" : "text-base"} leading-none shrink-0 mt-[1px]`}>{medals[i]}</span>
-                    <span className={`text-slate-900 font-medium leading-tight ${isMTD ? "text-base" : "text-sm"} flex flex-wrap gap-x-1 mt-0.5`}>
+                    <span className={`text-slate-900 font-medium leading-tight ${isMTD ? "text-base" : "text-sm"} truncate mt-0.5`}>
                       {group.agents.map((m, idx) => (
                         <span key={m.agent_id}>
                           <Link href={`/reports/agent/${m.agent_id}`} className="hover:text-blue-600 transition-colors">
                             {m.agents?.name}
                           </Link>
-                          {idx < group.agents.length - 1 ? <span className="text-slate-400">,</span> : ""}
+                          {idx < group.agents.length - 1 ? <span className="text-slate-400">, </span> : ""}
                         </span>
                       ))}
                     </span>
                   </span>
-                  <span className={`${isMTD ? "text-xl" : "text-base"} font-bold font-mono ${valueColor} shrink-0`}>
-                    {format(group.score)}
-                    {hasProj && (
-                      <span className="text-xs font-normal text-slate-400 ml-1.5 font-sans">
-                        (proj. {projValue})
+                  {hasProj ? (
+                    <div className="flex items-center gap-6 font-mono shrink-0">
+                      <span className={`${isMTD ? "text-base" : "text-sm"} font-bold ${valueColor} w-12 text-right`}>
+                        {group.score}
                       </span>
-                    )}
-                  </span>
+                      {(() => {
+                        const goalVal = getAgentMonthlyItemsGoal(group.agents[0]);
+                        const meetsGoal = projValue >= goalVal;
+                        const projColor = meetsGoal 
+                          ? "text-emerald-600 bg-emerald-50 border border-emerald-100" 
+                          : "text-rose-600 bg-rose-50 border border-rose-100";
+                        return (
+                          <span className={`text-xs font-extrabold w-16 text-center rounded py-0.5 ${projColor} shadow-sm`}>
+                            {projValue}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <span className={`${isMTD ? "text-xl" : "text-base"} font-bold font-mono ${valueColor} shrink-0`}>
+                      {format(group.score)}
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -623,6 +668,7 @@ export default function WeeklyReport() {
           holidays={holidays}
           year={weekEnd ? weekEnd.getFullYear() : undefined}
           month={weekEnd ? weekEnd.getMonth() + 1 : undefined}
+          goals={goals}
         />
 
         {/* Row 1 & 2, Col 3-12 (Desktop): Agency MTD Pacing */}
