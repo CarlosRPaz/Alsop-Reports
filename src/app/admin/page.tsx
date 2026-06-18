@@ -30,7 +30,7 @@ export default function AdminHub() {
               Create, edit, archive, and manage office/team assignments for your agency roster.
             </p>
             <Link href="/admin/agents">
-              <Button variant="outline" className="w-full group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600">
+              <Button variant="outline" className="w-full group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 hover:bg-blue-700 hover:text-white hover:border-blue-700">
                 Manage Agents <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
@@ -49,7 +49,7 @@ export default function AdminHub() {
               Invite agents to the dashboard, manage login credentials, and control site access.
             </p>
             <Link href="/admin/users">
-              <Button variant="outline" className="w-full group-hover:bg-violet-600 group-hover:text-white group-hover:border-violet-600">
+              <Button variant="outline" className="w-full group-hover:bg-violet-600 group-hover:text-white group-hover:border-violet-600 hover:bg-violet-700 hover:text-white hover:border-violet-700">
                 Manage Access <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
@@ -68,7 +68,7 @@ export default function AdminHub() {
               Set Daily, Weekly, Monthly, and YTD performance goals. Target specific offices and teams.
             </p>
             <Link href="/admin/goals">
-              <Button variant="outline" className="w-full group-hover:bg-amber-600 group-hover:text-white group-hover:border-amber-600">
+              <Button variant="outline" className="w-full group-hover:bg-amber-600 group-hover:text-white group-hover:border-amber-600 hover:bg-amber-700 hover:text-white hover:border-amber-700">
                 Manage Goals <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
@@ -87,7 +87,7 @@ export default function AdminHub() {
               Manage observed holidays and view business day counts for pacing calculations.
             </p>
             <Link href="/admin/holidays">
-              <Button variant="outline" className="w-full group-hover:bg-red-600 group-hover:text-white group-hover:border-red-600">
+              <Button variant="outline" className="w-full group-hover:bg-red-600 group-hover:text-white group-hover:border-red-600 hover:bg-red-700 hover:text-white hover:border-red-700">
                 Manage Holidays <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
@@ -106,7 +106,7 @@ export default function AdminHub() {
               Manually trigger the Python DSR pipeline and view the data sources dictionary.
             </p>
             <Link href="/admin/sync">
-              <Button variant="outline" className="w-full group-hover:bg-emerald-600 group-hover:text-white group-hover:border-emerald-600">
+              <Button variant="outline" className="w-full group-hover:bg-emerald-600 group-hover:text-white group-hover:border-emerald-600 hover:bg-emerald-700 hover:text-white hover:border-emerald-700">
                 Manage Data <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
