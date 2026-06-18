@@ -39,7 +39,7 @@ export default function AgencyMTDPacing({
   holidays,
   year,
   month,
-  className = "col-span-12 lg:col-span-10 lg:row-span-2 order-3 lg:order-none",
+  className = "col-span-12 lg:col-span-8 lg:row-span-2 order-3 lg:order-none",
 }: AgencyMTDPacingProps) {
   const totalItemsMTD = agencyItemsMTD
   const remaining = Math.max(0, AGENCY_GOAL - totalItemsMTD)

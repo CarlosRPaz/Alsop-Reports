@@ -92,35 +92,36 @@ function LeaderboardCard({
   const topGroups = getTop3Ties(data, accessor)
   if (topGroups.length === 0) return null
   const medals = ["🥇", "🥈", "🥉"]
+  const isMTD = title.includes("MTD")
   
   return (
     <div className={`${className || ""} flex flex-col`}>
       <Card className="bg-white border border-slate-200 shadow-sm flex-1 flex flex-col">
-        <CardContent className="p-3 flex-1 flex flex-col">
-          <div className="flex items-start justify-between gap-2 mb-2">
+        <CardContent className={`${isMTD ? "p-5" : "p-3"} flex-1 flex flex-col`}>
+          <div className={`flex items-start justify-between gap-2 ${isMTD ? "mb-4" : "mb-2"}`}>
             <div className="min-w-0">
-              <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <p className={`${isMTD ? "text-base" : "text-xs"} font-bold text-slate-800 flex items-center gap-1.5`}>
                 <span className={colorClass}>{icon}</span> <span className="truncate">{title}</span>
               </p>
-              {subtitle && <p className="text-[9px] text-slate-400 leading-tight mt-0.5">{subtitle}</p>}
+              {subtitle && <p className={`${isMTD ? "text-xs mt-1" : "text-[9px] mt-0.5"} text-slate-400 leading-tight`}>{subtitle}</p>}
             </div>
-            <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-wider shrink-0 select-none border ${
-              title.includes("MTD") 
+            <span className={`${isMTD ? "text-[10px] px-2 py-1" : "text-[9px] px-1.5 py-0.5"} font-extrabold uppercase rounded tracking-wider shrink-0 select-none border ${
+              isMTD 
                 ? "bg-indigo-50 text-indigo-700 border-indigo-100" 
                 : "bg-slate-50 text-slate-600 border-slate-200"
             }`}>
-              {title.includes("MTD") ? "MTD" : "Weekly"}
+              {isMTD ? "MTD" : "Weekly"}
             </span>
           </div>
-          <div className="space-y-2">
+          <div className={isMTD ? "space-y-3" : "space-y-2"}>
             {topGroups.map((group, i) => {
               const valueColors = ["text-emerald-600", "text-blue-600", "text-blue-400"];
               const valueColor = valueColors[i] || "text-slate-500";
               return (
                 <div key={i} className="flex items-start justify-between gap-2">
-                  <span className="flex items-start gap-1.5 text-sm">
-                    <span className="text-base leading-none shrink-0 mt-[1px]">{medals[i]}</span>
-                    <span className="text-slate-900 font-medium leading-tight text-sm flex flex-wrap gap-x-1 mt-0.5">
+                  <span className={`flex items-start gap-1.5 ${isMTD ? "text-base" : "text-sm"}`}>
+                    <span className={`${isMTD ? "text-xl" : "text-base"} leading-none shrink-0 mt-[1px]`}>{medals[i]}</span>
+                    <span className={`text-slate-900 font-medium leading-tight ${isMTD ? "text-base" : "text-sm"} flex flex-wrap gap-x-1 mt-0.5`}>
                       {group.agents.map((m, idx) => (
                         <span key={m.agent_id}>
                           <Link href={`/reports/agent/${m.agent_id}`} className="hover:text-blue-600 transition-colors">
@@ -131,7 +132,7 @@ function LeaderboardCard({
                       ))}
                     </span>
                   </span>
-                  <span className={`text-base font-bold font-mono ${valueColor} shrink-0`}>
+                  <span className={`${isMTD ? "text-xl" : "text-base"} font-bold font-mono ${valueColor} shrink-0`}>
                     {format(group.score)}
                   </span>
                 </div>
@@ -538,7 +539,7 @@ export default function WeeklyReport() {
           accessor={(m) => m.items_mtd || 0}
           format={(v) => `${v} items`}
           colorClass="text-amber-400"
-          className="col-span-12 md:col-span-6 lg:col-span-2 order-1 lg:order-none"
+          className="col-span-12 md:col-span-6 lg:col-span-4 order-1 lg:order-none"
         />
 
         {/* Row 1 & 2, Col 3-12 (Desktop): Agency MTD Pacing */}
@@ -557,7 +558,7 @@ export default function WeeklyReport() {
           accessor={(m) => m.premium_mtd || 0}
           format={(v) => `$${v.toLocaleString()}`}
           colorClass="text-emerald-600"
-          className="col-span-12 md:col-span-6 lg:col-span-2 order-2 lg:order-none"
+          className="col-span-12 md:col-span-6 lg:col-span-4 order-2 lg:order-none"
         />
 
         {/* Section Header: Weekly Leaders */}
