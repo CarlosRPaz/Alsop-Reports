@@ -19,7 +19,7 @@ interface FilterBarProps {
 }
 
 const OFFICES = ["MCM", "MB", "RC", "CH"];
-const TEAMS = ["Managers", "Sales", "CSR", "EA"];
+const TEAMS = ["Sales", "CSR", "EA"];
 
 export function FilterBar({ onFilterChange, availableAgents = [], availableMeetings = [] }: FilterBarProps) {
   const [filters, setFilters] = useState<FilterState>({ offices: [], teams: [], agents: [], meetings: [] });

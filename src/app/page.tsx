@@ -17,7 +17,8 @@ import {
   Plus,
   Trash2,
   Building2,
-  Bookmark
+  Bookmark,
+  Megaphone
 } from "lucide-react";
 import Link from "next/link";
 import { TrendChart } from "@/components/charts/TrendChart";
@@ -288,6 +289,167 @@ export default function Home() {
       quotes: totalQuotes
     };
   }, [filteredMetrics, filteredActiveAgents]);
+
+  const agentInsights = useMemo(() => {
+    if (filters.agents.length !== 1 || !metrics.length || !allActiveAgents.length) return null;
+
+    const selectedAgentName = filters.agents[0];
+    const selectedAgent = allActiveAgents.find(a => a.name === selectedAgentName);
+    if (!selectedAgent) return null;
+
+    // Filter metrics for just this agent
+    const agentMetrics = metrics.filter(m => m.agents?.name === selectedAgentName);
+    if (agentMetrics.length === 0) return null;
+
+    const totalDays = agentMetrics.length;
+    let totalCalls = 0;
+    let totalOutbound = 0;
+    let totalTalkTime = 0;
+    let totalPremium = 0;
+    let totalItems = 0;
+    let totalQuotes = 0;
+    let totalTexts = 0;
+
+    agentMetrics.forEach(m => {
+      totalCalls += m.calls || 0;
+      totalOutbound += m.outbound || 0;
+      totalTalkTime += m.talk_time_seconds || 0;
+      totalPremium += parseFloat(m.prem_premium || 0);
+      totalItems += m.nb_auto_items || 0;
+      totalQuotes += m.quotes || 0;
+      totalTexts += m.texts || 0;
+    });
+
+    const avgOutbound = totalOutbound / totalDays;
+    const avgTalkTimeMins = (totalTalkTime / totalDays) / 60;
+    const avgQuotes = totalQuotes / totalDays;
+    const avgPremium = totalPremium / totalDays;
+    const avgItems = totalItems / totalDays;
+
+    const outboundToQuoteRatio = totalOutbound > 0 ? (totalQuotes / totalOutbound) * 100 : 0;
+    const quoteConversion = totalQuotes > 0 ? (totalItems / totalQuotes) * 100 : 0;
+
+    // Goal resolution helper
+    const getAgentGoalVal = (metric: string, timeframe: string) => {
+      const matching = goals.filter(g => g.metric_name === metric && g.timeframe === timeframe);
+      if (!matching.length) return null;
+
+      const agentOffice = selectedAgent.office;
+      const agentTeam = selectedAgent.team;
+
+      const teamAndOffice = matching.find(g => g.team === agentTeam && g.office === agentOffice);
+      if (teamAndOffice) return Number(teamAndOffice.target_value);
+
+      const teamOnly = matching.find(g => g.team === agentTeam && !g.office);
+      if (teamOnly) return Number(teamOnly.target_value);
+
+      const officeOnly = matching.find(g => g.office === agentOffice && !g.team);
+      if (officeOnly) return Number(officeOnly.target_value);
+
+      const defGoal = matching.find(g => !g.office && !g.team);
+      return defGoal ? Number(defGoal.target_value) : null;
+    };
+
+    let targetTimeframe = "daily";
+    if (activePreset === "mtd" || activePreset === "last_month") targetTimeframe = "monthly";
+    else if (activePreset === "last_week") targetTimeframe = "weekly";
+
+    const premiumGoal = getAgentGoalVal("written_premium", targetTimeframe) || getAgentGoalVal("prem_premium", targetTimeframe) || 0;
+    const itemsGoal = getAgentGoalVal("items", targetTimeframe) || 0;
+    const quotesGoal = getAgentGoalVal("quotes", targetTimeframe) || 0;
+    const callsGoal = getAgentGoalVal("calls", targetTimeframe) || 0;
+
+    const positives: string[] = [];
+    const negatives: string[] = [];
+    const recommendations: string[] = [];
+
+    // Analyze Outbound & Activity
+    if (avgOutbound >= 45) {
+      positives.push(`High call activity: Averaging ${avgOutbound.toFixed(1)} outbound dials per day, showing excellent phone volume and hustle.`);
+    } else if (avgOutbound < 30) {
+      negatives.push(`Low phone activity: Averaging only ${avgOutbound.toFixed(1)} outbound dials per day. This is well below the target and restricts top-of-funnel opportunities.`);
+      recommendations.push("Implement a daily scheduled time block solely dedicated to outbound call campaigns (e.g., 2 hours in the morning) to raise dialing activity.");
+    }
+
+    // Analyze Talk Time & Conversation Depth
+    if (avgTalkTimeMins >= 90) {
+      positives.push(`Strong customer engagement: Averaging ${(avgTalkTimeMins).toFixed(0)} minutes of talk time per day. Shows they are engaging prospects in deeper conversations.`);
+    } else if (avgTalkTimeMins < 45) {
+      negatives.push(`Low daily engagement: Averaging only ${(avgTalkTimeMins).toFixed(0)} minutes of daily talk time. This suggests brief, transactional calls rather than in-depth sales discussions.`);
+      recommendations.push("Review call flows and objection-handling techniques. Encourage the agent to ask open-ended questions to keep prospects on the phone longer.");
+    }
+
+    // Analyze Outbound to Quote Conversion (efficiency)
+    if (outboundToQuoteRatio >= 15) {
+      positives.push(`Highly efficient dialing: ${outboundToQuoteRatio.toFixed(1)}% of outbound calls result in quotes. This indicates excellent call quality and effective script usage.`);
+    } else if (outboundToQuoteRatio < 8 && totalOutbound > 10) {
+      negatives.push(`Inflow conversion gap: Only ${outboundToQuoteRatio.toFixed(1)}% of outbound dials translate to quotes. Outbound calls are failing to convert, indicating potential lead quality issues or poor pitch execution.`);
+      recommendations.push("Shadow the agent's outbound calls. Listen for the initial hook and pitch, ensuring they are pitching value early to secure the quote.");
+    }
+
+    // Quote-to-Item Conversion (closing ability)
+    if (quoteConversion >= 25) {
+      positives.push(`Strong closing rate: Converting ${quoteConversion.toFixed(1)}% of quotes into auto items. This shows high closing efficiency and strong sales skills.`);
+    } else if (quoteConversion < 12 && totalQuotes > 5) {
+      negatives.push(`Closing bottleneck: Quote-to-item conversion rate is low at ${quoteConversion.toFixed(1)}%. They are generating quotes but struggling to close policies.`);
+      recommendations.push("Review follow-up cadences and closing questions. Ensure the agent is presenting quotes with clear next steps and asking for the business directly.");
+    }
+
+    // Pacing Goals
+    if (premiumGoal > 0) {
+      const premPct = (totalPremium / premiumGoal) * 100;
+      if (premPct >= 100) {
+        positives.push(`Goal exceeded: Achieved ${premPct.toFixed(0)}% of the written premium goal for this timeframe (Wrote $${Math.round(totalPremium).toLocaleString()} vs. $${premiumGoal.toLocaleString()} goal).`);
+      } else if (premPct < 75) {
+        negatives.push(`Premium pace gap: Currently pacing at only ${premPct.toFixed(0)}% of their written premium goal (Wrote $${Math.round(totalPremium).toLocaleString()} of the $${premiumGoal.toLocaleString()} target).`);
+        recommendations.push("Prioritize higher-value leads or multiline opportunities (e.g., cross-selling home/umbrella to auto quotes) to boost premium average per write.");
+      }
+    }
+
+    if (itemsGoal > 0) {
+      const itemsPct = (totalItems / itemsGoal) * 100;
+      if (itemsPct >= 100) {
+        positives.push(`Items goal met: Achieved ${itemsPct.toFixed(0)}% of the auto items goal (Wrote ${totalItems} items vs. ${itemsGoal} goal).`);
+      } else if (itemsPct < 75) {
+        negatives.push(`Items volume concern: Currently pacing at ${itemsPct.toFixed(0)}% of the auto items goal (Wrote ${totalItems} items of the ${itemsGoal} target).`);
+      }
+    }
+
+    // High talk time but low results (efficiency mismatch)
+    if (avgTalkTimeMins > 100 && quoteConversion < 10 && totalQuotes > 0) {
+      negatives.push("High talk time, low conversion: Agent spends significant time on calls but has a low closing rate. This indicates over-talking or inability to lead the call to a close.");
+      recommendations.push("Train the agent on call control. They should guide conversations more efficiently to avoid wasting time on non-viable prospects.");
+    }
+
+    // Texting utilization
+    if (totalTexts === 0 && totalDays > 3) {
+      negatives.push("Zero Hearsay text utilization: No outbound texts sent. Text messaging is a key tool for follow-ups and contact rate improvement.");
+      recommendations.push("Ensure Hearsay text templates are configured and set a goal of sending at least 10 follow-up texts per day.");
+    } else if (totalTexts > 100) {
+      positives.push(`High texting engagement: Sent ${totalTexts} follow-up text messages, demonstrating effective use of omnichannel contact methods.`);
+    }
+
+    // Fallbacks if lists are empty
+    if (positives.length === 0) {
+      positives.push("Maintaining consistent daily login and reporting structure.");
+    }
+    if (negatives.length === 0) {
+      positives.push("No immediate performance gaps identified; maintaining solid overall baselines.");
+    }
+    if (recommendations.length === 0) {
+      recommendations.push("Continue monitoring weekly pacing metrics and maintain current outbound dial volume.");
+    }
+
+    return {
+      agentName: selectedAgentName,
+      office: selectedAgent.office,
+      team: selectedAgent.team,
+      timeframeLabel: targetTimeframe === "monthly" ? "Month-to-Date" : targetTimeframe === "weekly" ? "Week-to-Date" : "Daily",
+      positives,
+      negatives,
+      recommendations
+    };
+  }, [metrics, goals, filters.agents, allActiveAgents, activePreset]);
 
   // Saved Views actions
   const handleSelectView = (view: SavedView) => {
@@ -907,6 +1069,80 @@ export default function Home() {
           </div>
         )}
       </section>
+
+      {/* Agent-Specific Talking Points */}
+      {agentInsights && (
+        <section className="mt-4 border-t border-slate-200 pt-6">
+          <Card className="border border-slate-200 shadow-md bg-white">
+            <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                <div>
+                  <Badge variant="outline" className="mb-1 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
+                    Performance Insight • {agentInsights.timeframeLabel}
+                  </Badge>
+                  <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+                    <Megaphone className="w-5 h-5 text-indigo-500" />
+                    Critical Talking Points for {agentInsights.agentName}
+                  </CardTitle>
+                </div>
+                <div className="text-xs text-slate-400 font-medium font-mono bg-white px-3 py-1 rounded border border-slate-200/60 shadow-inner shrink-0 self-start md:self-auto">
+                  Office: {agentInsights.office} • Team: {agentInsights.team}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 flex flex-col gap-6">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Positive Signals */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-emerald-600 uppercase tracking-widest flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" /> Positive Signals
+                  </h3>
+                  <ul className="space-y-2.5">
+                    {agentInsights.positives.map((p, idx) => (
+                      <li key={idx} className="text-xs font-medium text-slate-600 bg-emerald-50/30 border border-emerald-50 rounded-lg p-3 leading-relaxed flex items-start gap-2">
+                        <span className="text-emerald-500 font-bold shrink-0">✓</span>
+                        <span>{p}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Gaps & Concerns */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-rose-600 uppercase tracking-widest flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" /> Critical Concerns & Gaps
+                  </h3>
+                  <ul className="space-y-2.5">
+                    {agentInsights.negatives.map((n, idx) => (
+                      <li key={idx} className="text-xs font-medium text-slate-600 bg-rose-50/30 border border-rose-50 rounded-lg p-3 leading-relaxed flex items-start gap-2">
+                        <span className="text-rose-500 font-bold shrink-0">⚠️</span>
+                        <span>{n}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* Recommendations */}
+              <div className="border-t border-slate-100 pt-5 space-y-3">
+                <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-widest flex items-center gap-1.5">
+                  💡 Manager Action Items
+                </h3>
+                <ul className="space-y-2">
+                  {agentInsights.recommendations.map((r, idx) => (
+                    <li key={idx} className="text-xs font-semibold text-slate-700 bg-indigo-50/20 border border-indigo-50/50 rounded-lg p-3 leading-relaxed flex items-start gap-2.5">
+                      <span className="text-indigo-500 shrink-0 mt-0.5">🔹</span>
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
     </main>
   );
