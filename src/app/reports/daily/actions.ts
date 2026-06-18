@@ -353,7 +353,7 @@ export async function getDailyInsights(dateStr: string) {
           currentDate.setDate(currentDate.getDate() - 1)
         }
 
-        if (streak >= 5) {
+        if (streak >= 3) {
           streaks.push({
             name: agentData.name,
             team: agentData.team,

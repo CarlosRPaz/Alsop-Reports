@@ -959,7 +959,7 @@ export default function DailyReport() {
               <CardTitle className="flex items-center gap-2 text-sm">
                 <Flame className="w-4 h-4 text-orange-500" />
                 <span className="text-slate-700">Active Streaks</span>
-                <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-200">5+ days</Badge>
+                <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-200">3+ days</Badge>
               </CardTitle>
               <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${streaksExpanded ? "rotate-180" : ""}`} />
             </div>
@@ -978,7 +978,7 @@ export default function DailyReport() {
                 });
 
                 if (filtered.length === 0) {
-                  return <p className="text-sm text-slate-400 italic">No active streaks (5+ consecutive days).</p>;
+                  return <p className="text-sm text-slate-400 italic">No active streaks (3+ consecutive days).</p>;
                 }
 
                 // Group streaks by agent name
