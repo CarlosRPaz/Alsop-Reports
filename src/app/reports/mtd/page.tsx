@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/Badge"
 import { DataTable, ColumnDef } from "@/components/ui/DataTable"
 import { FilterBar, FilterState } from "@/components/ui/FilterBar"
 
-import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, DollarSign, Package, TrendingUp, Trophy, Calendar, Database, Phone, MessageSquare, FileText, ShieldCheck, Zap, Megaphone } from "lucide-react"
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, DollarSign, Package, TrendingUp, Trophy, Calendar, Database, Phone, MessageSquare, FileText, ShieldCheck, Zap, Megaphone, Car } from "lucide-react"
 import Link from "next/link"
 
 const MONTH_NAMES = [
@@ -408,7 +408,7 @@ export default function MTDReport() {
         {/* Row 1, Col 1-2 (Desktop): Items MTD */}
         <LeaderboardCard
           title="Allstate Auto Items MTD"
-          icon={<TrendingUp className="w-3.5 h-3.5" />}
+          icon={<Car className="w-3.5 h-3.5" />}
           data={metrics}
           accessor={(m) => m.items_mtd || 0}
           format={(v) => `${v} items`}

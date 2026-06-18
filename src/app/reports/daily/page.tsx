@@ -700,7 +700,7 @@ export default function DailyReport() {
         {/* Row 1, Col 1-2 (Desktop): Items MTD */}
         <LeaderboardCard
           title="Allstate Auto Items MTD"
-          icon={<TrendingUp className="w-3.5 h-3.5" />}
+          icon={<Car className="w-3.5 h-3.5" />}
           data={metrics}
           accessor={(m) => m.items_mtd || 0}
           format={(v) => `${v} items`}
@@ -754,7 +754,7 @@ export default function DailyReport() {
         {/* Top Items (Issued) */}
         <LeaderboardCard
           title="Top Items (Issued)"
-          icon={<Package className="w-3.5 h-3.5" />}
+          icon={<Car className="w-3.5 h-3.5" />}
           data={metrics}
           accessor={(m) => m.items || 0}
           format={(v) => `${v} items`}
