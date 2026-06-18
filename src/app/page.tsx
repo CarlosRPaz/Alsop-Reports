@@ -22,6 +22,7 @@ import {
 import Link from "next/link";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { OfficeBreakdownChart } from "@/components/charts/OfficeBreakdownChart";
+import { FilterBar, FilterState } from "@/components/ui/FilterBar";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -125,15 +126,8 @@ export default function Home() {
   const [customStart, setCustomStart] = useState<string>("");
   const [customEnd, setCustomEnd] = useState<string>("");
 
-  const [stats, setStats] = useState({
-    agents: 0,
-    calls: 0,
-    outbound: 0,
-    talkTime: 0,
-    premium: 0,
-    items: 0,
-    quotes: 0
-  });
+  const [filters, setFilters] = useState<FilterState>({ offices: [], teams: [], agents: [], meetings: [] });
+  const [allActiveAgents, setAllActiveAgents] = useState<any[]>([]);
   
   const [metrics, setMetrics] = useState<any[]>([]);
   const [goals, setGoals] = useState<any[]>([]);
@@ -193,10 +187,10 @@ export default function Home() {
       const { data: goalsData } = await supabase.from("kpi_goals").select("*");
       setGoals(goalsData || []);
 
-      // 2. Fetch active + report visible agents count
+      // 2. Fetch active + report visible agents details for filtering
       const { data: activeAgents } = await supabase
         .from("agents")
-        .select("id", { count: "exact" })
+        .select("id, name, office, team")
         .eq("active", true)
         .eq("report_visible", true);
 
@@ -220,32 +214,7 @@ export default function Home() {
         page++;
       }
 
-      let totalCalls = 0;
-      let totalOutbound = 0;
-      let totalTalkTime = 0;
-      let totalPremium = 0;
-      let totalItems = 0;
-      let totalQuotes = 0;
-
-      allMetrics.forEach(m => {
-        totalCalls += m.calls || 0;
-        totalOutbound += m.outbound || 0;
-        totalTalkTime += m.talk_time_seconds || 0;
-        totalPremium += parseFloat(m.prem_premium || 0);
-        totalItems += m.nb_auto_items || 0;
-        totalQuotes += m.quotes || 0;
-      });
-
-      setStats({
-        agents: activeAgents?.length || 0,
-        calls: totalCalls,
-        outbound: totalOutbound,
-        talkTime: totalTalkTime,
-        premium: totalPremium,
-        items: totalItems,
-        quotes: totalQuotes
-      });
-
+      setAllActiveAgents(activeAgents || []);
       setMetrics(allMetrics);
     } catch (err) {
       console.error("Error fetching overview data:", err);
@@ -259,6 +228,66 @@ export default function Home() {
       fetchOverview(startDate, endDate);
     }
   }, [startDate, endDate, fetchOverview]);
+
+  const availableAgents = useMemo(() => {
+    return metrics
+      .map(m => m.agents).filter(Boolean)
+      .filter(a => {
+        const matchOffice = filters.offices.length === 0 || filters.offices.includes(a.office);
+        const matchTeam = filters.teams.length === 0 || filters.teams.includes(a.team);
+        return matchOffice && matchTeam;
+      })
+      .map(a => a.name)
+      .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
+      .sort();
+  }, [metrics, filters.offices, filters.teams]);
+
+  const filteredActiveAgents = useMemo(() => {
+    return allActiveAgents.filter(a => {
+      const matchOffice = filters.offices.length === 0 || filters.offices.includes(a.office);
+      const matchTeam = filters.teams.length === 0 || filters.teams.includes(a.team);
+      const matchAgent = filters.agents.length === 0 || filters.agents.includes(a.name);
+      return matchOffice && matchTeam && matchAgent;
+    });
+  }, [allActiveAgents, filters]);
+
+  const filteredMetrics = useMemo(() => {
+    return metrics.filter(m => {
+      const agent = m.agents || {};
+      const matchOffice = filters.offices.length === 0 || filters.offices.includes(agent.office);
+      const matchTeam = filters.teams.length === 0 || filters.teams.includes(agent.team);
+      const matchAgent = filters.agents.length === 0 || filters.agents.includes(agent.name);
+      return matchOffice && matchTeam && matchAgent;
+    });
+  }, [metrics, filters]);
+
+  const stats = useMemo(() => {
+    let totalCalls = 0;
+    let totalOutbound = 0;
+    let totalTalkTime = 0;
+    let totalPremium = 0;
+    let totalItems = 0;
+    let totalQuotes = 0;
+
+    filteredMetrics.forEach(m => {
+      totalCalls += m.calls || 0;
+      totalOutbound += m.outbound || 0;
+      totalTalkTime += m.talk_time_seconds || 0;
+      totalPremium += parseFloat(m.prem_premium || 0);
+      totalItems += m.nb_auto_items || 0;
+      totalQuotes += m.quotes || 0;
+    });
+
+    return {
+      agents: filteredActiveAgents.length,
+      calls: totalCalls,
+      outbound: totalOutbound,
+      talkTime: totalTalkTime,
+      premium: totalPremium,
+      items: totalItems,
+      quotes: totalQuotes
+    };
+  }, [filteredMetrics, filteredActiveAgents]);
 
   // Saved Views actions
   const handleSelectView = (view: SavedView) => {
@@ -315,7 +344,7 @@ export default function Home() {
   const agentDailyAverages = useMemo(() => {
     const agg: Record<string, { id: string; name: string; office: string; team: string; totalOutbound: number; totalTalkTime: number; daysCount: number }> = {};
     
-    metrics.forEach(m => {
+    filteredMetrics.forEach(m => {
       const aid = m.agent_id;
       if (!aid || !m.agents) return;
       if (!agg[aid]) {
@@ -339,7 +368,7 @@ export default function Home() {
       avgOutbound: a.daysCount > 0 ? a.totalOutbound / a.daysCount : 0,
       avgTalkTimeMinutes: a.daysCount > 0 ? (a.totalTalkTime / a.daysCount) / 60 : 0
     }));
-  }, [metrics]);
+  }, [filteredMetrics]);
 
   const lowOutboundAlerts = useMemo(() => {
     return agentDailyAverages
@@ -354,10 +383,10 @@ export default function Home() {
   }, [agentDailyAverages]);
 
   const quotesGoalHitRate = useMemo(() => {
-    if (metrics.length === 0) return 0;
-    const hits = metrics.filter(m => (m.quotes || 0) >= 4).length;
-    return (hits / metrics.length) * 100;
-  }, [metrics]);
+    if (filteredMetrics.length === 0) return 0;
+    const hits = filteredMetrics.filter(m => (m.quotes || 0) >= 4).length;
+    return (hits / filteredMetrics.length) * 100;
+  }, [filteredMetrics]);
 
   // Pacing Goals calculation based on selected timeframe
   const pacingGoals = useMemo(() => {
@@ -401,14 +430,14 @@ export default function Home() {
 
   // Analyst Trend Chart Aggregator
   const aggregatedTrendData = useMemo(() => {
-    if (metrics.length === 0 || !startDate || !endDate) return [];
+    if (filteredMetrics.length === 0 || !startDate || !endDate) return [];
 
     const diffDays = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 3600 * 24)) + 1;
 
     if (diffDays <= 31) {
       // Daily aggregation
       const agg: Record<string, any> = {};
-      metrics.forEach(m => {
+      filteredMetrics.forEach(m => {
         const key = m.report_date;
         if (!key) return;
         if (!agg[key]) {
@@ -428,7 +457,7 @@ export default function Home() {
     } else if (diffDays <= 180) {
       // Weekly aggregation
       const agg: Record<string, any> = {};
-      metrics.forEach(m => {
+      filteredMetrics.forEach(m => {
         if (!m.report_date) return;
         const dateObj = new Date(m.report_date + "T12:00:00");
         const day = dateObj.getDay();
@@ -450,7 +479,7 @@ export default function Home() {
     } else {
       // Monthly aggregation
       const agg: Record<string, any> = {};
-      metrics.forEach(m => {
+      filteredMetrics.forEach(m => {
         if (!m.report_date) return;
         const dateObj = new Date(m.report_date + "T12:00:00");
         const monthIdx = dateObj.getMonth();
@@ -470,7 +499,7 @@ export default function Home() {
       });
       return Object.values(agg).sort((a: any, b: any) => a._key.localeCompare(b._key));
     }
-  }, [metrics, startDate, endDate]);
+  }, [filteredMetrics, startDate, endDate]);
 
   // Office Comparison breakdown data
   const officeData = useMemo(() => {
@@ -482,7 +511,7 @@ export default function Home() {
       agg[o] = { office: o, premium: 0, items: 0, quotes: 0, outbound: 0 };
     });
 
-    metrics.forEach(m => {
+    filteredMetrics.forEach(m => {
       const office = m.agents?.office || "Other";
       if (!agg[office]) {
         agg[office] = { office, premium: 0, items: 0, quotes: 0, outbound: 0 };
@@ -494,12 +523,12 @@ export default function Home() {
     });
 
     return Object.values(agg).filter(o => o.office !== "Other");
-  }, [metrics]);
+  }, [filteredMetrics]);
 
   // Aggregate Top Agents for the selected timeframe
   const aggregatedAgents = useMemo(() => {
     const agg: Record<string, any> = {};
-    metrics.forEach(m => {
+    filteredMetrics.forEach(m => {
       const id = m.agent_id;
       if (!id || !m.agents || !m.agents.active || !m.agents.report_visible) return;
       if (!agg[id]) {
@@ -522,7 +551,7 @@ export default function Home() {
       agg[id].talkTime += m.talk_time_seconds || 0;
     });
     return Object.values(agg);
-  }, [metrics]);
+  }, [filteredMetrics]);
 
   const topPremium = useMemo(() => [...aggregatedAgents].sort((a, b) => b.premium - a.premium).slice(0, 3), [aggregatedAgents]);
   const topItems = useMemo(() => [...aggregatedAgents].sort((a, b) => b.items - a.items).slice(0, 3), [aggregatedAgents]);
@@ -661,6 +690,11 @@ export default function Home() {
           </div>
         </CardContent>
       </Card>
+
+      <FilterBar 
+        onFilterChange={setFilters} 
+        availableAgents={availableAgents} 
+      />
 
       {/* Save View Modal Backdrop/Overlay */}
       {showSaveModal && (
