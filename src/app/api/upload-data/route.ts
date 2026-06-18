@@ -45,8 +45,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Target date is required" }, { status: 400 })
     }
 
-    // Create staging folder
+    // Check if we are running in Vercel or if the local python pipeline directory is missing
     const pythonDir = path.resolve(process.cwd(), "..", "excel-report-automation")
+    if (process.env.VERCEL || !existsSync(pythonDir)) {
+      return NextResponse.json({
+        success: false,
+        error: "Data synchronization must be run from your local server (http://localhost:3000/admin/sync). The live website runs in a serverless cloud environment that cannot access your local files or execute the Python processing pipeline."
+      }, { status: 400 })
+    }
+
     const uploadDir = path.join(pythonDir, "data", "uploads", `upload_${Date.now()}`)
     await mkdir(uploadDir, { recursive: true })
 

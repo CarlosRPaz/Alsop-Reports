@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { spawn } from "child_process"
 import path from "path"
+import { existsSync } from "fs"
 
 /**
  * Streaming sync pipeline endpoint.
@@ -19,7 +20,14 @@ export async function POST(request: NextRequest) {
   const AUTOMATED_SOURCES = ["rc", "hs", "premium", "rico_ch", "rico_ap", "rico_leads", "eagent"]
   const activeSources = sources && sources.length > 0 ? sources : AUTOMATED_SOURCES
 
+  // Check if we are running in Vercel or if the local python pipeline directory is missing
   const pythonDir = path.resolve(process.cwd(), "..", "excel-report-automation")
+  if (process.env.VERCEL || !existsSync(pythonDir)) {
+    return new Response(JSON.stringify({ 
+      error: "Data synchronization must be run from your local server (http://localhost:3000/admin/sync). The live website runs in a serverless cloud environment that cannot run the Python automation pipeline." 
+    }), { status: 400, headers: { "Content-Type": "application/json" } })
+  }
+
   const args = [
     "-u",  // unbuffered output — critical for streaming
     "main.py",
