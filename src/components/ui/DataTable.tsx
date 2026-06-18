@@ -310,11 +310,6 @@ export function DataTable({
                 </tr>
               ))
             )}
-            {totals && sortedData.length > 0 && (
-              <tr className="bg-slate-100 font-extrabold border-y border-slate-300 text-slate-900">
-                {renderRow({ ...totals, isTotal: true })}
-              </tr>
-            )}
           </tbody>
         </table>
       </div>
