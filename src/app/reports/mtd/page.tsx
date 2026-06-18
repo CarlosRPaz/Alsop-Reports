@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { getMTDData } from "./actions"
 import { formatValue } from "@/lib/formatters"
 import AgencyMTDPacing from "@/components/ui/AgencyMTDPacing"
+import { toHolidaySet, getBusinessDaysInMonth, getElapsedBusinessDays } from "@/lib/businessDays"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
@@ -73,16 +74,43 @@ function getTop3Ties(data: any[], accessor: (m: any) => number) {
 }
 
 function LeaderboardCard({ 
-  title, icon, data, accessor, format, colorClass, className 
+  title, icon, data, accessor, format, colorClass, className,
+  holidays, year, month
 }: { 
   title: string; icon: React.ReactNode; data: any[]; 
   accessor: (m: any) => number; format: (v: number) => string;
   colorClass: string; className?: string;
+  holidays?: { holiday_date: string }[]; year?: number; month?: number;
 }) {
   const topGroups = getTop3Ties(data, accessor)
   if (topGroups.length === 0) return null
   const medals = ["🥇", "🥈", "🥉"]
   const isMTD = title.includes("MTD")
+  
+  // Projection calculations for Allstate Auto Items MTD
+  let totalBizDays = 0
+  let elapsed = 0
+  let hasProj = false
+  if (title === "Allstate Auto Items MTD" && holidays) {
+    const holidaySet = toHolidaySet(holidays)
+    const now = new Date()
+    const currentYear = year ?? now.getFullYear()
+    const currentMonth = month ?? (now.getMonth() + 1)
+    totalBizDays = getBusinessDaysInMonth(currentYear, currentMonth, holidaySet)
+
+    const isCurrentMonth = now.getFullYear() === currentYear && (now.getMonth() + 1) === currentMonth
+    elapsed = totalBizDays
+    if (isCurrentMonth) {
+      if (now.getDate() > 1) {
+        const yesterday = new Date(now)
+        yesterday.setDate(now.getDate() - 1)
+        elapsed = getElapsedBusinessDays(currentYear, currentMonth, holidaySet, yesterday)
+      } else {
+        elapsed = 0
+      }
+    }
+    hasProj = true
+  }
   
   return (
     <div className={`${className || ""} flex flex-col`}>
@@ -102,6 +130,7 @@ function LeaderboardCard({
             {topGroups.map((group, i) => {
               const valueColors = ["text-emerald-600", "text-blue-600", "text-blue-400"]
               const valueColor = valueColors[i] || "text-slate-500"
+              const projValue = hasProj && elapsed > 0 ? Math.round((group.score / elapsed) * totalBizDays) : 0;
               return (
                 <div key={i} className="flex items-start justify-between gap-2">
                   <span className={`flex items-start gap-1.5 ${isMTD ? "text-base" : "text-sm"}`}>
@@ -119,6 +148,11 @@ function LeaderboardCard({
                   </span>
                   <span className={`${isMTD ? "text-xl" : "text-base"} font-bold font-mono ${valueColor} shrink-0`}>
                     {format(group.score)}
+                    {hasProj && (
+                      <span className="text-xs font-normal text-slate-400 ml-1.5 font-sans">
+                        (proj. {projValue})
+                      </span>
+                    )}
                   </span>
                 </div>
               )
@@ -309,6 +343,9 @@ export default function MTDReport() {
           format={(v) => `${v} items`}
           colorClass="text-amber-400"
           className="col-span-12 md:col-span-6 lg:col-span-4 order-1 lg:order-none"
+          holidays={holidays}
+          year={selectedYear}
+          month={selectedMonth}
         />
 
         {/* Row 1 & 2, Col 3-12 (Desktop): Agency MTD Pacing */}

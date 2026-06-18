@@ -88,7 +88,7 @@ const DATA_SOURCES: DataSource[] = [
     isManualEntry: true,
   },
   {
-    key: "leads", label: "Lead Pipeline", system: "Ricochet CRM", icon: Zap, color: "orange",
+    key: "leads", label: "Lead Pipeline", system: "DeerDama", icon: Zap, color: "orange",
     uploadTypes: [],
     filePatterns: [],
     howToGet: "Captured during full sync — not available in upload-only mode",
