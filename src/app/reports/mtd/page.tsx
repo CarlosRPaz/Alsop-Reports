@@ -75,13 +75,14 @@ function getTop3Ties(data: any[], accessor: (m: any) => number) {
 
 function LeaderboardCard({ 
   title, icon, data, accessor, format, colorClass, className,
-  holidays, year, month, goals
+  holidays, year, month, goals, agencyTotal
 }: { 
   title: string; icon: React.ReactNode; data: any[]; 
   accessor: (m: any) => number; format: (v: number) => string;
   colorClass: string; className?: string;
   holidays?: { holiday_date: string }[]; year?: number; month?: number;
   goals?: any[];
+  agencyTotal?: number;
 }) {
   const topGroups = getTop3Ties(data, accessor)
   if (topGroups.length === 0) return null
@@ -203,6 +204,31 @@ function LeaderboardCard({
               )
             })}
           </div>
+
+          {agencyTotal !== undefined && (
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-700">
+              <span className="flex items-center gap-1.5 text-slate-500">
+                🏢 Agency Total
+              </span>
+              <div className="flex items-center gap-6 font-mono shrink-0">
+                <span className="w-12 text-right text-slate-600">
+                  {agencyTotal}
+                </span>
+                {hasProj && (() => {
+                  const projValue = elapsed > 0 ? Math.round((agencyTotal / elapsed) * totalBizDays) : 0;
+                  const meetsGoal = projValue >= 500;
+                  const projColor = meetsGoal 
+                    ? "text-emerald-600 bg-emerald-50 border border-emerald-100" 
+                    : "text-rose-600 bg-rose-50 border border-rose-100";
+                  return (
+                    <span className={`text-[10px] font-extrabold w-16 text-center rounded py-0.5 ${projColor} shadow-sm`}>
+                      {projValue}
+                    </span>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -392,6 +418,7 @@ export default function MTDReport() {
           year={selectedYear}
           month={selectedMonth}
           goals={goals}
+          agencyTotal={agencyItemsMTD}
         />
 
         {/* Row 1 & 2, Col 3-12 (Desktop): Agency MTD Pacing */}

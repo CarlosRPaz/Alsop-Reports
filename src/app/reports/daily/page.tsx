@@ -93,13 +93,14 @@ function getTop3Ties(data: any[], accessor: (m: any) => number) {
 // ── Leaderboard Card ──
 function LeaderboardCard({ 
   title, subtitle, icon, data, accessor, format, colorClass, className,
-  holidays, year, month, goals
+  holidays, year, month, goals, agencyTotal
 }: { 
   title: string; subtitle?: string; icon: React.ReactNode; data: any[]; 
   accessor: (m: any) => number; format: (v: number) => string;
   colorClass: string; className?: string;
   holidays?: { holiday_date: string }[]; year?: number; month?: number;
   goals?: any[];
+  agencyTotal?: number;
 }) {
   const topGroups = getTop3Ties(data, accessor)
   if (topGroups.length === 0) return null
@@ -226,6 +227,31 @@ function LeaderboardCard({
               );
             })}
           </div>
+
+          {agencyTotal !== undefined && (
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-700">
+              <span className="flex items-center gap-1.5 text-slate-500">
+                🏢 Agency Total
+              </span>
+              <div className="flex items-center gap-6 font-mono shrink-0">
+                <span className="w-12 text-right text-slate-600">
+                  {agencyTotal}
+                </span>
+                {hasProj && (() => {
+                  const projValue = elapsed > 0 ? Math.round((agencyTotal / elapsed) * totalBizDays) : 0;
+                  const meetsGoal = projValue >= 500;
+                  const projColor = meetsGoal 
+                    ? "text-emerald-600 bg-emerald-50 border border-emerald-100" 
+                    : "text-rose-600 bg-rose-50 border border-rose-100";
+                  return (
+                    <span className={`text-[10px] font-extrabold w-16 text-center rounded py-0.5 ${projColor} shadow-sm`}>
+                      {projValue}
+                    </span>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -674,7 +700,6 @@ export default function DailyReport() {
         {/* Row 1, Col 1-2 (Desktop): Items MTD */}
         <LeaderboardCard
           title="Allstate Auto Items MTD"
-          subtitle="Auto items only"
           icon={<TrendingUp className="w-3.5 h-3.5" />}
           data={metrics}
           accessor={(m) => m.items_mtd || 0}
@@ -685,6 +710,7 @@ export default function DailyReport() {
           year={date ? Number(date.split('-')[0]) : undefined}
           month={date ? Number(date.split('-')[1]) : undefined}
           goals={goals}
+          agencyTotal={agencyItemsMTD}
         />
 
         {/* Row 1 & 2, Col 3-12 (Desktop): Agency MTD Pacing */}
@@ -699,7 +725,6 @@ export default function DailyReport() {
         {/* Row 2, Col 1-2 (Desktop): Premium MTD */}
         <LeaderboardCard
           title="Total Premium MTD"
-          subtitle="Total premium"
           icon={<Trophy className="w-3.5 h-3.5" />}
           data={metrics}
           accessor={(m) => m.premium_mtd || 0}
@@ -729,7 +754,6 @@ export default function DailyReport() {
         {/* Top Items (Issued) */}
         <LeaderboardCard
           title="Top Items (Issued)"
-          subtitle="Auto items only"
           icon={<Package className="w-3.5 h-3.5" />}
           data={metrics}
           accessor={(m) => m.items || 0}
