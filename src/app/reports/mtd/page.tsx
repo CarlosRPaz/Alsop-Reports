@@ -302,7 +302,7 @@ export default function MTDReport() {
 
         {/* Row 1, Col 1-2 (Desktop): Items MTD */}
         <LeaderboardCard
-          title="Items MTD"
+          title="Allstate Auto Items MTD"
           icon={<TrendingUp className="w-3.5 h-3.5" />}
           data={metrics}
           accessor={(m) => m.items_mtd || 0}
@@ -322,7 +322,7 @@ export default function MTDReport() {
 
         {/* Row 2, Col 1-2 (Desktop): Premium MTD */}
         <LeaderboardCard
-          title="Premium MTD"
+          title="Total Premium MTD"
           icon={<Trophy className="w-3.5 h-3.5" />}
           data={metrics}
           accessor={(m) => m.premium_mtd || 0}

@@ -578,7 +578,7 @@ export default function WeeklyReport() {
 
         {/* Row 1, Col 1-2 (Desktop): Items MTD */}
         <LeaderboardCard
-          title="Items MTD"
+          title="Allstate Auto Items MTD"
           subtitle="Auto items only"
           icon={<TrendingUp className="w-3.5 h-3.5" />}
           data={metrics}
@@ -597,7 +597,7 @@ export default function WeeklyReport() {
 
         {/* Row 2, Col 1-2 (Desktop): Premium MTD */}
         <LeaderboardCard
-          title="Premium MTD"
+          title="Total Premium MTD"
           subtitle="Total premium"
           icon={<Trophy className="w-3.5 h-3.5" />}
           data={metrics}
