@@ -208,11 +208,9 @@ export default function Home() {
       while (true) {
         const { data, error } = await supabase
           .from("daily_metrics")
-          .select("*, agents!inner(id, name, office, team, active, report_visible)")
+          .select("*, agents(id, name, office, team, active, report_visible)")
           .gte("report_date", start)
           .lte("report_date", end)
-          .eq("agents.active", true)
-          .eq("agents.report_visible", true)
           .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
         
         if (error) throw error;
@@ -234,7 +232,7 @@ export default function Home() {
         totalOutbound += m.outbound || 0;
         totalTalkTime += m.talk_time_seconds || 0;
         totalPremium += parseFloat(m.prem_premium || 0);
-        totalItems += m.items || 0;
+        totalItems += m.nb_auto_items || 0;
         totalQuotes += m.quotes || 0;
       });
 
@@ -418,7 +416,7 @@ export default function Home() {
           agg[key] = { label: `${dayAbbr} ${formatShortDate(key)}`, premium: 0, items: 0, outbound: 0, talkTime: 0, quotes: 0, nb_count: 0 };
         }
         agg[key].premium += parseFloat(m.prem_premium || 0);
-        agg[key].items += m.items || 0;
+        agg[key].items += m.nb_auto_items || 0;
         agg[key].outbound += m.outbound || 0;
         agg[key].talkTime += (m.talk_time_seconds || 0) / 3600; // hours
         agg[key].quotes += m.quotes || 0;
@@ -442,7 +440,7 @@ export default function Home() {
           agg[key] = { label: `Wk ${key.substring(5)}`, premium: 0, items: 0, outbound: 0, talkTime: 0, quotes: 0, nb_count: 0, _date: key };
         }
         agg[key].premium += parseFloat(m.prem_premium || 0);
-        agg[key].items += m.items || 0;
+        agg[key].items += m.nb_auto_items || 0;
         agg[key].outbound += m.outbound || 0;
         agg[key].talkTime += (m.talk_time_seconds || 0) / 3600;
         agg[key].quotes += m.quotes || 0;
@@ -464,7 +462,7 @@ export default function Home() {
           agg[key] = { label: `${monthName} ${year.toString().substring(2)}`, premium: 0, items: 0, outbound: 0, talkTime: 0, quotes: 0, nb_count: 0, _key: key };
         }
         agg[key].premium += parseFloat(m.prem_premium || 0);
-        agg[key].items += m.items || 0;
+        agg[key].items += m.nb_auto_items || 0;
         agg[key].outbound += m.outbound || 0;
         agg[key].talkTime += (m.talk_time_seconds || 0) / 3600;
         agg[key].quotes += m.quotes || 0;
@@ -490,7 +488,7 @@ export default function Home() {
         agg[office] = { office, premium: 0, items: 0, quotes: 0, outbound: 0 };
       }
       agg[office].premium += parseFloat(m.prem_premium || 0);
-      agg[office].items += m.items || 0;
+      agg[office].items += m.nb_auto_items || 0;
       agg[office].quotes += m.quotes || 0;
       agg[office].outbound += m.outbound || 0;
     });
@@ -503,7 +501,7 @@ export default function Home() {
     const agg: Record<string, any> = {};
     metrics.forEach(m => {
       const id = m.agent_id;
-      if (!id || !m.agents) return;
+      if (!id || !m.agents || !m.agents.active || !m.agents.report_visible) return;
       if (!agg[id]) {
         agg[id] = {
           id,
@@ -518,7 +516,7 @@ export default function Home() {
         };
       }
       agg[id].premium += parseFloat(m.prem_premium || 0);
-      agg[id].items += m.items || 0;
+      agg[id].items += m.nb_auto_items || 0;
       agg[id].quotes += m.quotes || 0;
       agg[id].outbound += m.outbound || 0;
       agg[id].talkTime += m.talk_time_seconds || 0;
