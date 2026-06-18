@@ -87,50 +87,48 @@ export default function AgencyMTDPacing({
   const TEXT_COLORS = ["text-emerald-600", "text-blue-600", "text-blue-400", "text-blue-300", "text-blue-200"]
 
   return (
-    <Card className={`${className} bg-white border border-slate-200 shadow-sm overflow-hidden relative flex flex-col justify-between`}>
-      <CardContent className="p-5 relative z-10 flex flex-col justify-between h-full gap-4">
-        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-2">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2 tracking-tight">
-                <TrendingUp className="w-4 h-4 text-blue-600" /> Agency MTD Pacing
+    <Card className={`${className} bg-white border border-slate-200 shadow-sm overflow-hidden relative flex flex-col`}>
+      <CardContent className="p-4 relative z-10 flex flex-col justify-between h-full gap-3">
+        {/* Top Row: Title + Stats */}
+        <div className="flex flex-col sm:flex-row justify-between gap-3">
+          <div className="flex flex-col justify-center">
+            <div className="flex items-center gap-2.5 mb-0.5">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5 tracking-tight">
+                <TrendingUp className="w-3.5 h-3.5 text-blue-600" /> Agency MTD Pacing
               </h2>
               <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-wider border bg-indigo-50 text-indigo-700 border-indigo-100 shrink-0 select-none">
                 MTD
               </span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>
                 {statusIcon} {statusLabel}
               </span>
             </div>
-            <p className="text-[13px] text-slate-500">
-              📅 {elapsed} of {totalBizDays} biz days elapsed <span className="text-slate-400 font-normal">({remainingBizDays} remaining)</span>
+            <p className="text-xs text-slate-500">
+              📅 {elapsed} of {totalBizDays} biz days elapsed <span className="text-slate-400">({remainingBizDays} remaining)</span>
             </p>
           </div>
           
-          {/* Unified Prominent Numbers Section */}
-          <div className="flex items-center gap-8">
-            {/* Current MTD Items */}
+          {/* Prominent Numbers */}
+          <div className="flex items-center gap-5 bg-slate-50 rounded-lg border border-slate-100 px-4 py-2.5">
             <div className="text-right">
-              <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1">Current MTD</p>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider mb-0.5">Current MTD</p>
               <div className="flex items-baseline gap-1 justify-end leading-none">
-                <span className="text-4xl font-black text-slate-900 font-mono tracking-tighter">{totalItemsMTD}</span>
-                <span className="text-sm text-slate-400 font-mono font-medium">/ {AGENCY_GOAL}</span>
+                <span className="text-3xl font-black text-slate-900 font-mono tracking-tighter">{totalItemsMTD}</span>
+                <span className="text-xs text-slate-400 font-mono font-medium">/ {AGENCY_GOAL}</span>
               </div>
               {remaining > 0 ? (
-                <p className="text-[10px] font-bold text-amber-500 mt-1.5 uppercase tracking-wide">{remaining} needed</p>
+                <p className="text-[9px] font-bold text-amber-500 mt-1 uppercase tracking-wide">{remaining} needed</p>
               ) : (
-                <p className="text-[10px] font-bold text-emerald-600 mt-1.5 uppercase tracking-wide">Goal Met! 🚀</p>
+                <p className="text-[9px] font-bold text-emerald-600 mt-1 uppercase tracking-wide">Goal Met! 🚀</p>
               )}
             </div>
 
-            {/* Divider line */}
-            <div className="h-10 w-[1px] bg-slate-200/80" />
+            <div className="h-12 w-[1px] bg-slate-200" />
 
-            {/* EoM Projected Items */}
             <div className="text-right">
-              <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1">Projected EOM</p>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider mb-0.5">Projected EOM</p>
               <div className="flex items-baseline justify-end leading-none">
-                <span className={`text-4xl font-black font-mono tracking-tighter ${
+                <span className={`text-3xl font-black font-mono tracking-tighter ${
                   pacing.projectedEOM >= AGENCY_GOAL ? "text-emerald-600" : "text-rose-600"
                 }`}>
                   {pacing.projectedEOM}
@@ -139,7 +137,7 @@ export default function AgencyMTDPacing({
               {(() => {
                 const diff = pacing.projectedEOM - AGENCY_GOAL;
                 return (
-                  <p className={`text-[10px] font-bold mt-1.5 uppercase tracking-wide ${
+                  <p className={`text-[9px] font-bold mt-1 uppercase tracking-wide ${
                     diff >= 0 ? "text-emerald-600" : "text-rose-600"
                   }`}>
                     {diff >= 0 ? `+${diff}` : `${diff}`} vs goal
@@ -150,19 +148,19 @@ export default function AgencyMTDPacing({
           </div>
         </div>
 
-        {/* The Elite Stacked Bar */}
-        <div className="relative pt-2 pb-2">
-          {/* Goal marker line */}
+        {/* Stacked Bar — THICK */}
+        <div className="relative">
+          {/* Goal marker */}
           <div 
-            className="absolute top-0 bottom-0 border-l-2 border-dashed border-slate-300 z-10 transition-all duration-1000" 
+            className="absolute top-0 bottom-0 border-l-2 border-dashed border-slate-400 z-10" 
             style={{ left: `${(AGENCY_GOAL / scaleMax) * 100}%` }}
           >
-            <div className="absolute -top-5 -translate-x-1/2 bg-white border border-slate-200 text-slate-600 shadow-sm text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest whitespace-nowrap">
+            <div className="absolute -top-4 -translate-x-1/2 bg-slate-700 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest whitespace-nowrap shadow">
               Goal
             </div>
           </div>
 
-          <div className="w-full h-6 bg-slate-100 rounded-md overflow-hidden flex ring-1 ring-inset ring-slate-200 shadow-inner">
+          <div className="w-full h-10 bg-slate-100 rounded-lg overflow-hidden flex ring-1 ring-inset ring-slate-200 shadow-inner">
             {offices.map(([office, count], idx) => {
               const w = (count / scaleMax) * 100;
               if (w === 0) return null;
@@ -174,9 +172,9 @@ export default function AgencyMTDPacing({
                   style={{ width: `${w}%` }}
                 >
                   {w > 4 && (
-                    <span className="text-white font-bold text-[11px] drop-shadow-sm select-none">{count}</span>
+                    <span className="text-white font-bold text-xs drop-shadow-sm select-none">{count}</span>
                   )}
-                  <div className="opacity-0 group-hover:opacity-100 absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-0.5 rounded shadow-md whitespace-nowrap transition-opacity z-20 pointer-events-none">
+                  <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-0.5 rounded shadow-md whitespace-nowrap transition-opacity z-20 pointer-events-none">
                     {office}: {count}
                   </div>
                 </div>
@@ -191,19 +189,19 @@ export default function AgencyMTDPacing({
           </div>
         </div>
 
-        {/* Legend & Stats Row */}
-        <div className="mt-2 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
+        {/* Legend & Pacing Stats */}
+        <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-2">
           {/* Office Legend */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             {offices.map(([office, count], idx) => {
               const offPct = totalItemsMTD > 0 ? Math.round((count / totalItemsMTD) * 100) : 0;
               const dotColor = DOT_COLORS[idx] || DOT_COLORS[DOT_COLORS.length - 1];
               const textColor = TEXT_COLORS[idx] || TEXT_COLORS[TEXT_COLORS.length - 1];
               return (
-                <div key={office} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded px-3 py-1.5">
-                  <div className={`w-2.5 h-2.5 rounded-full ${dotColor} ring-1 ring-black/5`} />
+                <div key={office} className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded px-2.5 py-1">
+                  <div className={`w-2 h-2 rounded-full ${dotColor} ring-1 ring-black/5`} />
                   <span className={`text-[11px] font-bold ${textColor}`}>{office}</span>
-                  <span className="text-sm font-mono font-bold text-slate-700 ml-0.5">{count}</span>
+                  <span className="text-sm font-mono font-bold text-slate-700">{count}</span>
                   <span className="text-[10px] font-sans text-slate-400 hidden sm:inline">({offPct}%)</span>
                 </div>
               );
@@ -211,26 +209,21 @@ export default function AgencyMTDPacing({
           </div>
 
           {/* Pacing Stats */}
-          <div className="flex items-center gap-6 pr-2">
-            {/* Current Rate */}
+          <div className="flex items-center gap-4 bg-slate-50 rounded-lg border border-slate-100 px-3 py-2">
             <div className="text-right">
-              <p className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1">Current Rate</p>
-              <p className="text-lg font-black font-mono text-slate-900 leading-none">{pacing.dailyRate.toFixed(1)}</p>
-              <p className="text-[9px] text-slate-400 font-medium mt-1">items / day</p>
+              <p className="text-[8px] uppercase tracking-wider text-slate-500 font-bold mb-0.5">Current Rate</p>
+              <p className="text-base font-black font-mono text-slate-900 leading-none">{pacing.dailyRate.toFixed(1)}</p>
+              <p className="text-[8px] text-slate-400 font-medium mt-0.5">items / day</p>
             </div>
-
-            {/* Vertical Divider */}
             <div className="h-8 w-[1px] bg-slate-200" />
-
-            {/* Required Rate */}
             <div className="text-right">
-              <p className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1">Required</p>
-              <p className={`text-lg font-black font-mono leading-none ${
+              <p className="text-[8px] uppercase tracking-wider text-slate-500 font-bold mb-0.5">Required</p>
+              <p className={`text-base font-black font-mono leading-none ${
                 pacing.requiredDaily <= pacing.dailyRate ? "text-emerald-600" : "text-amber-600"
               }`}>
                 {pacing.requiredDaily.toFixed(1)}
               </p>
-              <p className="text-[9px] text-slate-400 font-medium mt-1">items / day required</p>
+              <p className="text-[8px] text-slate-400 font-medium mt-0.5">items / day required</p>
             </div>
           </div>
         </div>
