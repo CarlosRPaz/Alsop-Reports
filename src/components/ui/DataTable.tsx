@@ -23,6 +23,7 @@ interface DataTableProps extends React.HTMLAttributes<HTMLDivElement> {
   renderRow: (item: any) => React.ReactNode;
   groupColors?: Record<string, string>;          // group name -> header bg class
   groupBorderColors?: Record<string, string>;     // group name -> left-border class for cells
+  totals?: any;
 }
 
 // Group header color classes matching the new Excel scheme
@@ -45,7 +46,7 @@ const DEFAULT_GROUP_BORDER_COLORS: Record<string, string> = {
 }
 
 export function DataTable({ 
-  className, columns, data, keyExtractor, renderRow, 
+  className, columns, data, keyExtractor, renderRow, totals,
   groupColors = DEFAULT_GROUP_COLORS,
   groupBorderColors = DEFAULT_GROUP_BORDER_COLORS,
   ...props 
@@ -291,6 +292,11 @@ export function DataTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
+            {totals && sortedData.length > 0 && (
+              <tr className="bg-slate-100 font-extrabold border-y border-slate-300 text-slate-900">
+                {renderRow({ ...totals, isTotal: true })}
+              </tr>
+            )}
             {sortedData.length === 0 ? (
               <tr>
                 <td colSpan={normalizedColumns.length} className="py-8 text-center text-slate-500">
@@ -303,6 +309,11 @@ export function DataTable({
                   {renderRow(item)}
                 </tr>
               ))
+            )}
+            {totals && sortedData.length > 0 && (
+              <tr className="bg-slate-100 font-extrabold border-y border-slate-300 text-slate-900">
+                {renderRow({ ...totals, isTotal: true })}
+              </tr>
             )}
           </tbody>
         </table>

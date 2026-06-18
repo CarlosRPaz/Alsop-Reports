@@ -190,6 +190,52 @@ export default function MTDReport() {
     })
   }, [metrics, filters])
 
+  const tableTotals = useMemo(() => {
+    const totals = {
+      inbound: 0,
+      outbound: 0,
+      calls: 0,
+      talk_time_seconds: 0,
+      texts: 0,
+      unique_leads: 0,
+      rico_hot_pipeline: 0,
+      pivot: 0,
+      saved: 0,
+      quotes: 0,
+      prem_premium: 0,
+      premium_mtd: 0,
+      prem_points: 0,
+      prev_month_points: 0,
+      items_mtd: 0,
+      w_dismissed_todos: 0,
+      w_past_due_todos: 0,
+      rico_past_due_tasks: 0,
+    };
+
+    filteredMetrics.forEach(m => {
+      totals.inbound += m.inbound || 0;
+      totals.outbound += m.outbound || 0;
+      totals.calls += m.calls || 0;
+      totals.talk_time_seconds += m.talk_time_seconds || 0;
+      totals.texts += m.texts || 0;
+      totals.unique_leads += m.unique_leads || 0;
+      totals.rico_hot_pipeline += m.rico_hot_pipeline || 0;
+      totals.pivot += m.pivot || 0;
+      totals.saved += m.saved || 0;
+      totals.quotes += m.quotes || 0;
+      totals.prem_premium += Number(m.prem_premium) || 0;
+      totals.premium_mtd += Number(m.premium_mtd) || 0;
+      totals.prem_points += m.prem_points || 0;
+      totals.prev_month_points += m.prev_month_points || 0;
+      totals.items_mtd += m.items_mtd || 0;
+      totals.w_dismissed_todos += m.w_dismissed_todos || 0;
+      totals.w_past_due_todos += m.w_past_due_todos || 0;
+      totals.rico_past_due_tasks += m.rico_past_due_tasks || 0;
+    });
+
+    return totals;
+  }, [filteredMetrics]);
+
   const availableMonths = useMemo(() => {
     const today = new Date()
     const months = []
@@ -355,20 +401,25 @@ export default function MTDReport() {
             <DataTable 
               columns={COLUMNS}
               data={filteredMetrics}
+              totals={tableTotals}
               keyExtractor={(item) => item.agent_id}
               renderRow={(item) => {
                 const bdr = (group: string) => GROUP_CELL_BORDER[group] || ""
-                const manualHL = !manualSubmitted ? "orange" as const : undefined
+                const manualHL = (!manualSubmitted && !item.isTotal) ? "orange" as const : undefined
                 return (
                   <>
                     <td className="py-[2px] px-1.5 text-[15px] whitespace-nowrap">
-                      <Link href={`/reports/agent/${item.agent_id}`} className="font-bold text-blue-600 hover:underline">
-                        {item.agents?.name}
-                      </Link>
+                      {item.isTotal ? (
+                        <span className="font-extrabold text-slate-900">Total</span>
+                      ) : (
+                        <Link href={`/reports/agent/${item.agent_id}`} className="font-bold text-blue-600 hover:underline">
+                          {item.agents?.name}
+                        </Link>
+                      )}
                     </td>
-                    <td className="py-[2px] px-1.5 text-[15px] text-slate-400">{item.agents?.office || "-"}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] text-slate-400">{item.isTotal ? "" : (item.agents?.office || "-")}</td>
                     <td className="py-[2px] px-1.5 text-[15px] text-slate-400">
-                      {item.agents?.team ? <Badge variant="outline" className="text-[11px] py-0">{item.agents.team}</Badge> : '-'}
+                      {item.isTotal ? "" : (item.agents?.team ? <Badge variant="outline" className="text-[11px] py-0">{item.agents.team}</Badge> : '-')}
                     </td>
 
                     {/* RC / Ricochet */}

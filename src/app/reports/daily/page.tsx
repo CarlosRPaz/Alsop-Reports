@@ -300,6 +300,61 @@ export default function DailyReport() {
     });
   }, [metrics, filters]);
 
+  const tableTotals = useMemo(() => {
+    const totals = {
+      calls: 0,
+      inbound: 0,
+      outbound: 0,
+      talk_time_seconds: 0,
+      texts: 0,
+      out_texts: 0,
+      opt_ins: 0,
+      opt_outs: 0,
+      quotes: 0,
+      nb_count: 0,
+      prem_premium: 0,
+      items: 0,
+      items_mtd: 0,
+      leads_snapshot: {
+        contact: 0,
+        quoted: 0,
+        hot: 0,
+        xsale: 0,
+      },
+      dismissed_todos: 0,
+      past_due_todos: 0,
+      pivots: 0,
+    };
+
+    filteredMetrics.forEach(m => {
+      totals.calls += m.calls || 0;
+      totals.inbound += m.inbound || 0;
+      totals.outbound += m.outbound || 0;
+      totals.talk_time_seconds += m.talk_time_seconds || 0;
+      totals.texts += m.texts || 0;
+      totals.out_texts += m.out_texts || 0;
+      totals.opt_ins += m.opt_ins || 0;
+      totals.opt_outs += m.opt_outs || 0;
+      totals.quotes += m.quotes || 0;
+      totals.nb_count += m.nb_count || 0;
+      totals.prem_premium += Number(m.prem_premium) || 0;
+      totals.items += m.items || 0;
+      totals.items_mtd += m.items_mtd || 0;
+
+      if (m.leads_snapshot) {
+        totals.leads_snapshot.contact += m.leads_snapshot.contact || 0;
+        totals.leads_snapshot.quoted += m.leads_snapshot.quoted || 0;
+        totals.leads_snapshot.hot += m.leads_snapshot.hot || 0;
+        totals.leads_snapshot.xsale += m.leads_snapshot.xsale || 0;
+      }
+      totals.dismissed_todos += m.dismissed_todos || 0;
+      totals.past_due_todos += m.past_due_todos || 0;
+      totals.pivots += m.pivots || 0;
+    });
+
+    return totals;
+  }, [filteredMetrics]);
+
   const handlePrevDay = () => {
     const d = new Date(date + "T12:00:00");
     d.setDate(d.getDate() - 1);
@@ -633,11 +688,13 @@ export default function DailyReport() {
             <DataTable 
               columns={COLUMNS}
               data={filteredMetrics}
+              totals={tableTotals}
               keyExtractor={(item) => item.id || item.agent_id}
               renderRow={(item) => {
                 // Goal resolution: most specific match wins
                 // Priority: team+office > team > office > default (no team, no office)
                 const getGoal = (metric: string) => {
+                  if (item.isTotal) return null;
                   const matching = goals.filter((g: any) => 
                     g.metric_name === metric && g.timeframe === "daily"
                   );
@@ -664,6 +721,7 @@ export default function DailyReport() {
 
                 // Monthly goal resolution (same priority logic, different timeframe)
                 const getMonthlyGoal = (metric: string) => {
+                  if (item.isTotal) return null;
                   const matching = goals.filter((g: any) => 
                     g.metric_name === metric && g.timeframe === "monthly"
                   );
@@ -688,13 +746,17 @@ export default function DailyReport() {
                   <>
                     {/* ── Agent Info ── */}
                     <td className="py-[2px] px-1.5 text-[15px] whitespace-nowrap">
-                      <Link href={`/reports/agent/${item.agent_id}`} className="font-bold text-blue-400 hover:underline">
-                        {item.agents?.name}
-                      </Link>
+                      {item.isTotal ? (
+                        <span className="font-extrabold text-slate-900">Total</span>
+                      ) : (
+                        <Link href={`/reports/agent/${item.agent_id}`} className="font-bold text-blue-400 hover:underline">
+                          {item.agents?.name}
+                        </Link>
+                      )}
                     </td>
-                    <td className="py-[2px] px-1.5 text-[15px] text-slate-400">{item.agents?.office || "-"}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] text-slate-400">{item.isTotal ? "" : (item.agents?.office || "-")}</td>
                     <td className="py-[2px] px-1.5 text-[15px] text-slate-400">
-                      {item.agents?.team ? <Badge variant="outline" className="text-[11px] py-0">{item.agents.team}</Badge> : '-'}
+                      {item.isTotal ? "" : (item.agents?.team ? <Badge variant="outline" className="text-[11px] py-0">{item.agents.team}</Badge> : '-')}
                     </td>
 
                     {/* ── RingCentral (Sky) ── */}
@@ -733,7 +795,7 @@ export default function DailyReport() {
 
                     {/* ── eAgent Tasks (Violet) ── */}
                     {(() => {
-                      const manualHL = !eagentSubmitted ? "orange" as const : undefined;
+                      const manualHL = (!eagentSubmitted && !item.isTotal) ? "orange" as const : undefined;
                       return (
                         <>
                           <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("eagent")}`}>{formatValue(item.dismissed_todos, "", "", getGoal("dismissed_todos"), manualHL)}</td>
