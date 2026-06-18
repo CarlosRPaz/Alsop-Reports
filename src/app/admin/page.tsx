@@ -30,9 +30,9 @@ export default function AdminHub() {
               Create, edit, archive, and manage office/team assignments for your agency roster.
             </p>
             <Link href="/admin/agents">
-              <Button variant="outline" className="w-full group-hover:text-blue-600 group-hover:border-blue-600 hover:!bg-blue-600 hover:!text-white hover:!border-blue-600 transition-colors">
+              <button className="w-full inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white border border-slate-200 bg-white text-slate-700 shadow-sm h-10 py-2 px-4 group-hover:text-blue-600 group-hover:border-blue-600 hover:bg-blue-600 hover:text-white hover:border-blue-600">
                 Manage Agents <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+              </button>
             </Link>
           </CardContent>
         </Card>
@@ -49,9 +49,9 @@ export default function AdminHub() {
               Invite agents to the dashboard, manage login credentials, and control site access.
             </p>
             <Link href="/admin/users">
-              <Button variant="outline" className="w-full group-hover:text-violet-600 group-hover:border-violet-600 hover:!bg-violet-600 hover:!text-white hover:!border-violet-600 transition-colors">
+              <button className="w-full inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white border border-slate-200 bg-white text-slate-700 shadow-sm h-10 py-2 px-4 group-hover:text-violet-600 group-hover:border-violet-600 hover:bg-violet-600 hover:text-white hover:border-violet-600">
                 Manage Access <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+              </button>
             </Link>
           </CardContent>
         </Card>
@@ -68,9 +68,9 @@ export default function AdminHub() {
               Set Daily, Weekly, Monthly, and YTD performance goals. Target specific offices and teams.
             </p>
             <Link href="/admin/goals">
-              <Button variant="outline" className="w-full group-hover:text-amber-600 group-hover:border-amber-600 hover:!bg-amber-600 hover:!text-white hover:!border-amber-600 transition-colors">
+              <button className="w-full inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white border border-slate-200 bg-white text-slate-700 shadow-sm h-10 py-2 px-4 group-hover:text-amber-600 group-hover:border-amber-600 hover:bg-amber-600 hover:text-white hover:border-amber-600">
                 Manage Goals <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+              </button>
             </Link>
           </CardContent>
         </Card>
@@ -87,9 +87,9 @@ export default function AdminHub() {
               Manage observed holidays and view business day counts for pacing calculations.
             </p>
             <Link href="/admin/holidays">
-              <Button variant="outline" className="w-full group-hover:text-red-600 group-hover:border-red-600 hover:!bg-red-600 hover:!text-white hover:!border-red-600 transition-colors">
+              <button className="w-full inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white border border-slate-200 bg-white text-slate-700 shadow-sm h-10 py-2 px-4 group-hover:text-red-600 group-hover:border-red-600 hover:bg-red-600 hover:text-white hover:border-red-600">
                 Manage Holidays <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+              </button>
             </Link>
           </CardContent>
         </Card>
@@ -106,9 +106,9 @@ export default function AdminHub() {
               Manually trigger the Python DSR pipeline and view the data sources dictionary.
             </p>
             <Link href="/admin/sync">
-              <Button variant="outline" className="w-full group-hover:text-emerald-600 group-hover:border-emerald-600 hover:!bg-emerald-600 hover:!text-white hover:!border-emerald-600 transition-colors">
+              <button className="w-full inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white border border-slate-200 bg-white text-slate-700 shadow-sm h-10 py-2 px-4 group-hover:text-emerald-600 group-hover:border-emerald-600 hover:bg-emerald-600 hover:text-white hover:border-emerald-600">
                 Manage Data <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+              </button>
             </Link>
           </CardContent>
         </Card>
