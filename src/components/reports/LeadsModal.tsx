@@ -79,16 +79,19 @@ export function LeadsModal({ isOpen, onClose, dateStr, onSuccess }: LeadsModalPr
 
     async function loadData() {
       try {
-        // 1. Load active agents
+        // 1. Load active, report-visible agents (excluding CSR agents)
         const { data: agentsData, error: agentsErr } = await supabase
           .from("agents")
-          .select("id, name")
+          .select("id, name, team, report_visible")
           .eq("active", true)
+          .eq("report_visible", true)
           .order("name")
 
         if (agentsErr) throw agentsErr
 
-        const agentList = (agentsData || []).map(a => ({ id: a.id, name: a.name }))
+        const agentList = (agentsData || [])
+          .filter(a => a.team?.trim().toUpperCase() !== "CSR")
+          .map(a => ({ id: a.id, name: a.name }))
         setAgents(agentList)
 
         // 2. Load existing leads_snapshot for this date
