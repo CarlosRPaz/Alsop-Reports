@@ -253,12 +253,12 @@ export function LeadsModal({ isOpen, onClose, dateStr, onSuccess }: LeadsModalPr
           ) : (
             <table className="w-full text-left border-collapse">
               <thead className="sticky top-0 bg-white z-10">
-                <tr className="border-b border-slate-200">
-                  <th className="py-1.5 px-2 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Agent</th>
-                  <th className="py-1.5 px-1 text-[10px] uppercase tracking-wider text-blue-600 font-semibold text-center">Contacted</th>
-                  <th className="py-1.5 px-1 text-[10px] uppercase tracking-wider text-violet-600 font-semibold text-center">Quoted</th>
-                  <th className="py-1.5 px-1 text-[10px] uppercase tracking-wider text-orange-600 font-semibold text-center">Hot</th>
-                  <th className="py-1.5 px-1 text-[10px] uppercase tracking-wider text-cyan-600 font-semibold text-center">XDate</th>
+                <tr className="border-b-2 border-slate-300 bg-slate-50/50">
+                  <th className="py-2 px-3 text-[11px] uppercase tracking-wider text-slate-600 font-bold border-r-2 border-slate-300">Agent</th>
+                  <th className="py-2 px-1 text-[11px] uppercase tracking-wider text-blue-700 font-bold text-center border-r border-slate-200/80">Contacted</th>
+                  <th className="py-2 px-1 text-[11px] uppercase tracking-wider text-violet-700 font-bold text-center border-r border-slate-200/80">Quoted</th>
+                  <th className="py-2 px-1 text-[11px] uppercase tracking-wider text-orange-700 font-bold text-center border-r border-slate-200/80">Hot</th>
+                  <th className="py-2 px-1 text-[11px] uppercase tracking-wider text-cyan-700 font-bold text-center">XDate</th>
                 </tr>
               </thead>
               <tbody>
@@ -266,16 +266,16 @@ export function LeadsModal({ isOpen, onClose, dateStr, onSuccess }: LeadsModalPr
                   const d = formData[agent.id]
                   if (!d) return null
                   const hasData = d.contact > 0 || d.quoted > 0 || d.hot > 0 || d.xsale > 0
-                  const rowBg = index % 2 !== 0 ? "bg-slate-100" : "bg-white"
+                  const rowBg = index % 2 !== 0 ? "bg-slate-200/40" : "bg-white"
                   return (
                     <tr 
                       key={agent.id} 
-                      className={`border-b border-slate-150 transition-colors ${rowBg} hover:bg-indigo-50/80`}
+                      className={`border-b border-slate-300 transition-colors ${rowBg} hover:bg-indigo-100/65`}
                     >
-                      <td className="py-2 px-3">
+                      <td className="py-2 px-3 border-r-2 border-slate-300">
                         <span className={`text-sm font-semibold ${hasData ? "text-slate-900" : "text-slate-500"}`}>{agent.name}</span>
                       </td>
-                      <td className="py-2 px-1">
+                      <td className="py-2 px-1 border-r border-slate-200/80">
                         <div className="flex justify-center">
                           <Stepper 
                             value={d.contact}
@@ -283,7 +283,7 @@ export function LeadsModal({ isOpen, onClose, dateStr, onSuccess }: LeadsModalPr
                           />
                         </div>
                       </td>
-                      <td className="py-2 px-1">
+                      <td className="py-2 px-1 border-r border-slate-200/80">
                         <div className="flex justify-center">
                           <Stepper 
                             value={d.quoted}
@@ -291,7 +291,7 @@ export function LeadsModal({ isOpen, onClose, dateStr, onSuccess }: LeadsModalPr
                           />
                         </div>
                       </td>
-                      <td className="py-2 px-1">
+                      <td className="py-2 px-1 border-r border-slate-200/80">
                         <div className="flex justify-center">
                           <Stepper 
                             value={d.hot}

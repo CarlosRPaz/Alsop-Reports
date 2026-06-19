@@ -133,7 +133,7 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-xl flex flex-col max-h-[90vh]">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
         
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
@@ -182,11 +182,11 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
         <div className="flex-grow overflow-y-auto px-2 py-1">
           <table className="w-full text-left border-collapse">
             <thead className="sticky top-0 bg-white z-10">
-              <tr className="border-b border-slate-200">
-                <th className="py-1.5 px-2 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Agent</th>
-                <th className="py-1.5 px-1 text-[10px] uppercase tracking-wider text-violet-600 font-semibold text-center">Dismissed</th>
-                <th className="py-1.5 px-1 text-[10px] uppercase tracking-wider text-orange-600 font-semibold text-center">Past Due</th>
-                <th className="py-1.5 px-1 text-[10px] uppercase tracking-wider text-cyan-600 font-semibold text-center">Pivots</th>
+              <tr className="border-b-2 border-slate-300 bg-slate-50/50">
+                <th className="py-2 px-3 text-[11px] uppercase tracking-wider text-slate-600 font-bold border-r-2 border-slate-300">Agent</th>
+                <th className="py-2 px-1 text-[11px] uppercase tracking-wider text-violet-700 font-bold text-center border-r border-slate-200/80">Dismissed</th>
+                <th className="py-2 px-1 text-[11px] uppercase tracking-wider text-orange-700 font-bold text-center border-r border-slate-200/80">Past Due</th>
+                <th className="py-2 px-1 text-[11px] uppercase tracking-wider text-cyan-700 font-bold text-center">Pivots</th>
               </tr>
             </thead>
             <tbody>
@@ -194,16 +194,16 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
                 const d = formData[agent.agent_id]
                 if (!d) return null
                 const hasData = d.dismissed > 0 || d.pastDue > 0 || d.pivots > 0
-                const rowBg = index % 2 !== 0 ? "bg-slate-100" : "bg-white"
+                const rowBg = index % 2 !== 0 ? "bg-slate-200/40" : "bg-white"
                 return (
                   <tr 
                     key={agent.agent_id} 
-                    className={`border-b border-slate-150 transition-colors ${rowBg} hover:bg-indigo-50/80`}
+                    className={`border-b border-slate-300 transition-colors ${rowBg} hover:bg-indigo-100/65`}
                   >
-                    <td className="py-2 px-3">
+                    <td className="py-2 px-3 border-r-2 border-slate-300">
                       <span className={`text-sm font-semibold ${hasData ? "text-slate-900" : "text-slate-500"}`}>{agent.agents?.name}</span>
                     </td>
-                    <td className="py-2 px-1">
+                    <td className="py-2 px-1 border-r border-slate-200/80">
                       <div className="flex justify-center">
                         <Stepper 
                           value={d.dismissed}
@@ -211,7 +211,7 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
                         />
                       </div>
                     </td>
-                    <td className="py-2 px-1">
+                    <td className="py-2 px-1 border-r border-slate-200/80">
                       <div className="flex justify-center">
                         <Stepper 
                           value={d.pastDue}
