@@ -266,16 +266,16 @@ export function LeadsModal({ isOpen, onClose, dateStr, onSuccess }: LeadsModalPr
                   const d = formData[agent.id]
                   if (!d) return null
                   const hasData = d.contact > 0 || d.quoted > 0 || d.hot > 0 || d.xsale > 0
-                  const rowBg = index % 2 !== 0 ? "bg-slate-100" : "bg-white"
+                  const rowBg = index % 2 !== 0 ? "bg-slate-50/60" : "bg-white"
                   return (
                     <tr 
                       key={agent.id} 
-                      className={`border-b border-slate-200 transition-colors ${rowBg} hover:bg-slate-200`}
+                      className={`border-b border-slate-150 transition-colors ${rowBg} hover:bg-indigo-50/80`}
                     >
-                      <td className="py-1 px-2">
-                        <span className={`text-xs font-medium ${hasData ? "text-slate-900" : "text-slate-500"}`}>{agent.name}</span>
+                      <td className="py-2 px-3">
+                        <span className={`text-sm font-semibold ${hasData ? "text-slate-900" : "text-slate-500"}`}>{agent.name}</span>
                       </td>
-                      <td className="py-1 px-1">
+                      <td className="py-2 px-1">
                         <div className="flex justify-center">
                           <Stepper 
                             value={d.contact}
@@ -283,7 +283,7 @@ export function LeadsModal({ isOpen, onClose, dateStr, onSuccess }: LeadsModalPr
                           />
                         </div>
                       </td>
-                      <td className="py-1 px-1">
+                      <td className="py-2 px-1">
                         <div className="flex justify-center">
                           <Stepper 
                             value={d.quoted}
@@ -291,7 +291,7 @@ export function LeadsModal({ isOpen, onClose, dateStr, onSuccess }: LeadsModalPr
                           />
                         </div>
                       </td>
-                      <td className="py-1 px-1">
+                      <td className="py-2 px-1">
                         <div className="flex justify-center">
                           <Stepper 
                             value={d.hot}
@@ -299,7 +299,7 @@ export function LeadsModal({ isOpen, onClose, dateStr, onSuccess }: LeadsModalPr
                           />
                         </div>
                       </td>
-                      <td className="py-1 px-1">
+                      <td className="py-2 px-1">
                         <div className="flex justify-center">
                           <Stepper 
                             value={d.xsale}

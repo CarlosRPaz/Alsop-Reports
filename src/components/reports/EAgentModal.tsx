@@ -194,16 +194,16 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
                 const d = formData[agent.agent_id]
                 if (!d) return null
                 const hasData = d.dismissed > 0 || d.pastDue > 0 || d.pivots > 0
-                const rowBg = index % 2 !== 0 ? "bg-slate-100" : "bg-white"
+                const rowBg = index % 2 !== 0 ? "bg-slate-50/60" : "bg-white"
                 return (
                   <tr 
                     key={agent.agent_id} 
-                    className={`border-b border-slate-200 transition-colors ${rowBg} hover:bg-slate-200`}
+                    className={`border-b border-slate-150 transition-colors ${rowBg} hover:bg-indigo-50/80`}
                   >
-                    <td className="py-1 px-2">
-                      <span className="text-xs font-medium text-slate-700">{agent.agents?.name}</span>
+                    <td className="py-2 px-3">
+                      <span className={`text-sm font-semibold ${hasData ? "text-slate-900" : "text-slate-500"}`}>{agent.agents?.name}</span>
                     </td>
-                    <td className="py-1 px-1">
+                    <td className="py-2 px-1">
                       <div className="flex justify-center">
                         <Stepper 
                           value={d.dismissed}
@@ -211,7 +211,7 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
                         />
                       </div>
                     </td>
-                    <td className="py-1 px-1">
+                    <td className="py-2 px-1">
                       <div className="flex justify-center">
                         <Stepper 
                           value={d.pastDue}
@@ -219,7 +219,7 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
                         />
                       </div>
                     </td>
-                    <td className="py-1 px-1">
+                    <td className="py-2 px-1">
                       <div className="flex justify-center">
                         <Stepper 
                           value={d.pivots}
