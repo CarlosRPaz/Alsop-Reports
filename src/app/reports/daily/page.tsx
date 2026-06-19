@@ -615,6 +615,7 @@ export default function DailyReport() {
 
         const hasGaps = coverage ? Object.values(coverage).some(s => !s.present) : false
         const allPresent = coverage ? Object.values(coverage).every(s => s.present) : false
+        if (allPresent) return null
         const isExpanded = coverageExpanded ?? hasGaps
 
         const chipBg: Record<string, string> = {
