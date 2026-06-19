@@ -11,6 +11,7 @@ import { Trophy, TrendingUp, Calendar, AlertCircle, Edit, CheckCircle2, Clock, D
 import Link from "next/link"
 import { formatValue } from "@/lib/formatters"
 import { EAgentModal } from "@/components/reports/EAgentModal"
+import { LeadsModal } from "@/components/reports/LeadsModal"
 import AgencyMTDPacing from "@/components/ui/AgencyMTDPacing"
 import { runDataSyncPipeline } from "@/app/admin/sync/actions"
 import { toHolidaySet, getBusinessDaysInMonth, getElapsedBusinessDays } from "@/lib/businessDays"
@@ -276,6 +277,7 @@ export default function DailyReport() {
   const [filters, setFilters] = useState<FilterState>({ offices: [], teams: [], agents: [], meetings: [] })
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isLeadsModalOpen, setIsLeadsModalOpen] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<"idle" | "success" | "error">("idle")
   const [holidays, setHolidays] = useState<{ holiday_date: string }[]>([])
@@ -526,6 +528,25 @@ export default function DailyReport() {
               <Edit className="w-3 h-3 ml-1" />
             </Button>
           )}
+
+          {/* Lead Pipeline Manual Entry */}
+          {coverage && !coverage.leads?.present ? (
+            <Button 
+              onClick={() => setIsLeadsModalOpen(true)}
+              className="bg-orange-600 hover:bg-orange-500 text-white flex items-center gap-2 animate-pulse"
+            >
+              <Zap className="w-4 h-4" /> Enter Lead Data
+            </Button>
+          ) : coverage ? (
+            <Button 
+              onClick={() => setIsLeadsModalOpen(true)}
+              variant="outline"
+              className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-2"
+            >
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Leads Entered
+              <Edit className="w-3 h-3 ml-1" />
+            </Button>
+          ) : null}
         </div>
       </header>
 
@@ -1181,6 +1202,17 @@ export default function DailyReport() {
         onClose={() => setIsModalOpen(false)}
         dateStr={date}
         agents={metrics}
+        onSuccess={async () => {
+          await fetchData(date)
+          const covResult = await getDailyCoverage(date)
+          if (covResult.success && covResult.data) setCoverage(covResult.data)
+        }}
+      />
+
+      <LeadsModal
+        isOpen={isLeadsModalOpen}
+        onClose={() => setIsLeadsModalOpen(false)}
+        dateStr={date}
         onSuccess={async () => {
           await fetchData(date)
           const covResult = await getDailyCoverage(date)

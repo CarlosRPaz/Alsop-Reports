@@ -12,8 +12,9 @@ import { Badge } from "@/components/ui/Badge"
 import { DataTable, ColumnDef } from "@/components/ui/DataTable"
 import { FilterBar, FilterState } from "@/components/ui/FilterBar"
 
-import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, DollarSign, Package, TrendingUp, Trophy, Calendar, Database, Phone, MessageSquare, FileText, ShieldCheck, Zap, Megaphone, Car } from "lucide-react"
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, DollarSign, Package, TrendingUp, Trophy, Calendar, Database, Phone, MessageSquare, FileText, ShieldCheck, Zap, Megaphone, Car, Edit } from "lucide-react"
 import Link from "next/link"
+import { MonthlyManualModal } from "@/components/reports/MonthlyManualModal"
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -253,6 +254,7 @@ export default function MTDReport() {
   const [manualSubmitted, setManualSubmitted] = useState(false)
   const [filters, setFilters] = useState<FilterState>({ offices: [], teams: [], agents: [], meetings: [] })
   const [loading, setLoading] = useState(true)
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const [talkingPointsExpanded, setTalkingPointsExpanded] = useState(true)
   const [agencyItemsMTD, setAgencyItemsMTD] = useState(0)
   const [agencyOfficeBreakdown, setAgencyOfficeBreakdown] = useState<Record<string, number>>({})
@@ -394,6 +396,25 @@ export default function MTDReport() {
               <option key={m.value} value={m.value}>{m.label}</option>
             ))}
           </select>
+
+          {/* Manual Entry Button */}
+          {!manualSubmitted ? (
+            <Button 
+              onClick={() => setIsModalOpen(true)}
+              className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-2 animate-pulse"
+            >
+              <AlertCircle className="w-4 h-4" /> Enter Monthly Data
+            </Button>
+          ) : (
+            <Button 
+              onClick={() => setIsModalOpen(true)}
+              variant="outline"
+              className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-2"
+            >
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Monthly Data Submitted
+              <Edit className="w-3 h-3 ml-1" />
+            </Button>
+          )}
         </div>
       </header>
 
@@ -684,6 +705,15 @@ export default function MTDReport() {
           )}
         </Card>
       </div>
+
+      <MonthlyManualModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        year={selectedYear}
+        month={selectedMonth}
+        metrics={metrics}
+        onSuccess={fetchData}
+      />
     </div>
   )
 }

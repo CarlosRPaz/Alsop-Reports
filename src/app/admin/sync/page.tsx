@@ -7,13 +7,15 @@ import { Badge } from "@/components/ui/Badge"
 import {
   Database, AlertCircle, CheckCircle2, Terminal, RefreshCw, CalendarDays,
   Upload, X, FileSpreadsheet, Phone, MessageSquare, FileText, Package,
-  DollarSign, Zap, Loader2, ChevronDown, Info, ShieldCheck, ExternalLink,
+  DollarSign, Zap, Loader2, ChevronDown, Info, ShieldCheck, ExternalLink, Monitor, Pencil,
 } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
 import SyncCalendar from "@/components/ui/SyncCalendar"
 import UploadHistory from "@/components/ui/UploadHistory"
 import { getDailyCoverage } from "@/app/reports/daily/actions"
 import Link from "next/link"
+import { processUploadedFiles, type UploadFile } from "@/lib/pipeline"
+import { LeadsModal } from "@/components/reports/LeadsModal"
 
 // ─── Source Configuration ─────────────────────────────────────────────────────
 
@@ -91,7 +93,7 @@ const DATA_SOURCES: DataSource[] = [
     key: "leads", label: "Lead Pipeline", system: "DeerDama", icon: Zap, color: "orange",
     uploadTypes: [],
     filePatterns: [],
-    howToGet: "Captured during full sync — not available in upload-only mode",
+    howToGet: "Enter via the Enter Lead Data modal on the Daily Report page — Automated run only available on Charlie's local computer",
     isAutomatic: true,
   },
 ]
@@ -163,12 +165,14 @@ export default function DataSyncPage() {
   const [uploading, setUploading] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<"idle" | "running" | "success" | "error">("idle")
   const [uploadLogs, setUploadLogs] = useState<string>("")
+  const [lastFailedSource, setLastFailedSource] = useState<string | null>(null)
 
 
 
   // Sections
   const [calendarOpen, setCalendarOpen] = useState(true)
   const [dictionaryOpen, setDictionaryOpen] = useState(false)
+  const [leadsModalOpen, setLeadsModalOpen] = useState(false)
 
   const topRef = useRef<HTMLDivElement>(null)
 
@@ -325,37 +329,50 @@ export default function DataSyncPage() {
     if (!autoScrapeKey && validFiles.length === 0) return
     setUploading(true)
     setUploadStatus("running")
-    setUploadLogs(autoScrapeKey ? `Triggering automation for ${autoScrapeKey}...\n` : "Uploading files and processing...\n")
+    setLastFailedSource(null)
+    setUploadLogs(autoScrapeKey ? `Triggering automation for ${autoScrapeKey}...\n` : "Processing files...\n")
 
     try {
-      const formData = new FormData()
-      formData.append("defaultDate", date)
-
       if (autoScrapeKey) {
+        // Auto-scrape (Lead Pipeline) — still uses the server-side API route (localhost only)
+        const formData = new FormData()
+        formData.append("defaultDate", date)
         formData.append("autoScrape", autoScrapeKey)
+
+        const res = await fetch("/api/upload-data", {
+          method: "POST",
+          body: formData,
+        })
+
+        const result = await res.json()
+        setUploadLogs(result.logs || result.error || "No output")
+        setUploadStatus(result.success ? "success" : "error")
+        if (!result.success) setLastFailedSource(autoScrapeKey || null)
       } else {
-        const fileDates: Record<string, string> = {}
-        for (const f of validFiles) {
-          formData.append("files", f.file)
-          if (f.dateOverride) {
-            fileDates[f.file.name] = f.dateOverride
-          }
-        }
-        formData.append("fileDates", JSON.stringify(fileDates))
+        // File uploads — process entirely on the client side
+        const uploadFiles: UploadFile[] = validFiles.map(f => ({
+          file: f.file,
+          type: f.type,
+          label: f.label,
+          hasInternalDate: f.hasInternalDate,
+          dateOverride: f.dateOverride,
+        }))
+
+        const result = await processUploadedFiles(
+          supabase,
+          uploadFiles,
+          date,
+          (msg) => setUploadLogs(prev => prev + msg + "\n"),
+        )
+
+        setUploadLogs(result.logs)
+        setUploadStatus(result.success ? "success" : "error")
+        if (!result.success) setLastFailedSource(null)
       }
 
-      const res = await fetch("/api/upload-data", {
-        method: "POST",
-        body: formData,
-      })
-
-      const result = await res.json()
-      setUploadLogs(result.logs || result.error || "No output")
-      setUploadStatus(result.success ? "success" : "error")
-
-      // Always clear staged files — they've been sent to the server
+      // Always clear staged files
       setStagedFiles([])
-      // Always refresh coverage + counts to show what actually landed
+      // Refresh coverage + counts to show what actually landed
       setRefreshTrigger(prev => prev + 1)
       const { count: a } = await supabase.from("agents").select("*", { count: "exact", head: true })
       const { count: m } = await supabase.from("daily_metrics").select("*", { count: "exact", head: true })
@@ -364,6 +381,7 @@ export default function DataSyncPage() {
     } catch (err: any) {
       setUploadLogs(prev => prev + "\nUpload failed: " + err.message)
       setUploadStatus("error")
+      if (autoScrapeKey) setLastFailedSource(autoScrapeKey)
     } finally {
       setUploading(false)
     }
@@ -391,6 +409,7 @@ export default function DataSyncPage() {
   }, [date])
 
   return (
+    <>
     <div ref={topRef} className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6 min-h-screen pb-32">
 
       {/* ═══ Header ═══ */}
@@ -597,6 +616,31 @@ export default function DataSyncPage() {
               </div>
             </details>
           )}
+
+          {/* Lead Pipeline failure CTA */}
+          {uploadStatus === "error" && lastFailedSource === "leads" && (
+            <div className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+              <Monitor className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
+              <div className="flex-grow space-y-2">
+                <p className="text-sm font-semibold text-orange-800">Lead Pipeline automation failed</p>
+                <p className="text-xs text-orange-700">
+                  This automation can <span className="font-bold">only</span> run on Charlie&apos;s local computer. 
+                  It requires a browser to scrape data from DeerDama (Ricochet). 
+                  If you&apos;re not on Charlie&apos;s machine, the automation will always fail.
+                </p>
+                <p className="text-xs text-orange-700">
+                  Instead, you can <span className="font-semibold">manually enter lead data</span> using the button below.
+                </p>
+                <Button 
+                  onClick={() => { setLeadsModalOpen(true); setUploadStatus("idle"); setLastFailedSource(null); }}
+                  size="sm" 
+                  className="bg-orange-600 hover:bg-orange-500 text-white text-xs"
+                >
+                  <Pencil className="w-3 h-3 mr-1.5" /> Enter Lead Data Manually
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -623,6 +667,7 @@ export default function DataSyncPage() {
               coverageLoaded={!!coverage}
               date={date}
               onAutoScrape={(key) => handleUpload(key)}
+              onManualLeads={source.key === "leads" ? () => setLeadsModalOpen(true) : undefined}
             />
           )
         })}
@@ -780,6 +825,15 @@ export default function DataSyncPage() {
         )}
       </div>
     </div>
+
+    {/* ═══ Leads Manual Entry Modal ═══ */}
+    <LeadsModal
+      isOpen={leadsModalOpen}
+      onClose={() => setLeadsModalOpen(false)}
+      dateStr={date}
+      onSuccess={() => setRefreshTrigger(prev => prev + 1)}
+    />
+  </>
   )
 }
 
@@ -795,6 +849,7 @@ function SourceCard({
   coverageLoaded,
   date,
   onAutoScrape,
+  onManualLeads,
 }: {
   source: DataSource
   Icon: React.ComponentType<{ className?: string }>
@@ -805,6 +860,7 @@ function SourceCard({
   coverageLoaded: boolean
   date: string
   onAutoScrape?: (key: string) => void
+  onManualLeads?: () => void
 }) {
   const canUpload = !source.isManualEntry && !source.isAutomatic && source.uploadTypes.length > 0
 
@@ -817,94 +873,89 @@ function SourceCard({
 
   return (
     <div
-      className={`rounded-xl border ${colors.border} bg-white shadow-sm overflow-hidden transition-all duration-300 ${borderAccent} ${
+      className={`rounded-lg border ${colors.border} bg-white shadow-sm overflow-hidden transition-all duration-300 ${borderAccent} ${
         !isPresent && coverageLoaded && !source.isAutomatic ? "ring-1 ring-amber-200/60" : ""
       }`}
     >
-      {/* Card Header */}
-      <div className={`flex items-center gap-3 px-4 py-3 ${isPresent ? "bg-gradient-to-r from-emerald-50/50 to-white" : ""}`}>
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${colors.bg} ${colors.text}`}>
-          <Icon className="w-4 h-4" />
+      <div className={`flex items-center gap-2.5 px-3 py-2 ${isPresent ? "bg-gradient-to-r from-emerald-50/40 to-white" : ""}`}>
+        {/* Icon */}
+        <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${colors.bg} ${colors.text}`}>
+          <Icon className="w-3.5 h-3.5" />
         </div>
 
+        {/* Label + badge + subtitle */}
         <div className="flex-grow min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-slate-900 truncate">{source.label}</h3>
-            <Badge variant="outline" className={`text-[10px] shrink-0 ${colors.bg} ${colors.text} ${colors.border}`}>
+          <div className="flex items-center gap-1.5">
+            <h3 className="text-xs font-bold text-slate-900 truncate">{source.label}</h3>
+            <Badge variant="outline" className={`text-[9px] px-1 py-0 shrink-0 ${colors.bg} ${colors.text} ${colors.border}`}>
               {source.system}
             </Badge>
           </div>
-        </div>
-
-        {/* Status indicator */}
-        <div className="shrink-0">
-          {isProcessing ? (
-            <span className="flex items-center gap-1.5 text-xs font-medium text-blue-600">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Processing…
-            </span>
-          ) : isPresent ? (
-            <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Synced{source.key !== "eagent" ? ` · ${agentsWithData} agents` : ""}
-            </span>
-          ) : coverageLoaded ? (
-            <span className="flex items-center gap-1.5 text-xs font-medium text-amber-600">
-              <AlertCircle className="w-3.5 h-3.5" /> Missing
-            </span>
-          ) : (
-            <span className="flex items-center gap-1.5 text-xs font-medium text-slate-400">
-              <RefreshCw className="w-3 h-3 animate-spin" />
-            </span>
+          {/* How-to-get hint — only show when missing */}
+          {!isPresent && coverageLoaded && (
+            <p className="text-[10px] text-slate-400 truncate mt-0.5 leading-tight">{source.howToGet}</p>
           )}
         </div>
-      </div>
 
-      {/* Card Body */}
-      <div className="border-t border-slate-100">
-        {/* eAgent — Manual entry link */}
+        {/* Action buttons (inline) */}
         {source.isManualEntry && (
-          <div className="px-4 py-3 space-y-2">
-            <p className="text-xs text-slate-500 flex items-center gap-1.5">
-              <Info className="w-3 h-3 shrink-0" />
-              {source.howToGet}
-            </p>
-            <Link href={`/reports/daily?date=${date}`}>
-              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-500 transition-colors cursor-pointer">
-                <ExternalLink className="w-3 h-3" /> Open Daily Report to enter eAgent data
-              </span>
-            </Link>
-          </div>
+          <Link href={`/reports/daily?date=${date}`} className="shrink-0">
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-600 hover:text-rose-500 transition-colors whitespace-nowrap">
+              <ExternalLink className="w-3 h-3" /> Daily Report
+            </span>
+          </Link>
         )}
 
-        {/* Leads & eAgent — Automatic */}
         {source.isAutomatic && (
-          <div className="px-4 py-3 space-y-3">
-            <p className="text-xs text-slate-500 flex items-center gap-1.5">
-              <Info className="w-3 h-3 shrink-0" />
-              {source.howToGet}
-            </p>
-            <Button 
-              onClick={() => onAutoScrape?.(source.key)}
-              size="sm" 
-              variant="outline" 
-              className="w-full text-xs"
-            >
-              <Zap className="w-3 h-3 mr-1.5" />
-              {isPresent ? "Re-sync" : "Run"} {source.label} Automation
+          <div className="flex items-center gap-1.5 shrink-0">
+            {onManualLeads && (
+              <Button onClick={onManualLeads} size="sm" variant="outline" className="h-6 text-[10px] px-2 border-orange-200 text-orange-700 hover:bg-orange-50">
+                <Pencil className="w-2.5 h-2.5 mr-1" /> Manual
+              </Button>
+            )}
+            <Button onClick={() => {
+              if (window.confirm(
+                "⚠️ This automation can ONLY run on Charlie's local computer.\n\n" +
+                "It launches a browser to scrape data from DeerDama (Ricochet). " +
+                "Running this from any other machine will fail.\n\n" +
+                "Are you sure you're on Charlie's computer?"
+              )) {
+                onAutoScrape?.(source.key)
+              }
+            }} size="sm" variant="outline" className="h-6 text-[10px] px-2">
+              <Zap className="w-2.5 h-2.5 mr-1" /> {isPresent ? "Re-sync" : "Run"}
             </Button>
           </div>
         )}
 
-        {/* Uploadable sources — how-to-get hint */}
-        {canUpload && !isPresent && coverageLoaded && (
-          <div className="px-4 py-3">
-            <p className="text-xs text-slate-500 flex items-start gap-1.5">
-              <Info className="w-3 h-3 shrink-0 mt-0.5" />
-              <span>{source.howToGet}</span>
-            </p>
-          </div>
-        )}
+        {/* Status indicator */}
+        <div className="shrink-0 ml-auto pl-2">
+          {isProcessing ? (
+            <span className="flex items-center gap-1 text-[10px] font-medium text-blue-600 whitespace-nowrap">
+              <Loader2 className="w-3 h-3 animate-spin" /> Processing
+            </span>
+          ) : isPresent ? (
+            <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 whitespace-nowrap">
+              <CheckCircle2 className="w-3 h-3" />
+              {source.key !== "eagent" ? `${agentsWithData}` : "✓"}
+            </span>
+          ) : coverageLoaded ? (
+            <span className="flex items-center gap-1 text-[10px] font-medium text-amber-600 whitespace-nowrap">
+              <AlertCircle className="w-3 h-3" /> Missing
+            </span>
+          ) : (
+            <RefreshCw className="w-3 h-3 animate-spin text-slate-400" />
+          )}
+        </div>
       </div>
+
+      {/* Localhost warning — only for Lead Pipeline, collapsed to a thin bar */}
+      {source.isAutomatic && (
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 border-t border-amber-100 text-[10px] text-amber-600">
+          <Monitor className="w-3 h-3 shrink-0" />
+          <span><span className="font-semibold">Localhost only</span> — Charlie&apos;s computer</span>
+        </div>
+      )}
     </div>
   )
 }
