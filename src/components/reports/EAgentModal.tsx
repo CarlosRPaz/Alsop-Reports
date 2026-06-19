@@ -194,7 +194,7 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
                 const d = formData[agent.agent_id]
                 if (!d) return null
                 const hasData = d.dismissed > 0 || d.pastDue > 0 || d.pivots > 0
-                const rowBg = index % 2 !== 0 ? "bg-slate-50/60" : "bg-white"
+                const rowBg = index % 2 !== 0 ? "bg-slate-100" : "bg-white"
                 return (
                   <tr 
                     key={agent.agent_id} 

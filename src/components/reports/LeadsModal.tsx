@@ -266,7 +266,7 @@ export function LeadsModal({ isOpen, onClose, dateStr, onSuccess }: LeadsModalPr
                   const d = formData[agent.id]
                   if (!d) return null
                   const hasData = d.contact > 0 || d.quoted > 0 || d.hot > 0 || d.xsale > 0
-                  const rowBg = index % 2 !== 0 ? "bg-slate-50/60" : "bg-white"
+                  const rowBg = index % 2 !== 0 ? "bg-slate-100" : "bg-white"
                   return (
                     <tr 
                       key={agent.id} 
