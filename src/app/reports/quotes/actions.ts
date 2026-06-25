@@ -12,10 +12,13 @@ export interface QuotesAgentRow {
   office: string | null
   nb_policies: number
   quote_count: number
+  items: number
+  report_visible: boolean
 }
 
 export interface QuotesDataResult {
   agents: QuotesAgentRow[]
+  allAgents: { id: string; name: string; team: string | null; office: string | null }[]
   businessDaysTotal: number
   businessDaysPassed: number
   periodLabel: string
@@ -51,7 +54,8 @@ export async function getQuotesData(
     // Determine date range based on mode
     if (mode === "ytd") {
       startDate = `${year}-01-01`
-      endDate = todayStr
+      const isCurrentYear = year === today.getFullYear()
+      endDate = isCurrentYear ? todayStr : `${year}-12-31`
       periodLabel = `YTD ${year}`
     } else if (mode === "monthly" && month) {
       startDate = `${year}-${String(month).padStart(2, "0")}-01`
@@ -75,12 +79,11 @@ export async function getQuotesData(
       periodLabel = `${monthNames[m]} ${y} (MTD)`
     }
 
-    // Fetch active and report-visible agents
+    // Fetch all active agents (including non-report-visible ones for metadata mapping)
     const { data: agents } = await supabase
       .from("agents")
-      .select("id, name, team, office")
+      .select("id, name, team, office, active, report_visible")
       .eq("active", true)
-      .eq("report_visible", true)
       .order("name")
 
     // Fetch daily_metrics in the date range (include nb_auto_items for MTD count)
@@ -100,18 +103,19 @@ export async function getQuotesData(
     const holidaySet = new Set((holidays || []).map(h => h.holiday_date))
 
     // Aggregate per agent + find the most recent date with data + sum items
-    const agentQuotes: Record<string, { quotes: number; nb: number }> = {}
+    const agentQuotes: Record<string, { quotes: number; nb: number; items: number }> = {}
     let lastDataDate = startDate
     let mtdItems = 0
     if (metrics) {
       for (const m of metrics) {
         if (!agentQuotes[m.agent_id]) {
-          agentQuotes[m.agent_id] = { quotes: 0, nb: 0 }
+          agentQuotes[m.agent_id] = { quotes: 0, nb: 0, items: 0 }
         }
-        // Use quotes_deduped if available and > 0, else fallback to raw quotes
-        const effectiveQuotes = m.quotes_deduped > 0 ? m.quotes_deduped : (m.quotes || 0)
+        // Use quotes_deduped directly to count only Standard Auto quotes
+        const effectiveQuotes = m.quotes_deduped || 0
         agentQuotes[m.agent_id].quotes += effectiveQuotes
         agentQuotes[m.agent_id].nb += m.nb_auto_count || 0
+        agentQuotes[m.agent_id].items += m.nb_auto_items || 0
         mtdItems += m.nb_auto_items || 0
 
         // Track the most recent date that has quote or NB data
@@ -130,6 +134,8 @@ export async function getQuotesData(
         office: a.office,
         nb_policies: agentQuotes[a.id]?.nb || 0,
         quote_count: agentQuotes[a.id]?.quotes || 0,
+        items: agentQuotes[a.id]?.items || 0,
+        report_visible: a.report_visible ?? true,
       }))
       .filter(r => r.quote_count > 0 || r.nb_policies > 0)
 
@@ -141,6 +147,7 @@ export async function getQuotesData(
       success: true,
       data: {
         agents: rows,
+        allAgents: agents || [],
         businessDaysTotal,
         businessDaysPassed,
         periodLabel,
@@ -157,30 +164,39 @@ export async function getQuotesData(
   }
 }
 
-export interface DailyBreakdownPoint {
-  date: string       // YYYY-MM-DD
-  dayLabel: string   // "Mo 5/1", "Tu 5/2", etc.
+export interface DailyAgentRawPoint {
+  agent_id: string
+  date: string
   quotes: number
   nb: number
   items: number
-  closeRate: number  // 0-100 (percentage)
+}
+
+export interface DailyDateMeta {
+  date: string
+  dayLabel: string
+  dayOfWeek: string
   isBusinessDay: boolean
-  dayOfWeek: string  // "Mo", "Tu", etc.
+}
+
+export interface DailyBreakdownData {
+  metrics: DailyAgentRawPoint[]
+  dates: DailyDateMeta[]
 }
 
 /**
- * Fetch per-day agency-wide quotes + nb for a date range.
+ * Fetch per-day agent-level quotes + nb + items for a date range, plus dates metadata.
  * Used for the daily trend line chart.
  */
 export async function getDailyBreakdown(
   startDate: string,
   endDate: string
-): Promise<{ success: boolean; data?: DailyBreakdownPoint[]; error?: string }> {
+): Promise<{ success: boolean; data?: DailyBreakdownData; error?: string }> {
   noStore()
   try {
     const { data: metrics } = await supabase
       .from("daily_metrics")
-      .select("report_date, quotes, quotes_deduped, nb_auto_count, nb_auto_items")
+      .select("agent_id, report_date, quotes, quotes_deduped, nb_auto_count, nb_auto_items")
       .gte("report_date", startDate)
       .lte("report_date", endDate)
 
@@ -193,48 +209,45 @@ export async function getDailyBreakdown(
       .lte("holiday_date", `${year}-12-31`)
     const holidaySet = new Set((holidays || []).map(h => h.holiday_date))
 
-    // Group by date
-    const byDate: Record<string, { quotes: number; nb: number; items: number }> = {}
+    const rawPoints: DailyAgentRawPoint[] = []
     if (metrics) {
       for (const m of metrics) {
-        if (!byDate[m.report_date]) byDate[m.report_date] = { quotes: 0, nb: 0, items: 0 }
-        const effectiveQuotes = m.quotes_deduped > 0 ? m.quotes_deduped : (m.quotes || 0)
-        byDate[m.report_date].quotes += effectiveQuotes
-        byDate[m.report_date].nb += m.nb_auto_count || 0
-        byDate[m.report_date].items += m.nb_auto_items || 0
+        const effectiveQuotes = m.quotes_deduped || 0
+        rawPoints.push({
+          agent_id: m.agent_id,
+          date: m.report_date,
+          quotes: effectiveQuotes,
+          nb: m.nb_auto_count || 0,
+          items: m.nb_auto_items || 0,
+        })
       }
     }
 
     const DOW = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
 
     // Generate all dates in range and build result
-    const points: DailyBreakdownPoint[] = []
+    const dates: DailyDateMeta[] = []
     const cursor = new Date(startDate + "T00:00:00")
     const end = new Date(endDate + "T00:00:00")
 
     while (cursor <= end) {
       const dateStr = cursor.toISOString().split("T")[0]
-      const d = byDate[dateStr] || { quotes: 0, nb: 0, items: 0 }
       const month = cursor.getMonth() + 1
       const day = cursor.getDate()
       const dow = DOW[cursor.getDay()]
       const isBizDay = !isWeekend(cursor) && !holidaySet.has(dateStr)
 
-      points.push({
+      dates.push({
         date: dateStr,
         dayLabel: `${dow} ${month}/${day}`,
-        quotes: d.quotes,
-        nb: d.nb,
-        items: d.items,
-        closeRate: d.quotes > 0 ? Math.round((d.nb / d.quotes) * 10000) / 100 : 0,
-        isBusinessDay: isBizDay,
         dayOfWeek: dow,
+        isBusinessDay: isBizDay,
       })
 
       cursor.setDate(cursor.getDate() + 1)
     }
 
-    return { success: true, data: points }
+    return { success: true, data: { metrics: rawPoints, dates } }
   } catch (error: any) {
     console.error("Error fetching daily breakdown:", error)
     return { success: false, error: error.message }
@@ -243,22 +256,22 @@ export async function getDailyBreakdown(
 
 // ── YTD Aggregated Breakdown (Weekly / Monthly) ──
 
-export interface YTDAggPoint {
+export interface YTDAgentRawPoint {
+  agent_id: string
   label: string       // "1/2 - 1/8" or "Jan"
   sortKey: string     // for ordering
   quotes: number
   nb: number
   items: number
-  closeRate: number
 }
 
 /**
- * Get weekly (Thu–Wed) or monthly aggregated data for the YTD chart.
+ * Get weekly (Thu–Wed) or monthly aggregated data grouped by agent for the YTD chart.
  */
 export async function getYTDBreakdown(
   year: number,
   groupBy: "weekly" | "monthly"
-): Promise<{ success: boolean; data?: YTDAggPoint[]; error?: string }> {
+): Promise<{ success: boolean; data?: YTDAgentRawPoint[]; error?: string }> {
   noStore()
   try {
     // Fetch all data for the year up to yesterday
@@ -269,7 +282,7 @@ export async function getYTDBreakdown(
 
     const { data: metrics } = await supabase
       .from("daily_metrics")
-      .select("report_date, quotes, quotes_deduped, nb_auto_count, nb_auto_items")
+      .select("agent_id, report_date, quotes, quotes_deduped, nb_auto_count, nb_auto_items")
       .gte("report_date", startDate)
       .lte("report_date", yesterdayStr)
 
@@ -277,86 +290,78 @@ export async function getYTDBreakdown(
       return { success: true, data: [] }
     }
 
-    // Aggregate by date first
-    const byDate: Record<string, { quotes: number; nb: number; items: number }> = {}
-    for (const m of metrics) {
-      if (!byDate[m.report_date]) byDate[m.report_date] = { quotes: 0, nb: 0, items: 0 }
-      const effectiveQuotes = m.quotes_deduped > 0 ? m.quotes_deduped : (m.quotes || 0)
-      byDate[m.report_date].quotes += effectiveQuotes
-      byDate[m.report_date].nb += m.nb_auto_count || 0
-      byDate[m.report_date].items += m.nb_auto_items || 0
-    }
-
     const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
     if (groupBy === "monthly") {
-      // Group by calendar month
-      const monthBuckets: Record<string, { quotes: number; nb: number; items: number }> = {}
-      for (const [dateStr, vals] of Object.entries(byDate)) {
-        const monthKey = dateStr.substring(0, 7) // "2026-01"
-        if (!monthBuckets[monthKey]) monthBuckets[monthKey] = { quotes: 0, nb: 0, items: 0 }
-        monthBuckets[monthKey].quotes += vals.quotes
-        monthBuckets[monthKey].nb += vals.nb
-        monthBuckets[monthKey].items += vals.items
+      // Group by calendar month and agent
+      const buckets: Record<string, { quotes: number; nb: number; items: number }> = {}
+      for (const m of metrics) {
+        const monthKey = m.report_date.substring(0, 7) // "2026-01"
+        const key = `${m.agent_id}||${monthKey}`
+        if (!buckets[key]) buckets[key] = { quotes: 0, nb: 0, items: 0 }
+        
+        const effectiveQuotes = m.quotes_deduped || 0
+        buckets[key].quotes += effectiveQuotes
+        buckets[key].nb += m.nb_auto_count || 0
+        buckets[key].items += m.nb_auto_items || 0
       }
 
-      const points: YTDAggPoint[] = Object.entries(monthBuckets)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([monthKey, vals]) => {
-          const monthIdx = parseInt(monthKey.split("-")[1]) - 1
-          return {
-            label: MONTH_SHORT[monthIdx],
-            sortKey: monthKey,
-            quotes: vals.quotes,
-            nb: vals.nb,
-            items: vals.items,
-            closeRate: vals.quotes > 0 ? Math.round((vals.nb / vals.quotes) * 10000) / 100 : 0,
-          }
-        })
+      const points: YTDAgentRawPoint[] = Object.entries(buckets).map(([key, vals]) => {
+        const [agent_id, monthKey] = key.split("||")
+        const monthIdx = parseInt(monthKey.split("-")[1]) - 1
+        return {
+          agent_id,
+          label: MONTH_SHORT[monthIdx],
+          sortKey: monthKey,
+          quotes: vals.quotes,
+          nb: vals.nb,
+          items: vals.items,
+        }
+      })
 
       return { success: true, data: points }
     } else {
       // Weekly: Thu–Wed buckets
-      // For each date, find the Thursday that starts that week
       function getThursWeekStart(dateStr: string): Date {
         const d = new Date(dateStr + "T00:00:00")
         const day = d.getDay() // 0=Sun, 4=Thu
-        // How many days back to the most recent Thursday?
         const diff = (day - 4 + 7) % 7
         d.setDate(d.getDate() - diff)
         return d
       }
 
-      const weekBuckets: Record<string, { quotes: number; nb: number; items: number; start: Date; end: Date }> = {}
-      for (const [dateStr, vals] of Object.entries(byDate)) {
-        const thuStart = getThursWeekStart(dateStr)
-        const wedEnd = new Date(thuStart)
-        wedEnd.setDate(wedEnd.getDate() + 6)
+      const buckets: Record<string, { quotes: number; nb: number; items: number; start: Date; end: Date }> = {}
+      for (const m of metrics) {
+        const thuStart = getThursWeekStart(m.report_date)
         const weekKey = thuStart.toISOString().split("T")[0]
+        const key = `${m.agent_id}||${weekKey}`
 
-        if (!weekBuckets[weekKey]) {
-          weekBuckets[weekKey] = { quotes: 0, nb: 0, items: 0, start: thuStart, end: wedEnd }
+        if (!buckets[key]) {
+          const wedEnd = new Date(thuStart)
+          wedEnd.setDate(wedEnd.getDate() + 6)
+          buckets[key] = { quotes: 0, nb: 0, items: 0, start: thuStart, end: wedEnd }
         }
-        weekBuckets[weekKey].quotes += vals.quotes
-        weekBuckets[weekKey].nb += vals.nb
-        weekBuckets[weekKey].items += vals.items
+
+        const effectiveQuotes = m.quotes_deduped || 0
+        buckets[key].quotes += effectiveQuotes
+        buckets[key].nb += m.nb_auto_count || 0
+        buckets[key].items += m.nb_auto_items || 0
       }
 
-      const points: YTDAggPoint[] = Object.entries(weekBuckets)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([weekKey, vals]) => {
-          const s = vals.start
-          const e = vals.end
-          const label = `${s.getMonth() + 1}/${s.getDate()} - ${e.getMonth() + 1}/${e.getDate()}`
-          return {
-            label,
-            sortKey: weekKey,
-            quotes: vals.quotes,
-            nb: vals.nb,
-            items: vals.items,
-            closeRate: vals.quotes > 0 ? Math.round((vals.nb / vals.quotes) * 10000) / 100 : 0,
-          }
-        })
+      const points: YTDAgentRawPoint[] = Object.entries(buckets).map(([key, vals]) => {
+        const [agent_id, weekKey] = key.split("||")
+        const s = vals.start
+        const e = vals.end
+        const label = `${s.getMonth() + 1}/${s.getDate()} - ${e.getMonth() + 1}/${e.getDate()}`
+        return {
+          agent_id,
+          label,
+          sortKey: weekKey,
+          quotes: vals.quotes,
+          nb: vals.nb,
+          items: vals.items,
+        }
+      })
 
       return { success: true, data: points }
     }

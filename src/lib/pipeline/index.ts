@@ -238,17 +238,25 @@ export async function processUploadedFiles(
           continue
         }
 
+        const dayQuotes = dayData.get("quotes") || null
+        const dayNB = dayData.get("nb") || null
+
+        const dayQuotesMain = dayQuotes ? dayQuotes.filter(r => "QuoteCount" in r) : null
+        const dayQuotesDeduped = dayQuotes ? dayQuotes.filter(r => "QuotesDeduped" in r) : null
+        const dayNBMain = dayNB ? dayNB.filter(r => "NBCount" in r) : null
+        const dayNBAuto = dayNB ? dayNB.filter(r => "NBAutoCount" in r) : null
+
         const merged = mergeAllData(
           spine,
           dayData.get("rc") || null,
           dayData.get("hs") || null,
-          dayData.get("nb") || null,
-          dayData.get("quotes") || null,
+          dayNBMain,
+          dayQuotesMain,
           dayData.get("premium") || null,
           dayData.get("rico_ch") || null,
           dayData.get("rico_ap") || null,
-          dayData.get("quotes_deduped") || null,
-          dayData.get("nb_auto") || null,
+          dayQuotesDeduped,
+          dayNBAuto,
         )
 
         const dayQuoteRecords = allQuoteRecords.filter(r => r.report_date === targetDate)

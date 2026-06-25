@@ -14,6 +14,7 @@
 import * as XLSX from "xlsx";
 import type { ParseResult } from "../types";
 import { Spine } from "../spine";
+import { safeReadWorkbook } from "../xlsx-reader";
 
 // ─── Column mapping (original name → internal name) ───
 const COL_MAP: Record<string, string> = {
@@ -40,7 +41,7 @@ export function parseRC(
   const logs: string[] = [];
   logs.push(`[rc-parser] Parsing file: ${fileName}`);
 
-  const wb = XLSX.read(fileBuffer, { type: "array", cellDates: true });
+  const wb = safeReadWorkbook(fileBuffer, { type: "array", cellDates: true });
   const sheetNames = wb.SheetNames;
 
   if (sheetNames.includes("Users")) {
@@ -261,9 +262,9 @@ function toSeconds(val: unknown): number {
 
   // Date object from SheetJS cellDates:true — extract time-of-day
   if (val instanceof Date) {
-    const hours = val.getUTCHours();
-    const minutes = val.getUTCMinutes();
-    const seconds = val.getUTCSeconds();
+    const hours = val.getHours();
+    const minutes = val.getMinutes();
+    const seconds = val.getSeconds();
     return hours * 3600 + minutes * 60 + seconds;
   }
 

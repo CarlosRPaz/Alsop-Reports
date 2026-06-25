@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { getQuotesData, getDailyBreakdown, getDuplicateQuotes, getYTDBreakdown, ViewMode, QuotesAgentRow, DailyBreakdownPoint, DuplicateGroup, YTDAggPoint } from "./actions"
+import { getQuotesData, getDailyBreakdown, getDuplicateQuotes, getYTDBreakdown, ViewMode, QuotesAgentRow, DuplicateGroup, YTDAgentRawPoint, DailyBreakdownData } from "./actions"
 import {
   ResponsiveContainer, ComposedChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, LabelList, ReferenceArea
@@ -43,6 +43,11 @@ function crColorClass(cr: number): string {
   return "text-red-700 bg-red-50"
 }
 
+function cardCrColorClass(cr: number): string {
+  if (cr >= 0.15) return "text-emerald-700 bg-emerald-50 border-emerald-200"
+  return "text-red-700 bg-red-50 border-red-200"
+}
+
 type SortField = "name" | "nb" | "quotes" | "cr" | "monthly" | "dailyGoal" | "benchmark" | "dailyActual"
 type SortDir = "asc" | "desc"
 
@@ -62,6 +67,7 @@ export default function QuotesPage() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [data, setData] = useState<{
     agents: QuotesAgentRow[]
+    allAgents: { id: string; name: string; team: string | null; office: string | null }[]
     businessDaysTotal: number
     businessDaysPassed: number
     periodLabel: string
@@ -73,16 +79,179 @@ export default function QuotesPage() {
   const [filters, setFilters] = useState<FilterState>({ offices: [], teams: [], agents: [], meetings: [] })
   const [sortField, setSortField] = useState<SortField>("nb")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
-  const [chartData, setChartData] = useState<DailyBreakdownPoint[]>([])
+  const [rawDailyData, setRawDailyData] = useState<DailyBreakdownData | null>(null)
   const [showDupes, setShowDupes] = useState(false)
   const [dupeGroups, setDupeGroups] = useState<DuplicateGroup[]>([])
   const [dupeTotal, setDupeTotal] = useState(0)
   const [dupeLoading, setDupeLoading] = useState(false)
   const [dupeSearch, setDupeSearch] = useState("")
-  const [ytdChartData, setYtdChartData] = useState<YTDAggPoint[]>([])
+  const [rawYtdData, setRawYtdData] = useState<YTDAgentRawPoint[]>([])
   const [ytdGroupBy, setYtdGroupBy] = useState<"weekly" | "monthly">("weekly")
   const [highlightedLines, setHighlightedLines] = useState<Set<string>>(new Set())
   const [isMounted, setIsMounted] = useState(false)
+
+  // ── Lookup map + Memoized dynamic charts ──
+  const agentMetadataMap = useMemo(() => {
+    const map = new Map<string, { name: string; team: string | null; office: string | null }>()
+    if (data?.allAgents) {
+      data.allAgents.forEach(a => {
+        map.set(a.id, { name: a.name, team: a.team, office: a.office })
+      })
+    }
+    return map
+  }, [data])
+
+  const isAgentMatchingFilters = useMemo(() => {
+    return (agentId: string) => {
+      const meta = agentMetadataMap.get(agentId)
+      if (!meta) return false
+
+      if (filters.offices.length > 0) {
+        const officeMap: Record<string, string> = {
+          "Montclair": "MCM", "Montebello": "MB",
+          "Rancho Cucamonga": "RC", "Chino": "CH", "Claremont": "CH"
+        }
+        const abbr = officeMap[meta.office || ""] || meta.office || ""
+        if (!filters.offices.includes(abbr) && !filters.offices.includes(meta.office || "")) return false
+      }
+      if (filters.teams.length > 0) {
+        const teamMap: Record<string, string> = {
+          "Sales": "Sales", "Service": "CSR", "EA": "EA", "Manager": "Managers"
+        }
+        const mapped = teamMap[meta.team || ""] || meta.team || ""
+        if (!filters.teams.includes(mapped) && !filters.teams.includes(meta.team || "")) return false
+      }
+      if (filters.agents.length > 0 && !filters.agents.includes(meta.name)) return false
+
+      return true
+    }
+  }, [filters, agentMetadataMap])
+
+  const chartData = useMemo(() => {
+    if (!rawDailyData) return []
+
+    // Filter raw daily metrics
+    const filteredMetrics = rawDailyData.metrics.filter(m => isAgentMatchingFilters(m.agent_id))
+
+    // Aggregate by date
+    const byDate: Record<string, { quotes: number; nb: number; items: number }> = {}
+    filteredMetrics.forEach(m => {
+      if (!byDate[m.date]) byDate[m.date] = { quotes: 0, nb: 0, items: 0 }
+      byDate[m.date].quotes += m.quotes
+      byDate[m.date].nb += m.nb
+      byDate[m.date].items += m.items
+    })
+
+    // Map date metadata to final breakdown points
+    return rawDailyData.dates.map(d => {
+      const vals = byDate[d.date] || { quotes: 0, nb: 0, items: 0 }
+      return {
+        date: d.date,
+        dayLabel: d.dayLabel,
+        quotes: vals.quotes,
+        nb: vals.nb,
+        items: vals.items,
+        closeRate: vals.quotes > 0 ? Math.round((vals.nb / vals.quotes) * 10000) / 100 : 0,
+        isBusinessDay: d.isBusinessDay,
+        dayOfWeek: d.dayOfWeek,
+      }
+    })
+  }, [rawDailyData, isAgentMatchingFilters])
+
+  const ytdChartData = useMemo(() => {
+    if (!rawYtdData || rawYtdData.length === 0) return []
+
+    // Filter raw YTD metrics
+    const filteredMetrics = rawYtdData.filter(m => isAgentMatchingFilters(m.agent_id))
+
+    // Group and aggregate by sortKey/label
+    const byBucket: Record<string, { label: string; quotes: number; nb: number; items: number }> = {}
+    filteredMetrics.forEach(m => {
+      if (!byBucket[m.sortKey]) {
+        byBucket[m.sortKey] = { label: m.label, quotes: 0, nb: 0, items: 0 }
+      }
+      byBucket[m.sortKey].quotes += m.quotes
+      byBucket[m.sortKey].nb += m.nb
+      byBucket[m.sortKey].items += m.items
+    })
+
+    // Convert back to sorted list
+    return Object.entries(byBucket)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([sortKey, vals]) => ({
+        label: vals.label,
+        sortKey,
+        quotes: vals.quotes,
+        nb: vals.nb,
+        items: vals.items,
+        closeRate: vals.quotes > 0 ? Math.round((vals.nb / vals.quotes) * 10000) / 100 : 0,
+      }))
+  }, [rawYtdData, isAgentMatchingFilters])
+
+  // ── Helper to resolve agent from sub producer string ──
+  const resolveAgentFromSubProducer = useMemo(() => {
+    return (subProducer: string) => {
+      let cleanName = subProducer.trim()
+      if (cleanName.includes("-")) {
+        const parts = cleanName.split("-")
+        cleanName = parts.slice(1).join("-").trim() || parts[0].trim()
+      }
+      const lowerName = cleanName.toLowerCase()
+      if (data?.allAgents) {
+        let match = data.allAgents.find(a => a.name.toLowerCase() === lowerName)
+        if (match) return match
+        match = data.allAgents.find(a => a.name.toLowerCase().includes(lowerName) || lowerName.includes(a.name.toLowerCase()))
+        if (match) return match
+      }
+      return null
+    }
+  }, [data])
+
+  const isGroupMatchingFilters = useMemo(() => {
+    return (subProducer: string) => {
+      const agent = resolveAgentFromSubProducer(subProducer)
+      if (!agent) {
+        return filters.offices.length === 0 && filters.teams.length === 0 && filters.agents.length === 0
+      }
+
+      if (filters.offices.length > 0) {
+        const officeMap: Record<string, string> = {
+          "Montclair": "MCM", "Montebello": "MB",
+          "Rancho Cucamonga": "RC", "Chino": "CH", "Claremont": "CH"
+        }
+        const abbr = officeMap[agent.office || ""] || agent.office || ""
+        if (!filters.offices.includes(abbr) && !filters.offices.includes(agent.office || "")) return false
+      }
+      if (filters.teams.length > 0) {
+        const teamMap: Record<string, string> = {
+          "Sales": "Sales", "Service": "CSR", "EA": "EA", "Manager": "Managers"
+        }
+        const mapped = teamMap[agent.team || ""] || agent.team || ""
+        if (!filters.teams.includes(mapped) && !filters.teams.includes(agent.team || "")) return false
+      }
+      if (filters.agents.length > 0 && !filters.agents.includes(agent.name)) return false
+
+      return true
+    }
+  }, [filters, resolveAgentFromSubProducer])
+
+  const filteredDupeGroups = useMemo(() => {
+    return dupeGroups.filter(group => {
+      if (!isGroupMatchingFilters(group.kept.sub_producer)) return false
+      if (!dupeSearch) return true
+      const s = dupeSearch.toLowerCase()
+      return (
+        group.kept.first_name.toLowerCase().includes(s) ||
+        group.kept.last_name.toLowerCase().includes(s) ||
+        group.kept.address.toLowerCase().includes(s) ||
+        group.kept.sub_producer.toLowerCase().includes(s)
+      )
+    })
+  }, [dupeGroups, dupeSearch, isGroupMatchingFilters])
+
+  const filteredDupeTotal = useMemo(() => {
+    return filteredDupeGroups.reduce((sum, g) => sum + g.removed.length, 0)
+  }, [filteredDupeGroups])
 
   useEffect(() => {
     setIsMounted(true)
@@ -143,14 +312,15 @@ export default function QuotesPage() {
           const chartEnd = res.data.dateRangeEnd <= yesterdayStr ? res.data.dateRangeEnd : yesterdayStr
           const chartRes = await getDailyBreakdown(res.data.dateRangeStart, chartEnd)
           if (chartRes.success && chartRes.data) {
-            setChartData(chartRes.data)
+            setRawDailyData(chartRes.data)
           }
+          setRawYtdData([])
         } else {
-          setChartData([])
+          setRawDailyData(null)
           // Fetch YTD aggregated data
           const ytdRes = await getYTDBreakdown(selectedYear, ytdGroupBy)
           if (ytdRes.success && ytdRes.data) {
-            setYtdChartData(ytdRes.data)
+            setRawYtdData(ytdRes.data)
           }
         }
       }
@@ -207,7 +377,7 @@ export default function QuotesPage() {
 
   // ── Sorting ──
   const sortedRows = useMemo(() => {
-    const rows = [...computedRows]
+    const rows = computedRows.filter(r => r.report_visible)
     const dir = sortDir === "asc" ? 1 : -1
 
     rows.sort((a, b) => {
@@ -228,10 +398,20 @@ export default function QuotesPage() {
     return rows
   }, [computedRows, sortField, sortDir])
 
+  // ── Agency (Unfiltered) Totals ──
+  const agencyTotals = useMemo(() => {
+    if (!data) return { totalNB: 0, totalQuotes: 0, cr: 0 }
+    const totalNB = data.agents.reduce((s, r) => s + r.nb_policies, 0)
+    const totalQuotes = data.agents.reduce((s, r) => s + r.quote_count, 0)
+    const cr = pct(totalNB, totalQuotes)
+    return { totalNB, totalQuotes, cr }
+  }, [data])
+
   // ── Totals ──
   const totals = useMemo(() => {
     const totalNB = computedRows.reduce((s, r) => s + r.nb_policies, 0)
     const totalQuotes = computedRows.reduce((s, r) => s + r.quote_count, 0)
+    const totalItems = computedRows.reduce((s, r) => s + r.items, 0)
     const cr = pct(totalNB, totalQuotes)
     const bizTotal = data?.businessDaysTotal || 0
     const bizPassed = data?.businessDaysPassed || 0
@@ -240,8 +420,14 @@ export default function QuotesPage() {
     const benchmark = bizTotal > 0 ? POLICIES_NEEDED / BENCHMARK_CR / bizTotal : 0
     const dailyActual = bizPassed > 0 ? totalQuotes / bizPassed : 0
 
-    return { totalNB, totalQuotes, cr, monthlyTarget, dailyGoal, benchmark, dailyActual }
+    return { totalNB, totalQuotes, totalItems, cr, monthlyTarget, dailyGoal, benchmark, dailyActual }
   }, [computedRows, data])
+
+  const filteredItemsCount = useMemo(() => {
+    const noFilters = filters.offices.length === 0 && filters.teams.length === 0 && filters.agents.length === 0
+    if (noFilters) return data?.mtdItems || 0
+    return totals.totalItems
+  }, [totals.totalItems, filters, data])
 
   // ── Group summaries (Team & Office) ──
   const teamSummary = useMemo(() => {
@@ -289,7 +475,7 @@ export default function QuotesPage() {
 
   // ── Available filter values ──
   const availableAgents = useMemo(() =>
-    data?.agents.map(a => a.name).sort() || [], [data])
+    data?.agents.filter(a => a.report_visible).map(a => a.name).sort() || [], [data])
 
   // Generate month options for the monthly picker
   const monthOptions = useMemo(() => {
@@ -420,9 +606,9 @@ export default function QuotesPage() {
         availableAgents={availableAgents}
       />
 
-      {/* ── Data Freshness + MTD Items Cards ── */}
+      {/* ── Data Freshness + Items Cards ── */}
       {data && !loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
           {/* Most Recent Data Date */}
           <div className={`rounded-xl border p-4 ${
             data.lastDataDate < data.dateRangeEnd
@@ -452,12 +638,12 @@ export default function QuotesPage() {
             </div>
           </div>
 
-          {/* MTD Items */}
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+          {/* Agency Items */}
+          <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
             <div className="flex items-center gap-2 mb-1">
               <Package className="w-4 h-4 text-blue-600" />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                MTD Items
+                {mode === "ytd" ? "Agency YTD Items" : "Agency MTD Items"}
               </span>
             </div>
             <span className="text-xl font-bold text-blue-800">
@@ -465,12 +651,38 @@ export default function QuotesPage() {
             </span>
           </div>
 
+          {/* Filtered Items */}
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-1">
+              <Package className="w-4 h-4 text-blue-600 animate-pulse" />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                {mode === "ytd" ? "Filtered YTD Items" : "Filtered MTD Items"}
+              </span>
+            </div>
+            <span className="text-xl font-bold text-blue-900">
+              {filteredItemsCount.toLocaleString()}
+            </span>
+          </div>
+
           {/* Agency CR */}
-          <div className={`rounded-xl border p-4 ${crColorClass(totals.cr)}`}>
+          <div className={`rounded-xl border p-4 ${cardCrColorClass(agencyTotals.cr)}`}>
             <div className="flex items-center gap-2 mb-1">
               <TrendingUp className="w-4 h-4" />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Agency Close Rate
+                {mode === "ytd" ? "Agency YTD Close Rate" : "Agency MTD Close Rate"}
+              </span>
+            </div>
+            <span className="text-xl font-bold">
+              {fmtPct(agencyTotals.cr)}
+            </span>
+          </div>
+
+          {/* Filtered CR */}
+          <div className={`rounded-xl border p-4 shadow-sm ${cardCrColorClass(totals.cr)}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp className="w-4 h-4 animate-pulse" />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                {mode === "ytd" ? "Filtered YTD Close Rate" : "Filtered MTD Close Rate"}
               </span>
             </div>
             <span className="text-xl font-bold">
@@ -601,6 +813,15 @@ export default function QuotesPage() {
                       tickLine={false}
                       axisLine={false}
                     />
+                    <YAxis
+                      yAxisId="pct"
+                      orientation="right"
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v: number) => `${v}%`}
+                      label={{ value: "Close Rate", angle: 90, position: "insideRight", style: { fontSize: 11, fill: "#94a3b8" } }}
+                    />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: "#fff",
@@ -634,7 +855,7 @@ export default function QuotesPage() {
                       dot={{ r: 3, fill: "#3b82f6", fillOpacity: lineOpacity("quotes") }}
                       activeDot={{ r: 5 }}
                     >
-                      {lineOpacity("quotes") > 0.5 && <LabelList dataKey="quotes" position="top" style={{ fontSize: 9, fill: "#3b82f6", fontWeight: 600 }} offset={10} />}
+                      {lineOpacity("quotes") > 0.5 && <LabelList dataKey="quotes" position="top" style={{ fontSize: 11, fill: "#3b82f6", fontWeight: 700 }} offset={10} />}
                     </Line>
                     <Line
                       yAxisId="count"
@@ -647,7 +868,7 @@ export default function QuotesPage() {
                       dot={{ r: 3, fill: "#ef4444", fillOpacity: lineOpacity("nb") }}
                       activeDot={{ r: 5 }}
                     >
-                      {lineOpacity("nb") > 0.5 && <LabelList dataKey="nb" position="bottom" style={{ fontSize: 9, fill: "#ef4444", fontWeight: 600 }} offset={8} />}
+                      {lineOpacity("nb") > 0.5 && <LabelList dataKey="nb" position="bottom" style={{ fontSize: 11, fill: "#ef4444", fontWeight: 700 }} offset={8} />}
                     </Line>
                     <Line
                       yAxisId="count"
@@ -660,7 +881,32 @@ export default function QuotesPage() {
                       dot={{ r: 3, fill: "#22c55e", fillOpacity: lineOpacity("items") }}
                       activeDot={{ r: 5 }}
                     >
-                      {lineOpacity("items") > 0.5 && <LabelList dataKey="items" position="top" style={{ fontSize: 9, fill: "#22c55e", fontWeight: 600 }} offset={10} />}
+                      {lineOpacity("items") > 0.5 && <LabelList dataKey="items" position="top" style={{ fontSize: 11, fill: "#22c55e", fontWeight: 700 }} offset={10} />}
+                    </Line>
+                    <Line
+                      yAxisId="pct"
+                      type="monotone"
+                      dataKey="closeRate"
+                      name="Close Rate"
+                      stroke="#f59e0b"
+                      strokeWidth={highlightedLines.size === 0 ? 2 : (highlightedLines.has("closeRate") ? 2.5 : 1)}
+                      strokeOpacity={lineOpacity("closeRate")}
+                      strokeDasharray="5 3"
+                      dot={{ r: 3, fill: "#f59e0b", fillOpacity: lineOpacity("closeRate") }}
+                      activeDot={{ r: 5 }}
+                    >
+                      {lineOpacity("closeRate") > 0.5 && (
+                        <LabelList
+                          dataKey="closeRate"
+                          position="top"
+                          style={{ fontSize: 11, fill: "#f59e0b", fontWeight: 700 }}
+                          offset={10}
+                          formatter={(v: any) => {
+                            const val = Number(v);
+                            return val > 50 ? `${val.toFixed(1)}%` : "";
+                          }}
+                        />
+                      )}
                     </Line>
                   </ComposedChart>
                 </ResponsiveContainer>
@@ -769,7 +1015,7 @@ export default function QuotesPage() {
                       dot={{ r: 3, fill: "#3b82f6", fillOpacity: lineOpacity("quotes") }}
                       activeDot={{ r: 5 }}
                     >
-                      {lineOpacity("quotes") > 0.5 && <LabelList dataKey="quotes" position="top" style={{ fontSize: 9, fill: "#3b82f6", fontWeight: 600 }} offset={8} />}
+                      {lineOpacity("quotes") > 0.5 && <LabelList dataKey="quotes" position="top" style={{ fontSize: 11, fill: "#3b82f6", fontWeight: 700 }} offset={8} />}
                     </Line>
                     <Line
                       yAxisId="count"
@@ -782,7 +1028,7 @@ export default function QuotesPage() {
                       dot={{ r: 3, fill: "#10b981", fillOpacity: lineOpacity("nb") }}
                       activeDot={{ r: 5 }}
                     >
-                      {lineOpacity("nb") > 0.5 && <LabelList dataKey="nb" position="bottom" style={{ fontSize: 9, fill: "#10b981", fontWeight: 600 }} offset={8} />}
+                      {lineOpacity("nb") > 0.5 && <LabelList dataKey="nb" position="bottom" style={{ fontSize: 11, fill: "#10b981", fontWeight: 700 }} offset={8} />}
                     </Line>
                     <Line
                       yAxisId="count"
@@ -795,7 +1041,7 @@ export default function QuotesPage() {
                       dot={{ r: 3, fill: "#8b5cf6", fillOpacity: lineOpacity("items") }}
                       activeDot={{ r: 5 }}
                     >
-                      {lineOpacity("items") > 0.5 && <LabelList dataKey="items" position="top" style={{ fontSize: 9, fill: "#8b5cf6", fontWeight: 600 }} offset={8} />}
+                      {lineOpacity("items") > 0.5 && <LabelList dataKey="items" position="top" style={{ fontSize: 11, fill: "#8b5cf6", fontWeight: 700 }} offset={8} />}
                     </Line>
                     <Line
                       yAxisId="pct"
@@ -808,7 +1054,20 @@ export default function QuotesPage() {
                       strokeDasharray="5 3"
                       dot={{ r: 3, fill: "#f59e0b", fillOpacity: lineOpacity("closeRate") }}
                       activeDot={{ r: 5 }}
-                    />
+                    >
+                      {lineOpacity("closeRate") > 0.5 && (
+                        <LabelList
+                          dataKey="closeRate"
+                          position="top"
+                          style={{ fontSize: 11, fill: "#f59e0b", fontWeight: 700 }}
+                          offset={8}
+                          formatter={(v: any) => {
+                            const val = Number(v);
+                            return val > 50 ? `${val.toFixed(1)}%` : "";
+                          }}
+                        />
+                      )}
+                    </Line>
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -1002,7 +1261,7 @@ export default function QuotesPage() {
                   <div>
                     <h2 className="text-lg font-bold text-slate-900">Duplicate Quotes Review</h2>
                     <p className="text-sm text-slate-500">
-                      {dupeTotal} duplicates removed &middot; {dupeGroups.length} groups
+                      {filteredDupeTotal} duplicates removed &middot; {filteredDupeGroups.length} groups
                     </p>
                   </div>
                 </div>
@@ -1015,19 +1274,34 @@ export default function QuotesPage() {
               </div>
 
               {/* Definition */}
-              <div className="mt-3 p-3 bg-white/80 rounded-lg border border-amber-200/60 text-sm text-slate-600">
-                <p className="font-semibold text-amber-800 mb-1">Duplicate Definition:</p>
-                <p>A quote is a <strong>duplicate</strong> if all of these match another quote:</p>
-                <div className="flex gap-3 mt-1.5 flex-wrap">
-                  {["Sub Producer", "Customer First Name", "Customer Last Name", "Customer Street Address"].map(f => (
-                    <span key={f} className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-xs font-medium">{f}</span>
-                  ))}
+              <div className="mt-3 p-4 bg-white/90 rounded-xl border border-amber-200/80 text-xs text-slate-600 space-y-2">
+                <div>
+                  <p className="font-semibold text-amber-800 text-sm mb-1">Standard Auto Rolling Deduplication Rules:</p>
+                  <p>To prevent double-counting prospects, the pipeline filters quotes according to the following logic:</p>
                 </div>
-                <p className="mt-1.5 text-slate-500">Only the <strong>most recent</strong> quote is kept. Earlier duplicates are excluded from this report.</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                  <div className="p-2.5 bg-amber-50/50 rounded-lg border border-amber-100">
+                    <span className="font-bold text-amber-800 block mb-1">1. Product Scope</span>
+                    Only quotes with Product type <strong className="text-slate-700">Standard Auto</strong> are deduplicated.
+                  </div>
+                  <div className="p-2.5 bg-amber-50/50 rounded-lg border border-amber-100">
+                    <span className="font-bold text-amber-800 block mb-1">2. Deduplication Key</span>
+                    Quotes are grouped by a unique key combining:
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {["Sub Producer", "First Name", "Last Name", "Street Address"].map(f => (
+                        <span key={f} className="px-1.5 py-0.5 bg-amber-100/80 text-amber-900 rounded text-[10px] font-medium">{f}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="p-2.5 bg-amber-50/50 rounded-lg border border-amber-100">
+                    <span className="font-bold text-amber-800 block mb-1">3. Rolling 30-Day Window</span>
+                    Sorted chronologically. The **first** quote is kept. Any subsequent quote for that prospect within **30 days** of the last kept quote is flagged as a duplicate. Quotes outside the 30-day window reset the timer.
+                  </div>
+                </div>
               </div>
 
               {/* Search */}
-              {dupeGroups.length > 0 && (
+              {filteredDupeGroups.length > 0 && (
                 <div className="mt-3 relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
@@ -1050,26 +1324,15 @@ export default function QuotesPage() {
                     <span className="text-sm">Loading duplicates...</span>
                   </div>
                 </div>
-              ) : dupeGroups.length === 0 ? (
+              ) : filteredDupeGroups.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-slate-400">
                   <Check className="w-10 h-10 mb-3 text-emerald-400" />
-                  <p className="text-sm font-medium">No duplicates found for this period</p>
-                  <p className="text-xs mt-1">All quotes are unique</p>
+                  <p className="text-sm font-medium">No duplicates found matching filters</p>
+                  <p className="text-xs mt-1">All quotes matching filters are unique</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {dupeGroups
-                    .filter(g => {
-                      if (!dupeSearch) return true
-                      const s = dupeSearch.toLowerCase()
-                      return (
-                        g.kept.first_name.toLowerCase().includes(s) ||
-                        g.kept.last_name.toLowerCase().includes(s) ||
-                        g.kept.address.toLowerCase().includes(s) ||
-                        g.kept.sub_producer.toLowerCase().includes(s)
-                      )
-                    })
-                    .map((group, idx) => (
+                  {filteredDupeGroups.map((group, idx) => (
                     <div key={group.dedup_key} className="border border-slate-200 rounded-xl overflow-hidden">
                       {/* Group header */}
                       <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
