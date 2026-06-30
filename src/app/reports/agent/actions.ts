@@ -184,7 +184,7 @@ export async function getAgentMonthlyData(
     // Fetch ALL agents' aggregated metrics for the same period (for rankings)
     const { data: allMetrics } = await supabase
       .from("daily_metrics")
-      .select("agent_id, quotes, quotes_deduped, nb_count, items, calls, talk_time_seconds, written_premium, dismissed_todos, pivots")
+      .select("agent_id, quotes, quotes_deduped, nb_auto_count, nb_auto_items, calls, talk_time_seconds, written_premium, dismissed_todos, pivots")
       .gte("report_date", startDate)
       .lte("report_date", endDate)
 
@@ -209,8 +209,8 @@ export async function getAgentMonthlyData(
     for (const m of (metrics || [])) {
       const effectiveQuotes = m.quotes_deduped > 0 ? m.quotes_deduped : (m.quotes || 0)
       kpis.quotes += effectiveQuotes
-      kpis.nb_count += m.nb_count || 0
-      kpis.items += m.items || 0
+      kpis.nb_count += m.nb_auto_count || 0
+      kpis.items += m.nb_auto_items || 0
       kpis.written_premium += m.written_premium || 0
       kpis.calls += m.calls || 0
       kpis.inbound += m.inbound || 0
@@ -225,7 +225,7 @@ export async function getAgentMonthlyData(
       kpis.prem_items += m.prem_items || 0
       kpis.prem_points += m.prem_points || 0
 
-      if (m.report_date > lastDataDate && (effectiveQuotes > 0 || m.nb_count > 0 || m.calls > 0)) {
+      if (m.report_date > lastDataDate && (effectiveQuotes > 0 || m.nb_auto_count > 0 || m.calls > 0)) {
         lastDataDate = m.report_date
       }
 
@@ -239,8 +239,8 @@ export async function getAgentMonthlyData(
         out_texts: m.out_texts || 0,
         quotes: effectiveQuotes,
         quotes_deduped: m.quotes_deduped || 0,
-        nb_count: m.nb_count || 0,
-        items: m.items || 0,
+        nb_count: m.nb_auto_count || 0,
+        items: m.nb_auto_items || 0,
         written_premium: m.written_premium || 0,
         prem_premium: m.prem_premium || 0,
         prem_items: m.prem_items || 0,
@@ -274,8 +274,8 @@ export async function getAgentMonthlyData(
       }
       const eq = m.quotes_deduped > 0 ? m.quotes_deduped : (m.quotes || 0)
       agentAggs[m.agent_id].quotes += eq
-      agentAggs[m.agent_id].nb += m.nb_count || 0
-      agentAggs[m.agent_id].items += m.items || 0
+      agentAggs[m.agent_id].nb += m.nb_auto_count || 0
+      agentAggs[m.agent_id].items += m.nb_auto_items || 0
       agentAggs[m.agent_id].calls += m.calls || 0
       agentAggs[m.agent_id].talk_time += m.talk_time_seconds || 0
       agentAggs[m.agent_id].written_premium += m.written_premium || 0

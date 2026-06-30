@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { getQuotesData, getDailyBreakdown, getDuplicateQuotes, getYTDBreakdown, ViewMode, QuotesAgentRow, DuplicateGroup, YTDAgentRawPoint, DailyBreakdownData } from "./actions"
 import {
   ResponsiveContainer, ComposedChart, Line, XAxis, YAxis,
-  CartesianGrid, Tooltip, Legend, LabelList, ReferenceArea
+  CartesianGrid, Tooltip, Legend, LabelList, ReferenceArea, ReferenceLine
 } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { FilterBar, FilterState } from "@/components/ui/FilterBar"
@@ -12,7 +12,7 @@ import {
   FileBarChart, TrendingUp, Target, Calendar, ChevronDown,
   ArrowUpDown, ArrowUp, ArrowDown, Users, Building2, BarChart3,
   CalendarCheck, Package, AlertTriangle, Copy, X, Eye, Check,
-  XCircle, Search
+  XCircle, Search, Info
 } from "lucide-react"
 
 // ── Constants ──
@@ -48,7 +48,7 @@ function cardCrColorClass(cr: number): string {
   return "text-red-700 bg-red-50 border-red-200"
 }
 
-type SortField = "name" | "nb" | "quotes" | "cr" | "monthly" | "dailyGoal" | "benchmark" | "dailyActual"
+type SortField = "name" | "nb" | "items" | "quotes" | "cr" | "monthly" | "dailyGoal" | "benchmark" | "dailyActual"
 type SortDir = "asc" | "desc"
 
 // ── Computed row type ──
@@ -89,6 +89,7 @@ export default function QuotesPage() {
   const [ytdGroupBy, setYtdGroupBy] = useState<"weekly" | "monthly">("weekly")
   const [highlightedLines, setHighlightedLines] = useState<Set<string>>(new Set())
   const [isMounted, setIsMounted] = useState(false)
+  const [showKpiDefs, setShowKpiDefs] = useState(false)
 
   // ── Lookup map + Memoized dynamic charts ──
   const agentMetadataMap = useMemo(() => {
@@ -142,15 +143,18 @@ export default function QuotesPage() {
       byDate[m.date].items += m.items
     })
 
-    // Map date metadata to final breakdown points
+    // Map date metadata to final breakdown points with cumulative running total
+    let cumulativeItems = 0
     return rawDailyData.dates.map(d => {
       const vals = byDate[d.date] || { quotes: 0, nb: 0, items: 0 }
+      cumulativeItems += vals.items
       return {
         date: d.date,
         dayLabel: d.dayLabel,
         quotes: vals.quotes,
         nb: vals.nb,
         items: vals.items,
+        cumulativeItems,
         closeRate: vals.quotes > 0 ? Math.round((vals.nb / vals.quotes) * 10000) / 100 : 0,
         isBusinessDay: d.isBusinessDay,
         dayOfWeek: d.dayOfWeek,
@@ -385,6 +389,7 @@ export default function QuotesPage() {
       switch (sortField) {
         case "name": va = a.name.toLowerCase(); vb = b.name.toLowerCase(); break
         case "nb": va = a.nb_policies; vb = b.nb_policies; break
+        case "items": va = a.items; vb = b.items; break
         case "quotes": va = a.quote_count; vb = b.quote_count; break
         case "cr": va = a.close_rate; vb = b.close_rate; break
         case "monthly": va = a.monthly_target; vb = b.monthly_target; break
@@ -431,28 +436,32 @@ export default function QuotesPage() {
 
   // ── Group summaries (Team & Office) ──
   const teamSummary = useMemo(() => {
-    const groups: Record<string, { nb: number; quotes: number }> = {}
+    const groups: Record<string, { nb: number; quotes: number; items: number }> = {}
     computedRows.forEach(r => {
       const key = r.team || "N/A"
-      if (!groups[key]) groups[key] = { nb: 0, quotes: 0 }
+      if (!groups[key]) groups[key] = { nb: 0, quotes: 0, items: 0 }
       groups[key].nb += r.nb_policies
       groups[key].quotes += r.quote_count
+      groups[key].items += r.items
     })
     return Object.entries(groups)
-      .map(([team, v]) => ({ team, cr: pct(v.nb, v.quotes), nb: v.nb, quotes: v.quotes }))
+      .filter(([team]) => team !== "N/A") // Exclude N/A teams from display (still in totals)
+      .map(([team, v]) => ({ team, cr: pct(v.nb, v.quotes), nb: v.nb, quotes: v.quotes, items: v.items }))
       .sort((a, b) => b.cr - a.cr)
   }, [computedRows])
 
   const officeSummary = useMemo(() => {
-    const groups: Record<string, { nb: number; quotes: number }> = {}
+    const groups: Record<string, { nb: number; quotes: number; items: number }> = {}
     computedRows.forEach(r => {
       const key = r.office || "N/A"
-      if (!groups[key]) groups[key] = { nb: 0, quotes: 0 }
+      if (!groups[key]) groups[key] = { nb: 0, quotes: 0, items: 0 }
       groups[key].nb += r.nb_policies
       groups[key].quotes += r.quote_count
+      groups[key].items += r.items
     })
     return Object.entries(groups)
-      .map(([office, v]) => ({ office, cr: pct(v.nb, v.quotes), nb: v.nb, quotes: v.quotes }))
+      .filter(([office]) => office !== "N/A") // Exclude N/A offices from display (still in totals)
+      .map(([office, v]) => ({ office, cr: pct(v.nb, v.quotes), nb: v.nb, quotes: v.quotes, items: v.items }))
       .sort((a, b) => b.cr - a.cr)
   }, [computedRows])
 
@@ -608,7 +617,7 @@ export default function QuotesPage() {
 
       {/* ── Data Freshness + Items Cards ── */}
       {data && !loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* Most Recent Data Date */}
           <div className={`rounded-xl border p-4 ${
             data.lastDataDate < data.dateRangeEnd
@@ -636,71 +645,63 @@ export default function QuotesPage() {
                 </span>
               )}
             </div>
+            <div className="mt-1.5 text-xs text-slate-500">
+              {data.businessDaysPassed} <span className="text-slate-400">of</span> {data.businessDaysTotal} <span className="text-slate-400">business days</span>
+            </div>
           </div>
 
-          {/* Agency Items */}
+          {/* Items (Agency + Filtered) */}
           <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
             <div className="flex items-center gap-2 mb-1">
               <Package className="w-4 h-4 text-blue-600" />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                {mode === "ytd" ? "Agency YTD Items" : "Agency MTD Items"}
+                {mode === "ytd" ? "YTD Items" : "MTD Items"}
               </span>
             </div>
             <span className="text-xl font-bold text-blue-800">
-              {data.mtdItems.toLocaleString()}
-            </span>
-          </div>
-
-          {/* Filtered Items */}
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
-            <div className="flex items-center gap-2 mb-1">
-              <Package className="w-4 h-4 text-blue-600 animate-pulse" />
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                {mode === "ytd" ? "Filtered YTD Items" : "Filtered MTD Items"}
-              </span>
-            </div>
-            <span className="text-xl font-bold text-blue-900">
               {filteredItemsCount.toLocaleString()}
             </span>
+            {(filters.offices.length > 0 || filters.teams.length > 0 || filters.agents.length > 0) && (
+              <div className="mt-1 text-xs text-blue-500">
+                Agency total: {data.mtdItems.toLocaleString()}
+              </div>
+            )}
           </div>
 
-          {/* Agency CR */}
-          <div className={`rounded-xl border p-4 ${cardCrColorClass(agencyTotals.cr)}`}>
+          {/* Close Rate (Agency + Filtered) */}
+          <div className={`rounded-xl border p-4 ${cardCrColorClass(totals.cr)}`}>
             <div className="flex items-center gap-2 mb-1">
               <TrendingUp className="w-4 h-4" />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                {mode === "ytd" ? "Agency YTD Close Rate" : "Agency MTD Close Rate"}
-              </span>
-            </div>
-            <span className="text-xl font-bold">
-              {fmtPct(agencyTotals.cr)}
-            </span>
-          </div>
-
-          {/* Filtered CR */}
-          <div className={`rounded-xl border p-4 shadow-sm ${cardCrColorClass(totals.cr)}`}>
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="w-4 h-4 animate-pulse" />
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                {mode === "ytd" ? "Filtered YTD Close Rate" : "Filtered MTD Close Rate"}
+                {mode === "ytd" ? "YTD Close Rate" : "MTD Close Rate"}
               </span>
             </div>
             <span className="text-xl font-bold">
               {fmtPct(totals.cr)}
             </span>
+            {(filters.offices.length > 0 || filters.teams.length > 0 || filters.agents.length > 0) && (
+              <div className="mt-1 text-xs text-slate-500">
+                Agency: {fmtPct(agencyTotals.cr)}
+              </div>
+            )}
           </div>
 
-          {/* Business Days */}
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          {/* NB / Quotes Summary */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-center gap-2 mb-1">
-              <Calendar className="w-4 h-4 text-slate-500" />
+              <BarChart3 className="w-4 h-4 text-slate-500" />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Business Days
+                NB / Quotes
               </span>
             </div>
-            <span className="text-xl font-bold text-slate-800">
-              {data.businessDaysPassed} <span className="text-sm font-normal text-slate-400">/ {data.businessDaysTotal}</span>
-            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-bold text-emerald-700">{totals.totalNB}</span>
+              <span className="text-sm text-slate-400">/</span>
+              <span className="text-xl font-bold text-blue-700">{totals.totalQuotes}</span>
+            </div>
+            <div className="mt-1 text-xs text-slate-400">
+              {totals.totalNB} policies · {totals.totalQuotes} quotes
+            </div>
           </div>
         </div>
       )}
@@ -723,7 +724,7 @@ export default function QuotesPage() {
                     <span className="text-sm font-medium text-slate-700">{t.team}</span>
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-slate-400">
-                        {t.nb} NB / {t.quotes} Q
+                        {t.nb} NB / {t.quotes} Q / {t.items} items
                       </span>
                       <span className={`text-sm font-bold px-2 py-0.5 rounded-md ${crColorClass(t.cr)}`}>
                         {fmtPct(t.cr)}
@@ -731,6 +732,18 @@ export default function QuotesPage() {
                     </div>
                   </div>
                 ))}
+                {/* Totals */}
+                <div className="flex items-center justify-between pt-2 mt-1 border-t border-slate-200">
+                  <span className="text-sm font-bold text-slate-800">Total</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-semibold text-slate-500">
+                      {totals.totalNB} NB / {totals.totalQuotes} Q / {totals.totalItems} items
+                    </span>
+                    <span className={`text-sm font-bold px-2 py-0.5 rounded-md ${crColorClass(totals.cr)}`}>
+                      {fmtPct(totals.cr)}
+                    </span>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -750,7 +763,7 @@ export default function QuotesPage() {
                     <span className="text-sm font-medium text-slate-700">{o.office}</span>
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-slate-400">
-                        {o.nb} NB / {o.quotes} Q
+                        {o.nb} NB / {o.quotes} Q / {o.items} items
                       </span>
                       <span className={`text-sm font-bold px-2 py-0.5 rounded-md ${crColorClass(o.cr)}`}>
                         {fmtPct(o.cr)}
@@ -758,6 +771,18 @@ export default function QuotesPage() {
                     </div>
                   </div>
                 ))}
+                {/* Totals */}
+                <div className="flex items-center justify-between pt-2 mt-1 border-t border-slate-200">
+                  <span className="text-sm font-bold text-slate-800">Total</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-semibold text-slate-500">
+                      {totals.totalNB} NB / {totals.totalQuotes} Q / {totals.totalItems} items
+                    </span>
+                    <span className={`text-sm font-bold px-2 py-0.5 rounded-md ${crColorClass(totals.cr)}`}>
+                      {fmtPct(totals.cr)}
+                    </span>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -1068,6 +1093,31 @@ export default function QuotesPage() {
                         />
                       )}
                     </Line>
+
+                    {/* 15% benchmark reference line on close rate axis */}
+                    <ReferenceLine
+                      yAxisId="pct"
+                      y={15}
+                      stroke="#ef4444"
+                      strokeDasharray="8 4"
+                      strokeWidth={1.5}
+                      strokeOpacity={0.6}
+                      label={{ value: "15% CR", position: "right", fill: "#ef4444", fontSize: 10, fontWeight: 600 }}
+                    />
+
+                    {/* Cumulative Items running total */}
+                    <Line
+                      yAxisId="count"
+                      type="monotone"
+                      dataKey="cumulativeItems"
+                      name="Cumulative Items"
+                      stroke="#ec4899"
+                      strokeWidth={highlightedLines.size === 0 ? 2 : (highlightedLines.has("cumulativeItems") ? 2.5 : 1)}
+                      strokeOpacity={lineOpacity("cumulativeItems")}
+                      strokeDasharray="3 2"
+                      dot={false}
+                      activeDot={{ r: 4 }}
+                    />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -1146,6 +1196,7 @@ export default function QuotesPage() {
                   <tr className="bg-slate-50 border-b border-slate-200">
                     <Th field="name" label="Agent" onSort={handleSort} sortField={sortField} sortDir={sortDir} align="left" />
                     <Th field="nb" label="NB Policies" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
+                    <Th field="items" label="Items" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
                     <Th field="quotes" label="Quote Count" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
                     <Th field="cr" label="Close Rate" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
                     <Th field="monthly" label={`Mo. Quotes\nfor ${TARGET_AUTOS} Autos`} onSort={handleSort} sortField={sortField} sortDir={sortDir} />
@@ -1176,6 +1227,9 @@ export default function QuotesPage() {
                         <td className="py-2 px-3 text-center font-mono font-semibold text-slate-900">
                           {row.nb_policies}
                         </td>
+                        <td className="py-2 px-3 text-center font-mono text-purple-700 font-semibold">
+                          {row.items}
+                        </td>
                         <td className="py-2 px-3 text-center font-mono text-slate-700">
                           {row.quote_count}
                         </td>
@@ -1204,6 +1258,7 @@ export default function QuotesPage() {
                   <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
                     <td className="py-2.5 px-3 text-slate-800">Total</td>
                     <td className="py-2.5 px-3 text-center font-mono text-slate-900">{totals.totalNB}</td>
+                    <td className="py-2.5 px-3 text-center font-mono text-purple-800">{totals.totalItems}</td>
                     <td className="py-2.5 px-3 text-center font-mono text-slate-900">{totals.totalQuotes}</td>
                     <td className="py-2.5 px-3 text-center">
                       <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${crColorClass(totals.cr)}`}>
@@ -1276,16 +1331,12 @@ export default function QuotesPage() {
               {/* Definition */}
               <div className="mt-3 p-4 bg-white/90 rounded-xl border border-amber-200/80 text-xs text-slate-600 space-y-2">
                 <div>
-                  <p className="font-semibold text-amber-800 text-sm mb-1">Standard Auto Rolling Deduplication Rules:</p>
+                  <p className="font-semibold text-amber-800 text-sm mb-1">Rolling Deduplication Rules:</p>
                   <p>To prevent double-counting prospects, the pipeline filters quotes according to the following logic:</p>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
                   <div className="p-2.5 bg-amber-50/50 rounded-lg border border-amber-100">
-                    <span className="font-bold text-amber-800 block mb-1">1. Product Scope</span>
-                    Only quotes with Product type <strong className="text-slate-700">Standard Auto</strong> are deduplicated.
-                  </div>
-                  <div className="p-2.5 bg-amber-50/50 rounded-lg border border-amber-100">
-                    <span className="font-bold text-amber-800 block mb-1">2. Deduplication Key</span>
+                    <span className="font-bold text-amber-800 block mb-1">1. Deduplication Key</span>
                     Quotes are grouped by a unique key combining:
                     <div className="flex flex-wrap gap-1 mt-1">
                       {["Sub Producer", "First Name", "Last Name", "Street Address"].map(f => (
@@ -1294,7 +1345,7 @@ export default function QuotesPage() {
                     </div>
                   </div>
                   <div className="p-2.5 bg-amber-50/50 rounded-lg border border-amber-100">
-                    <span className="font-bold text-amber-800 block mb-1">3. Rolling 30-Day Window</span>
+                    <span className="font-bold text-amber-800 block mb-1">2. Rolling 30-Day Window</span>
                     Sorted chronologically. The **first** quote is kept. Any subsequent quote for that prospect within **30 days** of the last kept quote is flagged as a duplicate. Quotes outside the 30-day window reset the timer.
                   </div>
                 </div>
@@ -1441,6 +1492,116 @@ export default function QuotesPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── KPI Definitions ── */}
+      {data && (
+        <div className="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <button
+            onClick={() => setShowKpiDefs(!showKpiDefs)}
+            className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-slate-50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-slate-400" />
+              <span className="text-sm font-semibold text-slate-700">KPI Definitions & Data Sources</span>
+            </div>
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showKpiDefs ? 'rotate-180' : ''}`} />
+          </button>
+          {showKpiDefs && (
+            <div className="px-5 pb-5 border-t border-slate-100">
+              <p className="text-xs text-slate-500 mt-3 mb-4">All metrics on this page are sourced from <span className="font-medium text-slate-700">daily_metrics</span> in Supabase, scoped to Standard Auto only.</p>
+              <div className="space-y-3">
+                {/* Quote Count */}
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold text-slate-800">Quote Count</span>
+                    <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[9px] font-mono">quotes_deduped</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    The deduplicated Standard Auto quote count per agent per day. Duplicate quotes (same Sub Producer + First Name + Last Name + Street Address within a rolling 30-day window) are excluded. This is the primary quote metric used across all cards, the table, and charts.
+                  </p>
+                </div>
+
+                {/* NB Policies */}
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold text-slate-800">NB Policies</span>
+                    <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[9px] font-mono">nb_auto_count</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    The count of new Standard Auto policies written per agent per day. This does <strong>not</strong> include non-auto lines of business (those are in the separate <code className="text-[10px] bg-slate-200 px-1 rounded">nb_count</code> column).
+                  </p>
+                </div>
+
+                {/* Items */}
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold text-slate-800">Items</span>
+                    <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[9px] font-mono">nb_auto_items</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    The total Standard Auto NB item count per agent per day. A single policy can have multiple items (e.g., multi-vehicle). Avg items per policy ≈ {AVG_ITEMS_PER_POLICY}.
+                  </p>
+                </div>
+
+                {/* Close Rate */}
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold text-slate-800">Close Rate</span>
+                    <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[9px] font-mono">nb_auto_count ÷ quotes_deduped</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    NB Policies divided by Quote Count. The <strong>Agency</strong> card uses all agents (including non-visible). The <strong>Filtered</strong> card respects active Office/Team/Agent filters. Green ≥ 15%, red &lt; 15%.
+                  </p>
+                </div>
+
+                {/* Monthly Quotes for 40 Autos */}
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold text-slate-800">Mo. Quotes for {TARGET_AUTOS} Autos</span>
+                    <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[9px] font-mono">({TARGET_AUTOS} ÷ {AVG_ITEMS_PER_POLICY}) ÷ close_rate</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    How many quotes the agent needs this month to hit {TARGET_AUTOS} auto items, based on their current close rate. Formula: {POLICIES_NEEDED} policies needed ÷ agent's close rate.
+                  </p>
+                </div>
+
+                {/* Daily Quote Goal */}
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold text-slate-800">Daily Quote Goal</span>
+                    <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[9px] font-mono">monthly_target ÷ business_days_in_month</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    The agent's monthly target divided by total business days in the month (excluding weekends and holidays). This is the daily pace needed to hit {TARGET_AUTOS} autos.
+                  </p>
+                </div>
+
+                {/* Benchmark */}
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold text-slate-800">Daily Quotes @ {(BENCHMARK_CR * 100).toFixed(0)}% CR</span>
+                    <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[9px] font-mono">{POLICIES_NEEDED} ÷ {BENCHMARK_CR} ÷ biz_days</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    A universal benchmark: quotes per day needed to hit {TARGET_AUTOS} autos assuming a {(BENCHMARK_CR * 100).toFixed(0)}% close rate. Same for all agents.
+                  </p>
+                </div>
+
+                {/* Business Days */}
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold text-slate-800">Business Days</span>
+                    <span className="px-1.5 py-0.5 bg-sky-100 text-sky-700 rounded text-[9px] font-mono">holidays table + weekday math</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Elapsed / Total business days. Weekends and holidays (from the holidays table) are excluded. "Elapsed" tracks up to the most recent date with quote or NB data, not necessarily today.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

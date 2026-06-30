@@ -115,6 +115,7 @@ const SOURCE_COLORS: Record<string, { bg: string; border: string; text: string; 
 interface CoverageItem {
   present: boolean
   agentCount: number
+  subSources?: Record<string, boolean>
 }
 
 type CoverageData = Record<string, CoverageItem>
@@ -170,7 +171,7 @@ export default function DataSyncPage() {
 
 
   // Sections
-  const [calendarOpen, setCalendarOpen] = useState(true)
+
   const [dictionaryOpen, setDictionaryOpen] = useState(false)
   const [leadsModalOpen, setLeadsModalOpen] = useState(false)
 
@@ -644,33 +645,68 @@ export default function DataSyncPage() {
         </div>
       )}
 
-      {/* ═══ Source Checklist Grid ═══ */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {DATA_SOURCES.map((source) => {
-          const Icon = source.icon
-          const colors = SOURCE_COLORS[source.color]
-          const cov = coverage?.[source.key]
-          const isPresent = cov?.present ?? false
-          const agentsWithData = cov?.agentCount ?? 0
-          const sourceFiles = filesForSource(source.key)
-          const isProcessing = uploading && sourceFiles.length > 0
+      {/* ═══ Source Checklist + Sync Calendar — side by side ═══ */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
 
-          return (
-            <SourceCard
-              key={source.key}
-              source={source}
-              Icon={Icon}
-              colors={colors}
-              isPresent={isPresent}
-              agentsWithData={agentsWithData}
-              isProcessing={isProcessing}
-              coverageLoaded={!!coverage}
-              date={date}
-              onAutoScrape={(key) => handleUpload(key)}
-              onManualLeads={source.key === "leads" ? () => setLeadsModalOpen(true) : undefined}
-            />
-          )
-        })}
+        {/* Left: Source Checklist */}
+        <div className="space-y-3">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600">
+                <CheckCircle2 className="w-4 h-4" />
+              </div>
+              <h2 className="text-sm font-bold text-slate-900">Source Checklist</h2>
+            </div>
+            <p className="text-xs text-slate-400 mt-1 ml-[38px]">
+              Showing coverage for <span className="font-semibold text-slate-600">{new Date(date + "T12:00:00").toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}</span>
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-2.5">
+            {DATA_SOURCES.map((source) => {
+              const Icon = source.icon
+              const colors = SOURCE_COLORS[source.color]
+              const cov = coverage?.[source.key]
+              const isPresent = cov?.present ?? false
+              const agentsWithData = cov?.agentCount ?? 0
+              const sourceFiles = filesForSource(source.key)
+              const isProcessing = uploading && sourceFiles.length > 0
+
+              return (
+                <SourceCard
+                  key={source.key}
+                  source={source}
+                  Icon={Icon}
+                  colors={colors}
+                  isPresent={isPresent}
+                  agentsWithData={agentsWithData}
+                  isProcessing={isProcessing}
+                  coverageLoaded={!!coverage}
+                  date={date}
+                  subSources={cov?.subSources}
+                  onAutoScrape={(key) => handleUpload(key)}
+                  onManualLeads={source.key === "leads" ? () => setLeadsModalOpen(true) : undefined}
+                />
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Right: Sync Calendar */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600">
+              <CalendarDays className="w-4 h-4" />
+            </div>
+            <h2 className="text-sm font-bold text-slate-900">Sync Calendar</h2>
+            <span className="text-xs text-slate-400">— click a date to fill gaps</span>
+          </div>
+          <SyncCalendar
+            selectedDate={date}
+            refreshTrigger={refreshTrigger}
+            onDateSelect={(d) => setDate(d)}
+            onGapClick={handleGapClick}
+          />
+        </div>
       </div>
 
       {/* ═══ Sticky Upload Action Bar ═══ */}
@@ -711,33 +747,6 @@ export default function DataSyncPage() {
           </div>
         </div>
       )}
-
-
-
-      {/* ═══ Sync Calendar (collapsible) ═══ */}
-      <div className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
-        <button
-          onClick={() => setCalendarOpen(!calendarOpen)}
-          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition-colors"
-        >
-          <div className="flex items-center gap-2.5">
-            <CalendarDays className="w-4.5 h-4.5 text-slate-500" />
-            <span className="text-sm font-semibold text-slate-900">Sync Calendar</span>
-            <span className="text-xs text-slate-400">— click a date to fill in missing data</span>
-          </div>
-          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${calendarOpen ? "rotate-180" : ""}`} />
-        </button>
-        {calendarOpen && (
-          <div className="px-5 pb-5 border-t border-slate-100 pt-4">
-            <SyncCalendar
-              selectedDate={date}
-              refreshTrigger={refreshTrigger}
-              onDateSelect={(d) => setDate(d)}
-              onGapClick={handleGapClick}
-            />
-          </div>
-        )}
-      </div>
 
       {/* ═══ Upload History ═══ */}
       <UploadHistory refreshTrigger={refreshTrigger} />
@@ -848,6 +857,7 @@ function SourceCard({
   isProcessing,
   coverageLoaded,
   date,
+  subSources,
   onAutoScrape,
   onManualLeads,
 }: {
@@ -859,6 +869,7 @@ function SourceCard({
   isProcessing: boolean
   coverageLoaded: boolean
   date: string
+  subSources?: Record<string, boolean>
   onAutoScrape?: (key: string) => void
   onManualLeads?: () => void
 }) {
@@ -868,16 +879,16 @@ function SourceCard({
   const borderAccent = isPresent
     ? "border-l-4 border-l-emerald-400"
     : coverageLoaded
-      ? "border-l-4 border-l-amber-400"
+      ? "border-l-4 border-l-red-400"
       : "border-l-4 border-l-slate-200"
 
   return (
     <div
-      className={`rounded-lg border ${colors.border} bg-white shadow-sm overflow-hidden transition-all duration-300 ${borderAccent} ${
-        !isPresent && coverageLoaded && !source.isAutomatic ? "ring-1 ring-amber-200/60" : ""
+      className={`rounded-lg border ${!isPresent && coverageLoaded ? 'border-red-200' : colors.border} shadow-sm overflow-hidden transition-all duration-300 ${borderAccent} ${
+        !isPresent && coverageLoaded ? "ring-1 ring-red-200/60 bg-red-50/40" : "bg-white"
       }`}
     >
-      <div className={`flex items-center gap-2.5 px-3 py-2 ${isPresent ? "bg-gradient-to-r from-emerald-50/40 to-white" : ""}`}>
+      <div className={`flex items-center gap-2.5 px-3 py-2 ${isPresent ? "bg-gradient-to-r from-emerald-50/40 to-white" : !isPresent && coverageLoaded ? "bg-red-50/30" : ""}`}>
         {/* Icon */}
         <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${colors.bg} ${colors.text}`}>
           <Icon className="w-3.5 h-3.5" />
@@ -886,14 +897,34 @@ function SourceCard({
         {/* Label + badge + subtitle */}
         <div className="flex-grow min-w-0">
           <div className="flex items-center gap-1.5">
-            <h3 className="text-xs font-bold text-slate-900 truncate">{source.label}</h3>
+            <h3 className="text-xs font-bold text-slate-900">{source.label}</h3>
             <Badge variant="outline" className={`text-[9px] px-1 py-0 shrink-0 ${colors.bg} ${colors.text} ${colors.border}`}>
               {source.system}
             </Badge>
           </div>
           {/* How-to-get hint — only show when missing */}
           {!isPresent && coverageLoaded && (
-            <p className="text-[10px] text-slate-400 truncate mt-0.5 leading-tight">{source.howToGet}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{source.howToGet}</p>
+          )}
+          {/* Sub-source indicators for calls */}
+          {source.uploadTypes.length > 1 && coverageLoaded && subSources && (
+            <div className="flex items-center gap-1.5 mt-1">
+              {source.filePatterns.map((fp) => {
+                const uploaded = subSources[fp.type] ?? false
+                return (
+                  <span
+                    key={fp.type}
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
+                      uploaded
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-red-50 text-red-600 border-red-200"
+                    }`}
+                  >
+                    {uploaded ? "✓" : "✗"} {fp.label}
+                  </span>
+                )
+              })}
+            </div>
           )}
         </div>
 
@@ -940,7 +971,7 @@ function SourceCard({
               {source.key !== "eagent" ? `${agentsWithData}` : "✓"}
             </span>
           ) : coverageLoaded ? (
-            <span className="flex items-center gap-1 text-[10px] font-medium text-amber-600 whitespace-nowrap">
+            <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 whitespace-nowrap">
               <AlertCircle className="w-3 h-3" /> Missing
             </span>
           ) : (

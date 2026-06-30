@@ -3,6 +3,38 @@
 import { supabase } from "@/lib/supabaseClient"
 import { unstable_noStore as noStore } from "next/cache"
 
+/**
+ * Paginated fetch for Supabase tables.
+ * Supabase enforces a server-side max-rows (default 1000) that .limit() cannot
+ * override. This helper fetches in pages of 1000 using .range() to get all rows.
+ */
+async function fetchAllMetrics(
+  select: string,
+  startDate: string,
+  endDate: string
+): Promise<any[]> {
+  const PAGE_SIZE = 1000
+  let allData: any[] = []
+  let from = 0
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("daily_metrics")
+      .select(select)
+      .gte("report_date", startDate)
+      .lte("report_date", endDate)
+      .range(from, from + PAGE_SIZE - 1)
+
+    if (error) throw error
+    if (!data || data.length === 0) break
+    allData = allData.concat(data)
+    if (data.length < PAGE_SIZE) break // last page
+    from += PAGE_SIZE
+  }
+
+  return allData
+}
+
 export type ViewMode = "mtd" | "ytd" | "monthly"
 
 export interface QuotesAgentRow {
@@ -87,11 +119,12 @@ export async function getQuotesData(
       .order("name")
 
     // Fetch daily_metrics in the date range (include nb_auto_items for MTD count)
-    const { data: metrics } = await supabase
-      .from("daily_metrics")
-      .select("agent_id, report_date, quotes, quotes_deduped, nb_auto_count, nb_auto_items")
-      .gte("report_date", startDate)
-      .lte("report_date", endDate)
+    // Uses paginated fetch to overcome Supabase's 1000-row server limit
+    const metrics = await fetchAllMetrics(
+      "agent_id, report_date, quotes, quotes_deduped, nb_auto_count, nb_auto_items",
+      startDate,
+      endDate
+    )
 
     // Fetch holidays for biz day calculations
     const { data: holidays } = await supabase
@@ -111,7 +144,7 @@ export async function getQuotesData(
         if (!agentQuotes[m.agent_id]) {
           agentQuotes[m.agent_id] = { quotes: 0, nb: 0, items: 0 }
         }
-        // Use quotes_deduped directly to count only Standard Auto quotes
+        // Use quotes_deduped strictly — only Standard Auto quotes
         const effectiveQuotes = m.quotes_deduped || 0
         agentQuotes[m.agent_id].quotes += effectiveQuotes
         agentQuotes[m.agent_id].nb += m.nb_auto_count || 0
@@ -194,11 +227,11 @@ export async function getDailyBreakdown(
 ): Promise<{ success: boolean; data?: DailyBreakdownData; error?: string }> {
   noStore()
   try {
-    const { data: metrics } = await supabase
-      .from("daily_metrics")
-      .select("agent_id, report_date, quotes, quotes_deduped, nb_auto_count, nb_auto_items")
-      .gte("report_date", startDate)
-      .lte("report_date", endDate)
+    const metrics = await fetchAllMetrics(
+      "agent_id, report_date, quotes, quotes_deduped, nb_auto_count, nb_auto_items",
+      startDate,
+      endDate
+    )
 
     // Fetch holidays for biz day check
     const year = parseInt(startDate.substring(0, 4))
@@ -212,6 +245,7 @@ export async function getDailyBreakdown(
     const rawPoints: DailyAgentRawPoint[] = []
     if (metrics) {
       for (const m of metrics) {
+        // Use quotes_deduped strictly — only Standard Auto quotes
         const effectiveQuotes = m.quotes_deduped || 0
         rawPoints.push({
           agent_id: m.agent_id,
@@ -280,11 +314,11 @@ export async function getYTDBreakdown(
     const yesterdayStr = yesterday.toISOString().split("T")[0]
     const startDate = `${year}-01-01`
 
-    const { data: metrics } = await supabase
-      .from("daily_metrics")
-      .select("agent_id, report_date, quotes, quotes_deduped, nb_auto_count, nb_auto_items")
-      .gte("report_date", startDate)
-      .lte("report_date", yesterdayStr)
+    const metrics = await fetchAllMetrics(
+      "agent_id, report_date, quotes, quotes_deduped, nb_auto_count, nb_auto_items",
+      startDate,
+      yesterdayStr
+    )
 
     if (!metrics || metrics.length === 0) {
       return { success: true, data: [] }
@@ -300,6 +334,7 @@ export async function getYTDBreakdown(
         const key = `${m.agent_id}||${monthKey}`
         if (!buckets[key]) buckets[key] = { quotes: 0, nb: 0, items: 0 }
         
+        // Use quotes_deduped strictly — only Standard Auto quotes
         const effectiveQuotes = m.quotes_deduped || 0
         buckets[key].quotes += effectiveQuotes
         buckets[key].nb += m.nb_auto_count || 0
@@ -342,6 +377,7 @@ export async function getYTDBreakdown(
           buckets[key] = { quotes: 0, nb: 0, items: 0, start: thuStart, end: wedEnd }
         }
 
+        // Use quotes_deduped strictly — only Standard Auto quotes
         const effectiveQuotes = m.quotes_deduped || 0
         buckets[key].quotes += effectiveQuotes
         buckets[key].nb += m.nb_auto_count || 0

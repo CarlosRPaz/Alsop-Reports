@@ -176,15 +176,9 @@ export async function pushToSupabase(
 
       for (const [field, newVal] of Object.entries(allFields)) {
         if (partialFields.has(field)) {
-          const existingVal = (existingRow as Record<string, unknown>)[field]
-          // Only overwrite if: new data is non-zero, OR there's no existing data
-          if (newVal && newVal !== 0) {
-            metric[field] = newVal
-          } else if (existingVal !== null && existingVal !== undefined) {
-            metric[field] = existingVal
-          } else {
-            metric[field] = newVal
-          }
+          // Always write the new value for targeted fields — the pipeline
+          // output is authoritative, even if the value is zero.
+          metric[field] = newVal
         } else {
           // Keep existing value, fall back to 0/default if no existing row
           const ev = (existingRow as Record<string, unknown>)[field]

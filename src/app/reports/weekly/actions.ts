@@ -2,6 +2,7 @@
 
 import { supabase } from "@/lib/supabaseClient"
 import { unstable_noStore as noStore } from "next/cache"
+import { getAgencyKPITotals } from "@/lib/agencyKPI"
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
@@ -161,11 +162,8 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
     const mtdYear = weekEndDate.getFullYear()
     const firstOfMonth = `${mtdYear}-${String(mtdMonth).padStart(2, "0")}-01`
 
-    const { data: mtdMetrics } = await supabase
-      .from("daily_metrics")
-      .select("agent_id, nb_auto_items, prem_premium, agents(office)")
-      .gte("report_date", firstOfMonth)
-      .lte("report_date", weekEndStr)
+    // MTD items: use centralized paginated helper to guarantee accurate agency-wide KPIs
+    const agencyKPI = await getAgencyKPITotals(firstOfMonth, weekEndStr)
 
     // 8. Calculate previous month totals (for prem_points reference)
     const prevMonth = mtdMonth === 1 ? 12 : mtdMonth - 1
@@ -175,7 +173,7 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
 
     const { data: prevMonthMetrics } = await supabase
       .from("daily_metrics")
-      .select("agent_id, items")
+      .select("agent_id, nb_auto_items")
       .gte("report_date", prevFirstOfMonth)
       .lte("report_date", prevLastOfMonth)
 
@@ -220,8 +218,8 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
       if (!hasQuoteRecords) {
         a.quotes += row.quotes || 0
       }
-      a.nb_count += row.nb_count || 0
-      a.items += row.items || 0
+      a.nb_count += row.nb_auto_count || 0
+      a.items += row.nb_auto_items || 0
       a.written_premium += Number(row.written_premium) || 0
       a.prem_premium += Number(row.prem_premium) || 0
       a.prem_items += row.prem_items || 0
@@ -237,27 +235,15 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
       }
     }
 
-    // MTD aggregation — agency-wide (ALL agents, Standard Auto only)
-    const mtdItemsMap: Record<string, number> = {}
-    const mtdPremiumMap: Record<string, number> = {}
-    const agencyOfficeMap: Record<string, number> = {}
-    let agencyItemsMTD = 0
-    if (mtdMetrics) {
-      for (const m of mtdMetrics as any[]) {
-        const autoItems = m.nb_auto_items || 0
-        mtdItemsMap[m.agent_id] = (mtdItemsMap[m.agent_id] || 0) + autoItems
-        mtdPremiumMap[m.agent_id] = (mtdPremiumMap[m.agent_id] || 0) + (Number(m.prem_premium) || 0)
-        agencyItemsMTD += autoItems
-        const office = m.agents?.office || "Other"
-        agencyOfficeMap[office] = (agencyOfficeMap[office] || 0) + autoItems
-      }
-    }
+    // MTD aggregation — use centralized helper results
+    const agencyItemsMTD = agencyKPI.totals.nb_auto_items
+    const agencyOfficeMap = agencyKPI.officeBreakdown
 
     // Previous month items (points = items × 10)
     const prevItemsMap: Record<string, number> = {}
     if (prevMonthMetrics) {
       for (const m of prevMonthMetrics) {
-        prevItemsMap[m.agent_id] = (prevItemsMap[m.agent_id] || 0) + (m.items || 0)
+        prevItemsMap[m.agent_id] = (prevItemsMap[m.agent_id] || 0) + (m.nb_auto_items || 0)
       }
     }
 
@@ -297,9 +283,9 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
         // Points = Items × 10 (from NB, not AgencyZoom)
         prem_points: (a.items || 0) * 10,
         // MTD
-        items_mtd: mtdItemsMap[a.agent_id] || 0,
-        premium_mtd: mtdPremiumMap[a.agent_id] || 0,
-        points_mtd: (mtdItemsMap[a.agent_id] || 0) * 10,
+        items_mtd: agencyKPI.perAgentItems[a.agent_id] || 0,
+        premium_mtd: agencyKPI.perAgentPremium[a.agent_id] || 0,
+        points_mtd: (agencyKPI.perAgentItems[a.agent_id] || 0) * 10,
         // Prev month
         prev_month_points: (prevItemsMap[a.agent_id] || 0) * 10,
         // Leads

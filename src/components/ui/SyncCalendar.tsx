@@ -4,6 +4,24 @@ import { useState, useEffect, useMemo, useCallback } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
+/** Paginated Supabase fetch — loops .range() pages of 1000 to defeat the server-side max-rows cap. */
+async function fetchAllRows(
+  buildQuery: (from: number, to: number) => any
+): Promise<any[]> {
+  const PAGE_SIZE = 1000
+  let allData: any[] = []
+  let from = 0
+  while (true) {
+    const { data, error } = await buildQuery(from, from + PAGE_SIZE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    allData = allData.concat(data)
+    if (data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+  return allData
+}
+
 const SOURCE_META = [
   { key: 'calls', label: 'Calls', color: 'bg-sky-400', emptyColor: 'bg-slate-200' },
   { key: 'texts', label: 'Texts', color: 'bg-purple-400', emptyColor: 'bg-slate-200' },
@@ -37,6 +55,7 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
   })
   const [daySourceMap, setDaySourceMap] = useState<Map<string, DaySources>>(new Map())
   const [loading, setLoading] = useState(true)
+  const [sourceFilter, setSourceFilter] = useState<SourceKey | null>(null)
 
   // Fetch per-source data for the visible month
   useEffect(() => {
@@ -49,14 +68,15 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
       const endStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`
 
       try {
-        // Fetch daily_metrics — include eAgent fields so we can detect presence
-        const { data: metrics, error: metricsErr } = await supabase
-          .from("daily_metrics")
-          .select("report_date, calls, inbound, outbound, texts, out_texts, quotes, items, nb_count, prem_premium, prem_points, dismissed_todos, past_due_todos, pivots")
-          .gte("report_date", startDate)
-          .lte("report_date", endStr)
-
-        if (metricsErr) throw metricsErr
+        // Fetch daily_metrics — paginated to avoid Supabase's 1000-row server limit
+        const metrics = await fetchAllRows((from, to) =>
+          supabase
+            .from("daily_metrics")
+            .select("report_date, calls, inbound, outbound, texts, out_texts, quotes, items, nb_count, prem_premium, prem_points, dismissed_todos, past_due_todos, pivots")
+            .gte("report_date", startDate)
+            .lte("report_date", endStr)
+            .range(from, to)
+        )
 
         // Fetch daily_reports_meta for eagent_submitted
         const { data: metaData, error: metaErr } = await supabase
@@ -194,6 +214,12 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
 
   const monthName = currentMonth.toLocaleString("default", { month: "long", year: "numeric" })
 
+  // The sources to evaluate based on current filter
+  const activeSources = useMemo(() => {
+    if (sourceFilter === null) return SOURCE_META
+    return SOURCE_META.filter(s => s.key === sourceFilter)
+  }, [sourceFilter])
+
   // Build calendar grid
   const calendarDays = useMemo(() => {
     const year = currentMonth.getFullYear()
@@ -235,7 +261,23 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
     return days
   }, [currentMonth, daySourceMap, selectedDate])
 
-  // Count business days with gaps
+  // Calculate MTD completion stats for each source
+  const sourceMtdStats = useMemo(() => {
+    const stats: Record<string, { present: number; total: number; perfect: boolean }> = {}
+    for (const src of SOURCE_META) {
+      let present = 0
+      let total = 0
+      for (const cell of calendarDays) {
+        if (!cell.day || cell.isFuture || cell.isToday) continue
+        total++
+        if (cell.sources?.[src.key]?.present) present++
+      }
+      stats[src.key] = { present, total, perfect: total > 0 && present === total }
+    }
+    return stats
+  }, [calendarDays])
+
+  // Count business days with gaps (respects active filter)
   const gapCount = useMemo(() => {
     let count = 0
     for (const cell of calendarDays) {
@@ -246,15 +288,16 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
         count++
         continue
       }
-      const missing = SOURCE_META.filter(s => !sources[s.key].present)
+      const missing = activeSources.filter(s => !sources[s.key].present)
       if (missing.length > 0) count++
     }
     return count
-  }, [calendarDays])
+  }, [calendarDays, activeSources])
 
-  const getDateStyle = useCallback((sources: DaySources | null, isToday: boolean, isWeekend: boolean, isSelected: boolean, isFuture: boolean) => {
-    const presentCount = sources ? SOURCE_META.filter(s => sources[s.key].present).length : 0
-    const allPresent = presentCount === SOURCE_META.length
+  // Date styling that respects the active filter
+  const getDateStyle = useCallback((sources: DaySources | null, isToday: boolean, _isWeekend: boolean, isSelected: boolean, isFuture: boolean) => {
+    const presentCount = sources ? activeSources.filter(s => sources[s.key].present).length : 0
+    const allPresent = presentCount === activeSources.length
     const partial = presentCount > 0 && !allPresent
     const noData = presentCount === 0
 
@@ -287,18 +330,19 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
     }
 
     return base
-  }, [])
+  }, [activeSources])
 
   const getTooltip = useCallback((dateStr: string, sources: DaySources | null) => {
     if (!sources) return `${dateStr}: No data`
-    return SOURCE_META.map(s => {
+    const relevantSources = sourceFilter !== null ? activeSources : SOURCE_META
+    return relevantSources.map(s => {
       const info = sources[s.key]
       if (info.present) {
         return `✅ ${s.label} (${info.agentCount}${s.key === 'eagent' ? '' : ' agents'})`
       }
       return `❌ ${s.label}`
     }).join(" | ")
-  }, [])
+  }, [sourceFilter, activeSources])
 
   const getMissingSources = useCallback((sources: DaySources | null): string[] => {
     if (!sources) return SOURCE_META.map(s => s.label)
@@ -314,8 +358,14 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
     }
   }, [onDateSelect, onGapClick, getMissingSources])
 
+  // Get the active filter's meta for single-dot display
+  const activeFilterMeta = useMemo(() => {
+    if (sourceFilter === null) return null
+    return SOURCE_META.find(s => s.key === sourceFilter) ?? null
+  }, [sourceFilter])
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden max-w-md relative">
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden relative">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
         <button
@@ -331,6 +381,69 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
         >
           <ChevronRight className="w-4 h-4" />
         </button>
+      </div>
+
+      {/* Source filter pills */}
+      <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 border-b border-slate-100">
+        <button
+          onClick={() => setSourceFilter(null)}
+          className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all duration-150 ${
+            sourceFilter === null
+              ? "bg-slate-800 text-white shadow-sm"
+              : "bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700"
+          }`}
+        >
+          All
+        </button>
+        {SOURCE_META.map((src) => {
+          const stats = sourceMtdStats[src.key]
+          const isSelected = sourceFilter === src.key
+          const isPerfect = stats?.perfect ?? false
+
+          // Build className based on state
+          let pillClass = 'px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all duration-200 flex items-center gap-1 '
+          if (isSelected) {
+            pillClass += 'text-white shadow-sm'
+            if (isPerfect) pillClass += ' ring-2 ring-emerald-400/60 ring-offset-1'
+          } else if (isPerfect) {
+            pillClass += 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100/80'
+          } else {
+            pillClass += 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
+          }
+
+          // Tooltip
+          const tooltipText = isPerfect
+            ? `Perfect MTD Streak! ${stats.present}/${stats.total} business days uploaded`
+            : `${stats?.present ?? 0} of ${stats?.total ?? 0} business days uploaded (${(stats?.total ?? 0) - (stats?.present ?? 0)} gaps)`
+
+          return (
+            <button
+              key={src.key}
+              onClick={() => setSourceFilter(isSelected ? null : src.key)}
+              className={pillClass}
+              title={tooltipText}
+              style={isSelected ? {
+                backgroundColor:
+                  src.key === 'calls' ? '#38bdf8' :
+                  src.key === 'texts' ? '#c084fc' :
+                  src.key === 'quotes' ? '#fbbf24' :
+                  src.key === 'items' ? '#8b5cf6' :
+                  src.key === 'premium' ? '#34d399' :
+                  src.key === 'eagent' ? '#fb7185' :
+                  '#fb923c',
+              } : undefined}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white/70' : isPerfect ? 'bg-emerald-400' : src.color}`} />
+              {src.label}
+              {isPerfect && !isSelected && (
+                <span className="text-[9px] ml-0.5">✨</span>
+              )}
+              {!isPerfect && stats && stats.total > 0 && (
+                <span className="opacity-60 font-normal ml-0.5 text-[9px]">({stats.present}/{stats.total})</span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* Day headers */}
@@ -361,19 +474,29 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
             {cell.day && (
               <>
                 <span className="leading-none text-[11px]">{cell.day}</span>
-                {/* Source dots */}
+                {/* Source dots — show all when no filter, or single when filtered */}
                 <div className="flex items-center gap-[2px] mt-1">
-                  {SOURCE_META.map((src) => {
-                    const isPresent = cell.sources?.[src.key]?.present ?? false
-                    return (
-                      <span
-                        key={src.key}
-                        className={`w-[5px] h-[5px] rounded-full transition-colors duration-200 ${
-                          isPresent ? src.color : src.emptyColor
-                        }`}
-                      />
-                    )
-                  })}
+                  {sourceFilter === null ? (
+                    SOURCE_META.map((src) => {
+                      const isPresent = cell.sources?.[src.key]?.present ?? false
+                      return (
+                        <span
+                          key={src.key}
+                          className={`w-[5px] h-[5px] rounded-full transition-colors duration-200 ${
+                            isPresent ? src.color : src.emptyColor
+                          }`}
+                        />
+                      )
+                    })
+                  ) : activeFilterMeta && (
+                    <span
+                      className={`w-[6px] h-[6px] rounded-full transition-colors duration-200 ${
+                        cell.sources?.[sourceFilter]?.present
+                          ? activeFilterMeta.color
+                          : activeFilterMeta.emptyColor
+                      }`}
+                    />
+                  )}
                 </div>
               </>
             )}
@@ -385,26 +508,41 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
       <div className="px-4 py-2 border-t border-slate-100 text-center">
         <span className={`text-xs font-medium ${gapCount > 0 ? "text-amber-600" : "text-emerald-600"}`}>
           {gapCount > 0
-            ? `${gapCount} business day${gapCount !== 1 ? "s" : ""} with gaps this month`
-            : "All business days fully covered ✓"
+            ? `${gapCount} business day${gapCount !== 1 ? "s" : ""} with ${sourceFilter !== null ? (activeFilterMeta?.label ?? '') + ' ' : ''}gaps this month`
+            : `All business days ${sourceFilter !== null ? (activeFilterMeta?.label ?? '') + ' ' : ''}fully covered ✓`
           }
         </span>
       </div>
 
       {/* Legend */}
       <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 px-4 py-2.5 border-t border-slate-100 text-[10px] text-slate-500">
-        <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded border border-emerald-200 bg-emerald-50" />
-          Synced
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded border border-amber-200 bg-amber-50/70" />
-          Partial
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded border border-rose-200 bg-rose-50/70" />
-          Missing
-        </span>
+        {sourceFilter === null ? (
+          <>
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded border border-emerald-200 bg-emerald-50" />
+              Synced
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded border border-amber-200 bg-amber-50/70" />
+              Partial
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded border border-rose-200 bg-rose-50/70" />
+              Missing
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded border border-emerald-200 bg-emerald-50" />
+              {activeFilterMeta?.label} Uploaded
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded border border-rose-200 bg-rose-50/70" />
+              {activeFilterMeta?.label} Missing
+            </span>
+          </>
+        )}
         <span className="flex items-center gap-1">
           <span className="w-2.5 h-2.5 rounded border border-blue-200 bg-blue-50" />
           Today

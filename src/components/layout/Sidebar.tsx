@@ -77,7 +77,7 @@ const navItems: NavItem[] = [
 export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(true)
   const [signingOut, setSigningOut] = useState(false)
 
   const [currentAgent, setCurrentAgent] = useState<any>(null)

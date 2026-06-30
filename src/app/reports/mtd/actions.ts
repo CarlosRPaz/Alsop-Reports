@@ -2,6 +2,25 @@
 
 import { supabase } from "@/lib/supabaseClient"
 import { unstable_noStore as noStore } from "next/cache"
+import { getAgencyKPITotals } from "@/lib/agencyKPI"
+
+/** Paginated Supabase fetch — loops .range() pages of 1000 to defeat the server-side max-rows cap. */
+async function fetchAllRows(
+  buildQuery: (from: number, to: number) => any
+): Promise<any[]> {
+  const PAGE_SIZE = 1000
+  let allData: any[] = []
+  let from = 0
+  while (true) {
+    const { data, error } = await buildQuery(from, from + PAGE_SIZE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    allData = allData.concat(data)
+    if (data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+  return allData
+}
 
 /**
  * Fetch all data needed for the Monthly Production Report.
@@ -22,26 +41,22 @@ export async function getMTDData(year: number, month: number) {
     const endDate = isCurrentMonth && todayStr < monthEndStr ? todayStr : monthEndStr
 
     // 1. Fetch all daily_metrics for the month range, joined with active & report-visible agents
-    const { data: dailyRows } = await supabase
-      .from("daily_metrics")
-      .select(`
-        *,
-        agents!inner(id, name, team, office, meeting_time, active, report_visible)
-      `)
-      .gte("report_date", startDate)
-      .lte("report_date", endDate)
-      .eq("agents.active", true)
-      .eq("agents.report_visible", true)
+    const dailyRows = await fetchAllRows((from, to) =>
+      supabase
+        .from("daily_metrics")
+        .select(`
+          *,
+          agents!inner(id, name, team, office, meeting_time, active, report_visible)
+        `)
+        .gte("report_date", startDate)
+        .lte("report_date", endDate)
+        .eq("agents.active", true)
+        .eq("agents.report_visible", true)
+        .range(from, to)
+    )
 
-    // 1b. Fetch ALL daily_metrics (unfiltered by active/visible) for agency-wide totals
-    const { data: allDailyRows } = await supabase
-      .from("daily_metrics")
-      .select(`
-        agent_id, nb_auto_items, prem_premium,
-        agents(office)
-      `)
-      .gte("report_date", startDate)
-      .lte("report_date", endDate)
+    // 1b. Agency-wide KPI totals — centralized paginated helper (no row-limit issues)
+    const agencyKPI = await getAgencyKPITotals(startDate, endDate)
 
     // 2. Fetch weekly manual metrics for the weeks starting in that month
     const { data: weeklyManual } = await supabase
@@ -118,11 +133,14 @@ export async function getMTDData(year: number, month: number) {
     const prevLastDay = new Date(prevYear, prevMonth, 0).getDate()
     const prevEndDate = `${prevYear}-${String(prevMonth).padStart(2, "0")}-${String(prevLastDay).padStart(2, "0")}`
 
-    const { data: prevMonthMetrics } = await supabase
-      .from("daily_metrics")
-      .select("agent_id, items")
-      .gte("report_date", prevStartDate)
-      .lte("report_date", prevEndDate)
+    const prevMonthMetrics = await fetchAllRows((from, to) =>
+      supabase
+        .from("daily_metrics")
+        .select("agent_id, nb_auto_items")
+        .gte("report_date", prevStartDate)
+        .lte("report_date", prevEndDate)
+        .range(from, to)
+    )
 
     // ── Aggregate daily rows into per-agent monthly totals ──
     const agentMap: Record<string, any> = {}
@@ -163,8 +181,8 @@ export async function getMTDData(year: number, month: number) {
       if (!hasQuoteRecords) {
         a.quotes += row.quotes || 0
       }
-      a.nb_count += row.nb_count || 0
-      a.items += row.items || 0
+      a.nb_count += row.nb_auto_count || 0
+      a.items += row.nb_auto_items || 0
       a.prem_premium += Number(row.prem_premium) || 0
       a.prem_points += Number(row.prem_points) || 0
       a.pivots += row.pivots || 0
@@ -178,21 +196,15 @@ export async function getMTDData(year: number, month: number) {
       }
     }
 
-    // ── Aggregate agency-wide MTD totals (all agents, not filtered) ──
-    let agencyItemsMTD = 0
-    const agencyOfficeMap: Record<string, number> = {}
-    for (const row of (allDailyRows || [])) {
-      const items = row.nb_auto_items || 0
-      agencyItemsMTD += items
-      const office = (row.agents as any)?.office || "Unknown"
-      agencyOfficeMap[office] = (agencyOfficeMap[office] || 0) + items
-    }
+    // ── Agency-wide MTD totals from centralized helper ──
+    const agencyItemsMTD = agencyKPI.totals.nb_auto_items
+    const agencyOfficeMap = agencyKPI.officeBreakdown
 
     // Previous month items mapping
     const prevItemsMap: Record<string, number> = {}
     if (prevMonthMetrics) {
       for (const m of prevMonthMetrics) {
-        prevItemsMap[m.agent_id] = (prevItemsMap[m.agent_id] || 0) + (m.items || 0)
+        prevItemsMap[m.agent_id] = (prevItemsMap[m.agent_id] || 0) + (m.nb_auto_items || 0)
       }
     }
 

@@ -287,7 +287,7 @@ function parseAutoDeduped(
 
   // 2. Filter strictly for Standard Auto
   if (columns.includes("Product")) {
-    filtered = filtered.filter((r) => str(r["Product"]) === "Standard Auto");
+    filtered = filtered.filter((r) => str(r["Product"]).toLowerCase() === "standard auto");
     logs.push(`[quotes-dedup] After Standard Auto filter: ${filtered.length} rows`);
   } else {
     logs.push("[quotes-dedup] WARNING: 'Product' column not found, skipping Standard Auto filter!");

@@ -2,6 +2,25 @@
 
 import { unstable_noStore as noStore } from "next/cache"
 import { supabase } from "@/lib/supabaseClient"
+import { getAgencyKPITotals } from "@/lib/agencyKPI"
+
+/** Paginated Supabase fetch — loops .range() pages of 1000 to defeat the server-side max-rows cap. */
+async function fetchAllRows(
+  buildQuery: (from: number, to: number) => any
+): Promise<any[]> {
+  const PAGE_SIZE = 1000
+  let allData: any[] = []
+  let from = 0
+  while (true) {
+    const { data, error } = await buildQuery(from, from + PAGE_SIZE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    allData = allData.concat(data)
+    if (data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+  return allData
+}
 
 export async function getDailyData(dateStr: string) {
   try {
@@ -57,32 +76,11 @@ export async function getDailyData(dateStr: string) {
       .gte("holiday_date", `${year}-01-01`)
       .lte("holiday_date", `${year}-12-31`)
 
-    // MTD items: use nb_auto_items (Standard Auto only) for ALL agents (including hidden/on-leave/archived)
-    // because the agency-wide KPI should count every item regardless of agent visibility.
-    // Hiding only removes agents from the per-agent report table — their data always counts.
-    const { data: mtdMetrics } = await supabase
-      .from("daily_metrics")
-      .select("agent_id, nb_auto_items, prem_premium, agents(office)")
-      .gte("report_date", firstDayOfMonth)
-      .lte("report_date", dateStr)
-
-    // Aggregate MTD items and premium per agent + agency-wide office breakdown
-    const mtdItemsMap: Record<string, number> = {}
-    const mtdPremiumMap: Record<string, number> = {}
-    const agencyOfficeMap: Record<string, number> = {}
-    let agencyItemsMTD = 0
-    if (mtdMetrics) {
-      mtdMetrics.forEach((m: any) => {
-        const autoItems = m.nb_auto_items || 0
-        mtdItemsMap[m.agent_id] = (mtdItemsMap[m.agent_id] || 0) + autoItems
-        mtdPremiumMap[m.agent_id] = (mtdPremiumMap[m.agent_id] || 0) + (Number(m.prem_premium) || 0)
-        agencyItemsMTD += autoItems
-
-        // Office breakdown for the stacked bar (includes all agents)
-        const office = m.agents?.office || "Other"
-        agencyOfficeMap[office] = (agencyOfficeMap[office] || 0) + autoItems
-      })
-    }
+    // MTD items: use centralized paginated helper to guarantee accurate agency-wide KPIs.
+    // This fetches ALL agents (including hidden/on-leave/archived) with proper pagination.
+    const agencyKPI = await getAgencyKPITotals(firstDayOfMonth, dateStr)
+    const agencyItemsMTD = agencyKPI.totals.nb_auto_items
+    const agencyOfficeMap = agencyKPI.officeBreakdown
 
     // Merge everything
     const merged = (metrics || []).map(m => {
@@ -90,8 +88,8 @@ export async function getDailyData(dateStr: string) {
       return { 
         ...m, 
         leads_snapshot: lead,
-        items_mtd: mtdItemsMap[m.agent_id] || 0,
-        premium_mtd: mtdPremiumMap[m.agent_id] || 0
+        items_mtd: agencyKPI.perAgentItems[m.agent_id] || 0,
+        premium_mtd: agencyKPI.perAgentPremium[m.agent_id] || 0
       }
     })
 
@@ -196,14 +194,37 @@ export async function getDailyCoverage(dateStr: string) {
       (l.contact || 0) > 0 || (l.quoted || 0) > 0 || (l.hot || 0) > 0 || (l.xsale || 0) > 0
     )
 
+    // Check which sources were actually uploaded by querying upload_history_files.
+    // This is the single source of truth for what was synced on a given date.
+    // For call sub-sources, we cannot infer RC vs Rico AP from daily_metrics alone
+    // because both write to the same columns (calls, inbound, outbound).
+    // For quotes/nb/premium, the file may cover a date where all values are 0
+    // (e.g., weekends) — we still mark the source as "synced" if the upload record exists.
+    const { data: uploadedFiles } = await supabase
+      .from("upload_history_files")
+      .select("file_type")
+      .eq("target_date", dateStr)
+
+    const uploadedTypes = new Set((uploadedFiles || []).map(f => f.file_type))
+
+    const callSubSources: Record<string, boolean> = {
+      rc: uploadedTypes.has("rc"),
+      rico_ch: uploadedTypes.has("rico_ch"),
+      rico_ap: uploadedTypes.has("rico_ap"),
+    }
+
+    // A source is "present" if either:
+    // 1. It has actual non-zero data in daily_metrics, OR
+    // 2. Its file type was uploaded for this date (e.g., quotes=0 on a weekend but file was synced)
+
     return {
       success: true,
       data: {
-        calls: { present: callsCount > 0, agentCount: callsCount },
-        texts: { present: textsCount > 0, agentCount: textsCount },
-        quotes: { present: quotesCount > 0, agentCount: quotesCount },
-        items: { present: itemsCount > 0, agentCount: itemsCount },
-        premium: { present: premiumCount > 0, agentCount: premiumCount },
+        calls: { present: callsCount > 0, agentCount: callsCount, subSources: callSubSources },
+        texts: { present: textsCount > 0 || uploadedTypes.has("hs"), agentCount: textsCount },
+        quotes: { present: quotesCount > 0 || uploadedTypes.has("quotes"), agentCount: quotesCount },
+        items: { present: itemsCount > 0 || uploadedTypes.has("nb"), agentCount: itemsCount },
+        premium: { present: premiumCount > 0 || uploadedTypes.has("premium"), agentCount: premiumCount },
         eagent: { present: eagentPresent, agentCount: eagentPresent ? 1 : 0 },
         leads: { present: leadsWithData.length > 0, agentCount: leadsWithData.length },
       }
@@ -224,17 +245,20 @@ export async function getDailyInsights(dateStr: string) {
     startDate.setDate(startDate.getDate() - 29) // 30 days total
     const startStr = startDate.toISOString().split("T")[0]
 
-    const { data: history } = await supabase
-      .from("daily_metrics")
-      .select(`
-        agent_id, report_date, calls, outbound, items, quotes, inbound, out_texts, talk_time_seconds,
-        agents!inner(id, name, team, office, meeting_time, report_visible, active)
-      `)
-      .gte("report_date", startStr)
-      .lte("report_date", dateStr)
-      .eq("agents.report_visible", true)
-      .eq("agents.active", true)
-      .order("report_date", { ascending: true })
+    const history = await fetchAllRows((from, to) =>
+      supabase
+        .from("daily_metrics")
+        .select(`
+          agent_id, report_date, calls, outbound, nb_auto_items, quotes, inbound, out_texts, talk_time_seconds,
+          agents!inner(id, name, team, office, meeting_time, report_visible, active)
+        `)
+        .gte("report_date", startStr)
+        .lte("report_date", dateStr)
+        .eq("agents.report_visible", true)
+        .eq("agents.active", true)
+        .order("report_date", { ascending: true })
+        .range(from, to)
+    )
 
     if (!history || history.length === 0) {
       return { success: true, data: { streaks: [] } }
@@ -253,7 +277,7 @@ export async function getDailyInsights(dateStr: string) {
       byAgent[row.agent_id].days.push({
         date: row.report_date,
         outbound: row.outbound || 0,
-        items: row.items || 0,
+        items: row.nb_auto_items || 0,
         quotes: row.quotes || 0,
         inbound: row.inbound || 0,
         out_texts: row.out_texts || 0,

@@ -611,7 +611,7 @@ export default function Home() {
         agg[key].outbound += m.outbound || 0;
         agg[key].talkTime += (m.talk_time_seconds || 0) / 3600; // hours
         agg[key].quotes += m.quotes || 0;
-        agg[key].nb_count += m.nb_count || 0;
+        agg[key].nb_count += m.nb_auto_count || 0;
       });
       return Object.entries(agg)
         .sort(([a], [b]) => a.localeCompare(b))
@@ -635,7 +635,7 @@ export default function Home() {
         agg[key].outbound += m.outbound || 0;
         agg[key].talkTime += (m.talk_time_seconds || 0) / 3600;
         agg[key].quotes += m.quotes || 0;
-        agg[key].nb_count += m.nb_count || 0;
+        agg[key].nb_count += m.nb_auto_count || 0;
       });
       return Object.values(agg).sort((a: any, b: any) => a._date.localeCompare(b._date));
     } else {
@@ -657,7 +657,7 @@ export default function Home() {
         agg[key].outbound += m.outbound || 0;
         agg[key].talkTime += (m.talk_time_seconds || 0) / 3600;
         agg[key].quotes += m.quotes || 0;
-        agg[key].nb_count += m.nb_count || 0;
+        agg[key].nb_count += m.nb_auto_count || 0;
       });
       return Object.values(agg).sort((a: any, b: any) => a._key.localeCompare(b._key));
     }

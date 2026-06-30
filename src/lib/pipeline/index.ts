@@ -307,6 +307,77 @@ export async function processUploadedFiles(
       datesProcessed.push(targetDate)
     }
 
+    // Record upload history for source-tracking (used by getDailyCoverage sub-source detection)
+    try {
+      const { data: uploadRow } = await supabase
+        .from("upload_history")
+        .insert({
+          target_date: defaultDate,
+          status: "success",
+          file_count: files.filter(f => f.type !== "unknown").length,
+          source_types: actualTypes,
+          logs: allLogs.join("\n").substring(0, 2000),
+        })
+        .select("id")
+        .single()
+
+      if (uploadRow?.id) {
+        const fileRows = files
+          .filter(f => f.type !== "unknown")
+          .map(f => ({
+            upload_id: uploadRow.id,
+            filename: f.file.name,
+            file_type: f.type,
+            file_label: f.label,
+            has_internal_date: f.hasInternalDate,
+            target_date: f.dateOverride || defaultDate,
+            file_size_bytes: f.file.size,
+            status: "active",
+          }))
+
+        // For internal-date files that span multiple dates, create records for
+        // every date in the range (min → max) so that dates with 0 rows still
+        // show as "synced" in the Source Checklist.
+        const internalFiles = files.filter(f => f.hasInternalDate && f.type !== "unknown")
+        if (internalFiles.length > 0 && allDates.size > 0) {
+          const sortedAllDates = [...allDates].sort()
+          const minDate = sortedAllDates[0]
+          const maxDate = sortedAllDates[sortedAllDates.length - 1]
+
+          // Generate every date from min to max
+          const rangeDates: string[] = []
+          const cur = new Date(minDate + "T12:00:00Z")
+          const end = new Date(maxDate + "T12:00:00Z")
+          while (cur <= end) {
+            const ds = cur.toISOString().slice(0, 10)
+            if (ds !== (internalFiles[0].dateOverride || defaultDate)) {
+              rangeDates.push(ds)
+            }
+            cur.setUTCDate(cur.getUTCDate() + 1)
+          }
+
+          for (const dp of rangeDates) {
+            for (const f of internalFiles) {
+              fileRows.push({
+                upload_id: uploadRow.id,
+                filename: f.file.name,
+                file_type: f.type,
+                file_label: f.label,
+                has_internal_date: true,
+                target_date: dp,
+                file_size_bytes: f.file.size,
+                status: "active",
+              })
+            }
+          }
+        }
+
+        await supabase.from("upload_history_files").insert(fileRows)
+      }
+    } catch (historyErr) {
+      log(`[Warning] Failed to record upload history: ${historyErr instanceof Error ? historyErr.message : String(historyErr)}`)
+    }
+
     log("")
     log("=" .repeat(60))
     log(`  UPLOAD COMPLETE — ${datesProcessed.length} date(s) processed`)

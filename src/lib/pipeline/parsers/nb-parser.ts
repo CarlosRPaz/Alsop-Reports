@@ -372,7 +372,7 @@ function parseAuto(
 
   // 2. Filter strictly for Standard Auto
   if (columns.includes("Product")) {
-    filtered = filtered.filter((r) => str(r["Product"]) === "Standard Auto");
+    filtered = filtered.filter((r) => str(r["Product"]).toLowerCase() === "standard auto");
     logs.push(`[nb-auto] After Standard Auto filter: ${filtered.length} rows`);
   } else {
     logs.push("[nb-auto] WARNING: 'Product' column not found, skipping Standard Auto filter!");
@@ -381,7 +381,7 @@ function parseAuto(
   // 3. Filter strictly for New Policy Issued
   if (columns.includes("Disposition Code")) {
     filtered = filtered.filter(
-      (r) => str(r["Disposition Code"]) === "New Policy Issued",
+      (r) => str(r["Disposition Code"]).toLowerCase() === "new policy issued",
     );
     logs.push(`[nb-auto] After New Policy Issued filter: ${filtered.length} rows`);
   } else {
