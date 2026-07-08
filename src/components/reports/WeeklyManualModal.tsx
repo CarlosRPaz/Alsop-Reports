@@ -81,13 +81,13 @@ const EMPTY_ROW: ManualRow = {
 }
 
 const FIELD_CONFIG = [
-  { key: "unique_leads" as const, label: "Unique Leads", short: "Leads", color: "text-blue-600", auto: false },
-  { key: "rico_hot_pipeline" as const, label: "Rico Hot", short: "Hot", color: "text-orange-600", auto: false },
-  { key: "pivot" as const, label: "#PIVOT", short: "Pivot", color: "text-cyan-600", auto: true },
-  { key: "saved" as const, label: "#SAVED", short: "Saved", color: "text-emerald-600", auto: false },
-  { key: "dismissed_todos" as const, label: "Dismissed", short: "Dism", color: "text-violet-600", auto: true },
-  { key: "past_due_todos" as const, label: "Past Due", short: "PD", color: "text-rose-600", auto: false },
-  { key: "rico_past_due_tasks" as const, label: "Rico PD", short: "RPD", color: "text-amber-600", auto: false },
+  { key: "unique_leads" as const, label: "Unique Leads", short: "Leads", color: "text-blue-600", auto: false, dividerLeft: false },
+  { key: "rico_hot_pipeline" as const, label: "Rico Hot", short: "Hot", color: "text-orange-600", auto: false, dividerLeft: false },
+  { key: "pivot" as const, label: "#PIVOT", short: "Pivot", color: "text-cyan-600", auto: true, dividerLeft: true },
+  { key: "saved" as const, label: "#SAVED", short: "Saved", color: "text-emerald-600", auto: false, dividerLeft: false },
+  { key: "dismissed_todos" as const, label: "Dismissed", short: "Dism", color: "text-violet-600", auto: true, dividerLeft: true },
+  { key: "past_due_todos" as const, label: "Past Due", short: "PD", color: "text-rose-600", auto: false, dividerLeft: false },
+  { key: "rico_past_due_tasks" as const, label: "Rico PD", short: "RPD", color: "text-amber-600", auto: false, dividerLeft: true },
 ]
 
 export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, agents, onSuccess, autoSums, manualSubmitted, eagentComplete = false }: WeeklyManualModalProps) {
@@ -235,7 +235,7 @@ export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, ag
               <tr className="border-b border-slate-200">
                 <th className="py-1.5 px-2 text-[9px] uppercase tracking-wider text-slate-500 font-semibold whitespace-nowrap">Agent</th>
                 {FIELD_CONFIG.map(f => (
-                  <th key={f.key} className={`py-1.5 px-1 text-[9px] uppercase tracking-wider ${f.color} font-semibold text-center whitespace-nowrap`}>
+                  <th key={f.key} className={`py-1.5 px-1 text-[9px] uppercase tracking-wider ${f.color} font-semibold text-center whitespace-nowrap${f.dividerLeft ? ' border-l-2 border-slate-400' : ''}`}>
                     <span className="flex flex-col items-center justify-center gap-0.5">
                       <span className="flex items-center justify-center gap-1">
                         {f.label}
@@ -280,7 +280,7 @@ export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, ag
                       <span className="text-xs font-medium text-slate-700 whitespace-nowrap">{agent.agents?.name}</span>
                     </td>
                     {FIELD_CONFIG.map(f => (
-                      <td key={f.key} className="py-1 px-1">
+                      <td key={f.key} className={`py-1 px-1${f.dividerLeft ? ' border-l-2 border-slate-400' : ''}`}>
                         <div className="flex justify-center">
                           <Stepper
                             value={d[f.key]}

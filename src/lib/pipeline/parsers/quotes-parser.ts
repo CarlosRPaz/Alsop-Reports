@@ -217,16 +217,23 @@ function parseBasic(
     logs.push(`[quotes] Filtered to targetDate=${targetDate}: ${filtered.length} rows`);
   }
 
-  // Resolve agent via Spine
+  // Resolve agent via Spine (fallback to "Other" instead of dropping, so agency totals are accurate)
   const resolved: (typeof rows[0] & { Agent: string })[] = [];
+  let unmappedCount = 0;
   for (const row of filtered) {
-    const agent = spine.resolveAgent(str(row["Sub Producer"]));
-    if (agent) {
-      (row as Record<string, unknown>)["Agent"] = agent;
-      resolved.push(row as typeof rows[0] & { Agent: string });
+    const subProducer = str(row["Sub Producer"]);
+    // Extract name portion after sub-producer code (e.g. "387-ALEX CLANCY" → "ALEX CLANCY")
+    let excelName = subProducer;
+    if (subProducer.includes("-")) {
+      const parts = subProducer.split("-");
+      excelName = parts.slice(1).join("-").trim() || parts[0].trim();
     }
+    const agent = excelName ? spine.resolveAgent(excelName) : null;
+    (row as Record<string, unknown>)["Agent"] = agent || "Other";
+    resolved.push(row as typeof rows[0] & { Agent: string });
+    if (!agent) unmappedCount++;
   }
-  logs.push(`[quotes] Resolved ${resolved.length} rows to agents (${filtered.length - resolved.length} unmapped/dropped)`);
+  logs.push(`[quotes] Resolved ${resolved.length} rows to agents (${unmappedCount} mapped to "Other")`);
 
   // Build individual quote records for Supabase
   const quoteRecords: QuoteRecord[] = resolved.map((row) => ({

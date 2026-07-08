@@ -3,6 +3,27 @@
 import { supabase } from "@/lib/supabaseClient"
 import { unstable_noStore as noStore } from "next/cache"
 
+const PAGE_SIZE = 1000
+
+/**
+ * Paginated Supabase fetch — loops .range() to get ALL rows, defeating the 1000-row cap.
+ */
+async function fetchAllRows(
+  buildQuery: (from: number, to: number) => any
+): Promise<any[]> {
+  let allData: any[] = []
+  let from = 0
+  while (true) {
+    const { data, error } = await buildQuery(from, from + PAGE_SIZE - 1)
+    if (error) throw error
+    if (!data || data.length === 0) break
+    allData = allData.concat(data)
+    if (data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+  return allData
+}
+
 // ── Types ──
 
 export interface AgentInfo {
@@ -182,11 +203,15 @@ export async function getAgentMonthlyData(
       .order("report_date", { ascending: true })
 
     // Fetch ALL agents' aggregated metrics for the same period (for rankings)
-    const { data: allMetrics } = await supabase
-      .from("daily_metrics")
-      .select("agent_id, quotes, quotes_deduped, nb_auto_count, nb_auto_items, calls, talk_time_seconds, written_premium, dismissed_todos, pivots")
-      .gte("report_date", startDate)
-      .lte("report_date", endDate)
+    // Use paginated fetch to avoid Supabase's default 1000-row limit
+    const allMetrics = await fetchAllRows((from, to) =>
+      supabase
+        .from("daily_metrics")
+        .select("agent_id, quotes, quotes_deduped, nb_auto_count, nb_auto_items, calls, talk_time_seconds, written_premium, dismissed_todos, pivots")
+        .gte("report_date", startDate)
+        .lte("report_date", endDate)
+        .range(from, to)
+    )
 
     // Fetch all active agents to get team info
     const { data: allAgents } = await supabase

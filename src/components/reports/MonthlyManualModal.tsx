@@ -127,24 +127,33 @@ export function MonthlyManualModal({ isOpen, onClose, year, month, metrics, onSu
       .single()
 
     // Build per-agent aggregations (sum for the week)
+    // Pre-populate with ALL active/visible agents so new agents show up
+    const { data: allActiveAgents } = await supabase
+      .from("agents")
+      .select("id, name, team, office, meeting_time, active, report_visible")
+      .eq("active", true)
+      .eq("report_visible", true)
+
     const agentMap: Record<string, any> = {}
+    for (const agent of (allActiveAgents || [])) {
+      agentMap[agent.id] = {
+        agent_id: agent.id,
+        agents: agent,
+        pivot: 0,
+        dismissed_todos: 0,
+        unique_leads: 0,
+        rico_hot_pipeline: 0,
+        saved: 0,
+        past_due_todos: 0,
+        rico_past_due_tasks: 0,
+        w_dismissed_todos: 0,
+        w_past_due_todos: 0,
+      }
+    }
+
     for (const row of (weeklyData || [])) {
       const aid = row.agent_id
-      if (!agentMap[aid]) {
-        agentMap[aid] = {
-          agent_id: aid,
-          agents: row.agents,
-          pivot: 0,
-          dismissed_todos: 0,
-          unique_leads: 0,
-          rico_hot_pipeline: 0,
-          saved: 0,
-          past_due_todos: 0,
-          rico_past_due_tasks: 0,
-          w_dismissed_todos: 0,
-          w_past_due_todos: 0,
-        }
-      }
+      if (!agentMap[aid]) continue
       agentMap[aid].pivot += row.pivots || 0
       agentMap[aid].dismissed_todos += row.dismissed_todos || 0
     }

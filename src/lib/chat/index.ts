@@ -17,6 +17,7 @@ export {
 // Conversations
 export {
   fetchConversationsForAgent,
+  toggleConversationPin,
   createConversation,
   getOrCreateDirectDM,
   updateConversation,

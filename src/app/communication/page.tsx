@@ -5,6 +5,7 @@ import { useChat } from "@/lib/chat/chatContext"
 import { supabase } from "@/lib/supabaseClient"
 import {
   fetchConversationsForAgent,
+  toggleConversationPin,
   autoJoinDefaultChannels,
   fetchMessages,
   sendMessage,
@@ -469,6 +470,23 @@ export default function CommunicationHub() {
             setShowCreateModal(true)
           }}
           onStatusChange={handleStatusChange}
+          onTogglePin={async (convId, currentlyPinned) => {
+            // Optimistic update
+            setConversations(prev => {
+              const updated = prev.map(c => c.id === convId ? { ...c, is_pinned: !currentlyPinned } : c)
+              // Re-sort: pinned first, then by last message time
+              updated.sort((a, b) => {
+                if (a.is_pinned && !b.is_pinned) return -1
+                if (!a.is_pinned && b.is_pinned) return 1
+                const aTime = a.last_message?.created_at ?? a.updated_at
+                const bTime = b.last_message?.created_at ?? b.updated_at
+                return new Date(bTime).getTime() - new Date(aTime).getTime()
+              })
+              return updated
+            })
+            // Persist to DB
+            await toggleConversationPin(convId, currentAgent.id, !currentlyPinned)
+          }}
         />
 
         {/* Main Chat Area */}

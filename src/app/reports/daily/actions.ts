@@ -82,8 +82,34 @@ export async function getDailyData(dateStr: string) {
     const agencyItemsMTD = agencyKPI.totals.nb_auto_items
     const agencyOfficeMap = agencyKPI.officeBreakdown
 
+    // Backfill: ensure all active + report-visible agents are represented,
+    // even if they have no daily_metrics row for this date yet.
+    const { data: allActiveAgents } = await supabase
+      .from("agents")
+      .select("id, name, team, office, meeting_time, report_visible, active")
+      .eq("active", true)
+      .eq("report_visible", true)
+
+    const existingIds = new Set((metrics || []).map((m: any) => m.agent_id))
+    const backfilled = [...(metrics || [])]
+    for (const agent of (allActiveAgents || [])) {
+      if (!existingIds.has(agent.id)) {
+        backfilled.push({
+          agent_id: agent.id,
+          report_date: dateStr,
+          agents: agent,
+          calls: 0, inbound: 0, outbound: 0, talk_time_seconds: 0,
+          texts: 0, out_texts: 0, opt_ins: 0, opt_outs: 0,
+          quotes: 0, quotes_deduped: 0,
+          nb_count: 0, nb_auto_count: 0, items: 0, nb_auto_items: 0,
+          written_premium: 0, prem_premium: 0, prem_items: 0, prem_points: 0,
+          dismissed_todos: 0, past_due_todos: 0, pivots: 0,
+        })
+      }
+    }
+
     // Merge everything
-    const merged = (metrics || []).map(m => {
+    const merged = backfilled.map(m => {
       const lead = leads?.find(l => l.agent_id === m.agent_id) || { contact: 0, quoted: 0, hot: 0, xsale: 0 }
       return { 
         ...m, 
@@ -92,9 +118,6 @@ export async function getDailyData(dateStr: string) {
         premium_mtd: agencyKPI.perAgentPremium[m.agent_id] || 0
       }
     })
-
-    // If there are NO metrics for this date, but we have agents, we might want to return an empty array
-    // Or we could return a list of agents with 0s. The python script usually creates rows for active agents.
     
     return {
       success: true,
@@ -116,19 +139,41 @@ export async function getDailyData(dateStr: string) {
 
 export async function saveEAgentData(dateStr: string, updates: { agent_id: string, dismissed: number, pastDue: number, pivots: number }[]) {
   try {
-    // We need to upsert the daily_metrics for each agent with the new eagent data
-    // Since we don't want to overwrite other metrics, we have to do an update
+    // For each agent, try to update the existing row first.
+    // If no row exists (new agent with no metrics yet), insert one.
     for (const update of updates) {
-      await supabase
+      const { data: existing } = await supabase
         .from("daily_metrics")
-        .update({
-          dismissed_todos: update.dismissed,
-          past_due_todos: update.pastDue,
-          pivots: update.pivots,
-          updated_at: new Date().toISOString()
-        })
+        .select("id")
         .eq("report_date", dateStr)
         .eq("agent_id", update.agent_id)
+        .maybeSingle()
+
+      if (existing) {
+        // Row exists — update only the eAgent fields
+        await supabase
+          .from("daily_metrics")
+          .update({
+            dismissed_todos: update.dismissed,
+            past_due_todos: update.pastDue,
+            pivots: update.pivots,
+            updated_at: new Date().toISOString()
+          })
+          .eq("report_date", dateStr)
+          .eq("agent_id", update.agent_id)
+      } else {
+        // No row yet — insert a new one with eAgent data (all other fields default to 0)
+        await supabase
+          .from("daily_metrics")
+          .insert({
+            agent_id: update.agent_id,
+            report_date: dateStr,
+            dismissed_todos: update.dismissed,
+            past_due_todos: update.pastDue,
+            pivots: update.pivots,
+            updated_at: new Date().toISOString()
+          })
+      }
     }
 
     // Mark as submitted in meta table

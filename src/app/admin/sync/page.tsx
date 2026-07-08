@@ -8,6 +8,7 @@ import {
   Database, AlertCircle, CheckCircle2, Terminal, RefreshCw, CalendarDays,
   Upload, X, FileSpreadsheet, Phone, MessageSquare, FileText, Package,
   DollarSign, Zap, Loader2, ChevronDown, Info, ShieldCheck, ExternalLink, Monitor, Pencil,
+  ChevronLeft, ChevronRight,
 } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
 import SyncCalendar from "@/components/ui/SyncCalendar"
@@ -150,6 +151,22 @@ export default function DataSyncPage() {
     d.setDate(d.getDate() - 1)
     return d.toISOString().split("T")[0]
   })
+
+  const adjustDate = (days: number) => {
+    const parts = date.split('-')
+    if (parts.length !== 3) return
+    const year = parseInt(parts[0], 10)
+    const month = parseInt(parts[1], 10) - 1
+    const day = parseInt(parts[2], 10)
+    
+    const d = new Date(year, month, day)
+    d.setDate(d.getDate() + days)
+    
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const r = String(d.getDate()).padStart(2, '0')
+    setDate(`${y}-${m}-${r}`)
+  }
   const [dbStatus, setDbStatus] = useState<"checking" | "connected" | "error">("checking")
   const [agentCount, setAgentCount] = useState<number>(0)
   const [metricsCount, setMetricsCount] = useState<number>(0)
@@ -425,17 +442,36 @@ export default function DataSyncPage() {
       {/* ═══ Date Picker + DB Health Row ═══ */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
         {/* Date Picker */}
-        <div className="flex items-center gap-3">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Report Date</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-shadow"
-            />
-          </div>
-          <div className="pt-5">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Report Date</label>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                onClick={() => adjustDate(-1)}
+                className="h-10 w-10 p-0 flex items-center justify-center border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:scale-95 transition-all"
+                title="Previous Day"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </Button>
+              
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-shadow h-10 w-44"
+              />
+              
+              <Button
+                variant="outline"
+                onClick={() => adjustDate(1)}
+                className="h-10 w-10 p-0 flex items-center justify-center border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:scale-95 transition-all"
+                title="Next Day"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </Button>
+            </div>
+            
             <p className="text-sm text-slate-600 font-medium">{formattedDate}</p>
           </div>
         </div>

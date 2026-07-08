@@ -73,6 +73,8 @@ export default function QuotesPage() {
     periodLabel: string
     lastDataDate: string
     mtdItems: number
+    rawQuotesTotal: number
+    agencyTotals: { totalQuotes: number; totalNB: number; totalItems: number }
     dateRangeEnd: string
   } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -86,7 +88,7 @@ export default function QuotesPage() {
   const [dupeLoading, setDupeLoading] = useState(false)
   const [dupeSearch, setDupeSearch] = useState("")
   const [rawYtdData, setRawYtdData] = useState<YTDAgentRawPoint[]>([])
-  const [ytdGroupBy, setYtdGroupBy] = useState<"weekly" | "monthly">("weekly")
+  const [ytdGroupBy, setYtdGroupBy] = useState<"weekly" | "monthly">("monthly")
   const [highlightedLines, setHighlightedLines] = useState<Set<string>>(new Set())
   const [isMounted, setIsMounted] = useState(false)
   const [showKpiDefs, setShowKpiDefs] = useState(false)
@@ -403,20 +405,25 @@ export default function QuotesPage() {
     return rows
   }, [computedRows, sortField, sortDir])
 
-  // ── Agency (Unfiltered) Totals ──
+  // ── Agency (Unfiltered) Totals — includes hidden agents ──
   const agencyTotals = useMemo(() => {
-    if (!data) return { totalNB: 0, totalQuotes: 0, cr: 0 }
-    const totalNB = data.agents.reduce((s, r) => s + r.nb_policies, 0)
-    const totalQuotes = data.agents.reduce((s, r) => s + r.quote_count, 0)
+    if (!data) return { totalNB: 0, totalQuotes: 0, totalItems: 0, cr: 0 }
+    // Use server-provided totals that include ALL agents (even non-visible ones)
+    const totalNB = data.agencyTotals?.totalNB ?? data.agents.reduce((s, r) => s + r.nb_policies, 0)
+    const totalQuotes = data.agencyTotals?.totalQuotes ?? data.agents.reduce((s, r) => s + r.quote_count, 0)
+    const totalItems = data.agencyTotals?.totalItems ?? data.mtdItems
     const cr = pct(totalNB, totalQuotes)
-    return { totalNB, totalQuotes, cr }
+    return { totalNB, totalQuotes, totalItems, cr }
   }, [data])
 
-  // ── Totals ──
+  // ── Totals (filtered view or agency-wide when no filters) ──
   const totals = useMemo(() => {
-    const totalNB = computedRows.reduce((s, r) => s + r.nb_policies, 0)
-    const totalQuotes = computedRows.reduce((s, r) => s + r.quote_count, 0)
-    const totalItems = computedRows.reduce((s, r) => s + r.items, 0)
+    const noFilters = filters.offices.length === 0 && filters.teams.length === 0 && filters.agents.length === 0
+    
+    // When no filters, use agency-wide totals (includes hidden agents)
+    const totalNB = noFilters ? agencyTotals.totalNB : computedRows.reduce((s, r) => s + r.nb_policies, 0)
+    const totalQuotes = noFilters ? agencyTotals.totalQuotes : computedRows.reduce((s, r) => s + r.quote_count, 0)
+    const totalItems = noFilters ? agencyTotals.totalItems : computedRows.reduce((s, r) => s + r.items, 0)
     const cr = pct(totalNB, totalQuotes)
     const bizTotal = data?.businessDaysTotal || 0
     const bizPassed = data?.businessDaysPassed || 0
@@ -426,7 +433,7 @@ export default function QuotesPage() {
     const dailyActual = bizPassed > 0 ? totalQuotes / bizPassed : 0
 
     return { totalNB, totalQuotes, totalItems, cr, monthlyTarget, dailyGoal, benchmark, dailyActual }
-  }, [computedRows, data])
+  }, [computedRows, data, agencyTotals, filters])
 
   const filteredItemsCount = useMemo(() => {
     const noFilters = filters.offices.length === 0 && filters.teams.length === 0 && filters.agents.length === 0
@@ -464,6 +471,89 @@ export default function QuotesPage() {
       .map(([office, v]) => ({ office, cr: pct(v.nb, v.quotes), nb: v.nb, quotes: v.quotes, items: v.items }))
       .sort((a, b) => b.cr - a.cr)
   }, [computedRows])
+
+  // ── Monthly CR Breakdown by Team & Office (for YTD view) ──
+  const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+  const monthlyCrBreakdown = useMemo(() => {
+    if (!rawYtdData || rawYtdData.length === 0 || !agentMetadataMap) {
+      return { teams: [] as { name: string; ytdCr: number; months: { label: string; cr: number; nb: number; quotes: number }[] }[],
+               offices: [] as { name: string; ytdCr: number; months: { label: string; cr: number; nb: number; quotes: number }[] }[],
+               monthLabels: [] as string[] }
+    }
+
+    // Only use monthly-grouped data
+    // Each rawYtdData point has agent_id, label ("Jan","Feb",...), sortKey ("2026-01",...), quotes, nb, items
+    type Bucket = { nb: number; quotes: number }
+    const teamByMonth: Record<string, Record<string, Bucket>> = {}
+    const officeByMonth: Record<string, Record<string, Bucket>> = {}
+    const teamYtd: Record<string, Bucket> = {}
+    const officeYtd: Record<string, Bucket> = {}
+    const allMonthKeys = new Set<string>()
+
+    for (const point of rawYtdData) {
+      const meta = agentMetadataMap.get(point.agent_id)
+      if (!meta) continue
+      const team = meta.team || "N/A"
+      const office = meta.office || "N/A"
+      if (team === "N/A" && office === "N/A") continue
+
+      // Determine month label from sortKey (e.g., "2026-01" → "Jan")
+      const monthIdx = parseInt(point.sortKey.split("-")[1]) - 1
+      const monthLabel = MONTH_SHORT[monthIdx]
+      if (!monthLabel) continue
+      allMonthKeys.add(point.sortKey)
+
+      // Team
+      if (team !== "N/A") {
+        if (!teamByMonth[team]) teamByMonth[team] = {}
+        if (!teamByMonth[team][monthLabel]) teamByMonth[team][monthLabel] = { nb: 0, quotes: 0 }
+        teamByMonth[team][monthLabel].nb += point.nb
+        teamByMonth[team][monthLabel].quotes += point.quotes
+        if (!teamYtd[team]) teamYtd[team] = { nb: 0, quotes: 0 }
+        teamYtd[team].nb += point.nb
+        teamYtd[team].quotes += point.quotes
+      }
+
+      // Office
+      if (office !== "N/A") {
+        if (!officeByMonth[office]) officeByMonth[office] = {}
+        if (!officeByMonth[office][monthLabel]) officeByMonth[office][monthLabel] = { nb: 0, quotes: 0 }
+        officeByMonth[office][monthLabel].nb += point.nb
+        officeByMonth[office][monthLabel].quotes += point.quotes
+        if (!officeYtd[office]) officeYtd[office] = { nb: 0, quotes: 0 }
+        officeYtd[office].nb += point.nb
+        officeYtd[office].quotes += point.quotes
+      }
+    }
+
+    // Build ordered month labels from sortKeys
+    const sortedMonthKeys = [...allMonthKeys].sort()
+    const monthLabels = sortedMonthKeys.map(k => MONTH_SHORT[parseInt(k.split("-")[1]) - 1])
+
+    const buildRows = (
+      byMonth: Record<string, Record<string, Bucket>>,
+      ytdTotals: Record<string, Bucket>
+    ) => {
+      return Object.keys(byMonth)
+        .sort()
+        .map(name => {
+          const ytd = ytdTotals[name] || { nb: 0, quotes: 0 }
+          const ytdCr = pct(ytd.nb, ytd.quotes)
+          const months = monthLabels.map(ml => {
+            const b = byMonth[name]?.[ml] || { nb: 0, quotes: 0 }
+            return { label: ml, cr: pct(b.nb, b.quotes), nb: b.nb, quotes: b.quotes }
+          })
+          return { name, ytdCr, months }
+        })
+    }
+
+    return {
+      teams: buildRows(teamByMonth, teamYtd),
+      offices: buildRows(officeByMonth, officeYtd),
+      monthLabels,
+    }
+  }, [rawYtdData, agentMetadataMap])
 
   // ── Sort handler ──
   function handleSort(field: SortField) {
@@ -700,7 +790,7 @@ export default function QuotesPage() {
               <span className="text-xl font-bold text-blue-700">{totals.totalQuotes}</span>
             </div>
             <div className="mt-1 text-xs text-slate-400">
-              {totals.totalNB} policies · {totals.totalQuotes} quotes
+              {totals.totalNB} policies · {totals.totalQuotes} deduped quotes{data?.rawQuotesTotal ? ` · ${data.rawQuotesTotal} Std Auto total` : ""}
             </div>
           </div>
         </div>
@@ -944,6 +1034,105 @@ export default function QuotesPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* ── Monthly CR Breakdown Tables (YTD only) ── */}
+      {data && !loading && mode === "ytd" && monthlyCrBreakdown.monthLabels.length > 0 && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+          {/* Team Monthly CR */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                <Users className="w-4 h-4 text-blue-500" />
+                Close Rate by Team — Monthly Breakdown
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="text-left py-1.5 px-2 font-semibold text-slate-600 sticky left-0 bg-white">Team</th>
+                    <th className="text-center py-1.5 px-2 font-semibold text-slate-600">YTD CR</th>
+                    {monthlyCrBreakdown.monthLabels.map(ml => (
+                      <th key={ml} className="text-center py-1.5 px-2 font-semibold text-slate-500">{ml} CR</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyCrBreakdown.teams.map(row => (
+                    <tr key={row.name} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="py-1.5 px-2 font-medium text-slate-700 sticky left-0 bg-white">{row.name}</td>
+                      <td className="py-1.5 px-2 text-center">
+                        <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${crColorClass(row.ytdCr)}`}>
+                          {fmtPct(row.ytdCr)}
+                        </span>
+                      </td>
+                      {row.months.map(m => (
+                        <td key={m.label} className="py-1.5 px-2 text-center">
+                          {m.quotes > 0 ? (
+                            <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${crColorClass(m.cr)}`}
+                                  title={`${m.nb} NB / ${m.quotes} Q`}>
+                              {fmtPct(m.cr)}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+
+          {/* Office Monthly CR */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-purple-500" />
+                Close Rate by Office — Monthly Breakdown
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="text-left py-1.5 px-2 font-semibold text-slate-600 sticky left-0 bg-white">Office</th>
+                    <th className="text-center py-1.5 px-2 font-semibold text-slate-600">YTD CR</th>
+                    {monthlyCrBreakdown.monthLabels.map(ml => (
+                      <th key={ml} className="text-center py-1.5 px-2 font-semibold text-slate-500">{ml} CR</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyCrBreakdown.offices.map(row => (
+                    <tr key={row.name} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="py-1.5 px-2 font-medium text-slate-700 sticky left-0 bg-white">{row.name}</td>
+                      <td className="py-1.5 px-2 text-center">
+                        <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${crColorClass(row.ytdCr)}`}>
+                          {fmtPct(row.ytdCr)}
+                        </span>
+                      </td>
+                      {row.months.map(m => (
+                        <td key={m.label} className="py-1.5 px-2 text-center">
+                          {m.quotes > 0 ? (
+                            <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${crColorClass(m.cr)}`}
+                                  title={`${m.nb} NB / ${m.quotes} Q`}>
+                              {fmtPct(m.cr)}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* ── Daily Trend Chart (MTD / Monthly only) ── */}

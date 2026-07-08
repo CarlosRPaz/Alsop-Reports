@@ -11,7 +11,7 @@ import { TrendChart } from "@/components/charts/TrendChart"
 import { Badge } from "@/components/ui/Badge"
 import {
   ArrowLeft, CalendarDays, Phone, MessageSquare,
-  FileBarChart, ShieldCheck, Star, Trophy, Users, AlertTriangle, AlertCircle
+  FileBarChart, ShieldCheck, DollarSign, Trophy, Users, AlertTriangle, AlertCircle, Package
 } from "lucide-react"
 
 // Month options (past 12 months)
@@ -199,7 +199,24 @@ export default function AgentDashboardPage() {
       ) : (
         <>
           {/* ── KPI Grid ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <Card>
+              <CardContent className="p-5 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
+                  <Package className="w-6 h-6 text-indigo-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-500">Items {isCurrentMonth ? "MTD" : ""}</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-slate-900">{kpis.items}</span>
+                    <span className="text-xs font-medium text-slate-400">
+                      pacing: {Math.round((kpis.items / businessDaysPassed) * businessDaysTotal)}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardContent className="p-5 flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
@@ -254,7 +271,7 @@ export default function AgentDashboardPage() {
             <Card>
               <CardContent className="p-5 flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
-                  <Star className="w-6 h-6 text-amber-600" />
+                  <DollarSign className="w-6 h-6 text-amber-600" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-slate-500">Written Premium</p>

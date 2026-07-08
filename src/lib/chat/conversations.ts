@@ -120,6 +120,32 @@ export async function fetchConversationsForAgent(
 }
 
 // ---------------------------------------------------------------------------
+// Pin / unpin a conversation (user-specific)
+// ---------------------------------------------------------------------------
+
+/**
+ * Toggle the `pinned` flag on a user's membership row.
+ * Returns the new pinned state.
+ */
+export async function toggleConversationPin(
+  conversationId: string,
+  agentId: string,
+  pinned: boolean,
+): Promise<boolean> {
+  const { error } = await supabase
+    .from('chat_conversation_members')
+    .update({ pinned })
+    .eq('conversation_id', conversationId)
+    .eq('agent_id', agentId)
+
+  if (error) {
+    console.error('[conversations] Failed to toggle pin:', error)
+    return !pinned // return previous state on failure
+  }
+  return pinned
+}
+
+// ---------------------------------------------------------------------------
 // Create conversation
 // ---------------------------------------------------------------------------
 

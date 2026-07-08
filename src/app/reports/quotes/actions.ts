@@ -58,6 +58,12 @@ export interface QuotesDataResult {
   dateRangeEnd: string
   lastDataDate: string    // Most recent date with quote or NB data
   mtdItems: number        // Total items (daily_metrics.items) in the period
+  rawQuotesTotal: number  // Non-deduped Standard Auto quote count (from quote_records)
+  agencyTotals: {         // Totals including ALL agents (even hidden ones)
+    totalQuotes: number
+    totalNB: number
+    totalItems: number
+  }
   holidays: { holiday_date: string; name: string }[]
 }
 
@@ -158,7 +164,30 @@ export async function getQuotesData(
       }
     }
 
-    // Build result rows (only agents with at least 1 quote or 1 NB)
+    // Fetch non-deduped Standard Auto count from quote_records
+    let rawQuotesTotal = 0
+    {
+      const PAGE_SIZE = 1000
+      let from = 0
+      while (true) {
+        const { data: recs, error: recErr } = await supabase
+          .from("quote_records")
+          .select("id", { count: "exact" })
+          .gte("report_date", startDate)
+          .lte("report_date", endDate)
+          .eq("product", "Standard Auto")
+          .range(from, from + PAGE_SIZE - 1)
+        if (recErr) {
+          console.error("Error fetching quote_records count:", recErr)
+          break
+        }
+        rawQuotesTotal += recs?.length || 0
+        if (!recs || recs.length < PAGE_SIZE) break
+        from += PAGE_SIZE
+      }
+    }
+
+    // Build result rows (only report-visible agents for the table)
     const rows: QuotesAgentRow[] = (agents || [])
       .map(a => ({
         agent_id: a.id,
@@ -170,7 +199,18 @@ export async function getQuotesData(
         items: agentQuotes[a.id]?.items || 0,
         report_visible: a.report_visible ?? true,
       }))
-      .filter(r => r.quote_count > 0 || r.nb_policies > 0)
+      .filter(r => r.report_visible)
+
+    // Agency-wide totals: include ALL agents (even non-visible ones)
+    // Hidden agents should still count in aggregate numbers
+    let agencyQuotesTotal = 0
+    let agencyNBTotal = 0
+    let agencyItemsTotal = 0
+    for (const agentId in agentQuotes) {
+      agencyQuotesTotal += agentQuotes[agentId].quotes
+      agencyNBTotal += agentQuotes[agentId].nb
+      agencyItemsTotal += agentQuotes[agentId].items
+    }
 
     // Calculate business days using lastDataDate for elapsed (not today)
     const businessDaysTotal = calcBusinessDays(startDate, endDate, holidaySet, "total")
@@ -188,6 +228,12 @@ export async function getQuotesData(
         dateRangeEnd: endDate,
         lastDataDate,
         mtdItems,
+        rawQuotesTotal,
+        agencyTotals: {
+          totalQuotes: agencyQuotesTotal,
+          totalNB: agencyNBTotal,
+          totalItems: agencyItemsTotal,
+        },
         holidays: holidays || [],
       },
     }

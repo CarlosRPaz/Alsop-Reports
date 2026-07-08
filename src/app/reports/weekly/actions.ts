@@ -178,33 +178,33 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
       .lte("report_date", prevLastOfMonth)
 
     // ── Aggregate daily rows into per-agent weekly totals ──
+    // Pre-populate agentMap with ALL active/visible agents so new agents
+    // (who have no daily_metrics rows yet) still appear in the report.
+    const { data: allActiveAgents } = await supabase
+      .from("agents")
+      .select("id, name, team, office, meeting_time, report_visible, active")
+      .eq("active", true)
+      .eq("report_visible", true)
+
     const agentMap: Record<string, any> = {}
+
+    for (const agent of (allActiveAgents || [])) {
+      agentMap[agent.id] = {
+        agent_id: agent.id,
+        agents: agent,
+        calls: 0, inbound: 0, outbound: 0, talk_time_seconds: 0,
+        texts: 0, out_texts: 0, opt_ins: 0, opt_outs: 0,
+        quotes: 0, nb_count: 0, items: 0,
+        written_premium: 0, prem_premium: 0, prem_items: 0, prem_points: 0,
+        pivots: 0, dismissed_todos: 0,
+      }
+    }
 
     for (const row of (dailyRows || [])) {
       const aid = row.agent_id
       if (!agentMap[aid]) {
-        agentMap[aid] = {
-          agent_id: aid,
-          agents: row.agents,
-          // Aggregated fields
-          calls: 0,
-          inbound: 0,
-          outbound: 0,
-          talk_time_seconds: 0,
-          texts: 0,
-          out_texts: 0,
-          opt_ins: 0,
-          opt_outs: 0,
-          quotes: 0,
-          nb_count: 0,
-          items: 0,
-          written_premium: 0,
-          prem_premium: 0,
-          prem_items: 0,
-          prem_points: 0,
-          pivots: 0,
-          dismissed_todos: 0,
-        }
+        // Agent exists in daily_metrics but not in active/visible agents list — skip
+        continue
       }
       const a = agentMap[aid]
       a.calls += row.calls || 0
