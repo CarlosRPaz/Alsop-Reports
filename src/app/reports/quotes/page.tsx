@@ -1384,8 +1384,8 @@ export default function QuotesPage() {
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
                     <Th field="name" label="Agent" onSort={handleSort} sortField={sortField} sortDir={sortDir} align="left" />
-                    <Th field="nb" label="NB Policies" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
                     <Th field="items" label="Items" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
+                    <Th field="nb" label="NB Policies" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
                     <Th field="quotes" label="Quote Count" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
                     <Th field="cr" label="Close Rate" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
                     <Th field="monthly" label={`Mo. Quotes\nfor ${TARGET_AUTOS} Autos`} onSort={handleSort} sortField={sortField} sortDir={sortDir} />
@@ -1413,11 +1413,11 @@ export default function QuotesPage() {
                         <td className="py-2 px-3 font-medium text-slate-800 whitespace-nowrap">
                           {row.name}
                         </td>
-                        <td className="py-2 px-3 text-center font-mono font-semibold text-slate-900">
-                          {row.nb_policies}
-                        </td>
                         <td className="py-2 px-3 text-center font-mono text-purple-700 font-semibold">
                           {row.items}
+                        </td>
+                        <td className="py-2 px-3 text-center font-mono font-semibold text-slate-900">
+                          {row.nb_policies}
                         </td>
                         <td className="py-2 px-3 text-center font-mono text-slate-700">
                           {row.quote_count}
@@ -1446,8 +1446,8 @@ export default function QuotesPage() {
                   {/* Totals Row */}
                   <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
                     <td className="py-2.5 px-3 text-slate-800">Total</td>
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-900">{totals.totalNB}</td>
                     <td className="py-2.5 px-3 text-center font-mono text-purple-800">{totals.totalItems}</td>
+                    <td className="py-2.5 px-3 text-center font-mono text-slate-900">{totals.totalNB}</td>
                     <td className="py-2.5 px-3 text-center font-mono text-slate-900">{totals.totalQuotes}</td>
                     <td className="py-2.5 px-3 text-center">
                       <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${crColorClass(totals.cr)}`}>
