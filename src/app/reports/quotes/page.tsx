@@ -1402,7 +1402,7 @@ export default function QuotesPage() {
                       <tr
                         key={row.agent_id}
                         className={`border-b border-slate-100 hover:bg-blue-50/30 transition-colors ${
-                          idx % 2 === 0 ? "bg-white" : "bg-slate-100"
+                          idx % 2 === 0 ? "bg-white" : "bg-slate-200/60"
                         }`}
                       >
                         <td className="py-1 px-2 font-medium text-slate-800 whitespace-nowrap">
