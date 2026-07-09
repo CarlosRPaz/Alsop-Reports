@@ -1380,7 +1380,7 @@ export default function QuotesPage() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
                     <Th field="name" label="Agent" onSort={handleSort} sortField={sortField} sortDir={sortDir} align="left" />
@@ -1402,7 +1402,7 @@ export default function QuotesPage() {
                       <tr
                         key={row.agent_id}
                         className={`border-b border-slate-100 hover:bg-blue-50/30 transition-colors ${
-                          idx % 2 === 0 ? "bg-white" : "bg-slate-200/60"
+                          idx % 2 === 0 ? "bg-white" : "bg-slate-200"
                         }`}
                       >
                         <td className="py-1 px-2 font-medium text-slate-800 whitespace-nowrap">
@@ -1418,7 +1418,7 @@ export default function QuotesPage() {
                           {row.quote_count}
                         </td>
                         <td className="py-1 px-2 text-center">
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${crColorClass(row.close_rate)}`}>
+                          <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${crColorClass(row.close_rate)}`}>
                             {fmtPct(row.close_rate)}
                           </span>
                         </td>
@@ -1430,7 +1430,7 @@ export default function QuotesPage() {
                         </td>
                         <td className="py-1 px-2 text-center">
                           {actualVsGoal >= 0.8 ? (
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
                               actualVsGoal >= 1 ? "text-emerald-700 bg-emerald-50" : "text-amber-700 bg-amber-50"
                             }`}>
                               {fmtNum(row.daily_actual)}
@@ -1455,7 +1455,7 @@ export default function QuotesPage() {
                     <td className="py-1.5 px-2 text-center font-mono text-slate-900">{totals.totalNB}</td>
                     <td className="py-1.5 px-2 text-center font-mono text-slate-900">{totals.totalQuotes}</td>
                     <td className="py-1.5 px-2 text-center">
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${crColorClass(totals.cr)}`}>
+                      <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${crColorClass(totals.cr)}`}>
                         {fmtPct(totals.cr)}
                       </span>
                     </td>
@@ -1818,7 +1818,7 @@ function Th({
   return (
     <th
       onClick={() => onSort(field)}
-      className={`py-1.5 px-2 text-[10px] font-semibold uppercase tracking-wider cursor-pointer select-none whitespace-pre-line transition-colors ${
+      className={`py-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider cursor-pointer select-none whitespace-pre-line transition-colors ${
         align === "left" ? "text-left" : "text-center"
       } ${isActive ? "text-blue-700 bg-blue-50/50" : "text-slate-500 hover:text-slate-700 hover:bg-slate-100/50"}`}
     >

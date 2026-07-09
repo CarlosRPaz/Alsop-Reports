@@ -63,7 +63,7 @@ const DATA_SOURCES: DataSource[] = [
     key: "quotes", label: "Quotes Issued", system: "Allstate DASH", icon: FileText, color: "amber",
     uploadTypes: ["quotes"],
     filePatterns: [
-      { pattern: /Quotes Detail Report/i, type: "quotes", label: "Quotes", hasInternalDate: true },
+      { pattern: /Quotes Detail/i, type: "quotes", label: "Quotes", hasInternalDate: true },
     ],
     howToGet: "Allstate Portal → Quoting Reports → Quotes Detail → Download",
   },
@@ -71,7 +71,7 @@ const DATA_SOURCES: DataSource[] = [
     key: "items", label: "New Business (Items)", system: "Allstate DASH", icon: Package, color: "violet",
     uploadTypes: ["nb"],
     filePatterns: [
-      { pattern: /New Business Details/i, type: "nb", label: "NB (Items)", hasInternalDate: true },
+      { pattern: /New Business/i, type: "nb", label: "NB (Items)", hasInternalDate: true },
     ],
     howToGet: "Allstate Portal → Production Reports → New Business Details → Download",
   },

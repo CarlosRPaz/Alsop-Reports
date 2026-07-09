@@ -347,6 +347,9 @@ export interface YTDAgentRawPoint {
 
 /**
  * Get weekly (Thu–Wed) or monthly aggregated data grouped by agent for the YTD chart.
+ *
+ * Primary source: `period_summaries` table (pre-aggregated, fast).
+ * Fallback: re-aggregate from `daily_metrics` if period_summaries is empty/unavailable.
  */
 export async function getYTDBreakdown(
   year: number,
@@ -354,7 +357,42 @@ export async function getYTDBreakdown(
 ): Promise<{ success: boolean; data?: YTDAgentRawPoint[]; error?: string }> {
   noStore()
   try {
-    // Fetch all data for the year up to yesterday
+    // ── Try period_summaries first ──────────────────────────────────────
+    const periodType = groupBy === "monthly" ? "monthly" : "weekly"
+    try {
+      const PAGE_SIZE = 1000
+      let summaryRows: any[] = []
+      let from = 0
+      while (true) {
+        const { data, error } = await supabase
+          .from("period_summaries")
+          .select("agent_id, period_key, period_label, quotes_deduped, nb_auto_count, nb_auto_items")
+          .eq("period_type", periodType)
+          .eq("year", year)
+          .range(from, from + PAGE_SIZE - 1)
+        if (error) throw error
+        if (!data || data.length === 0) break
+        summaryRows = summaryRows.concat(data)
+        if (data.length < PAGE_SIZE) break
+        from += PAGE_SIZE
+      }
+
+      if (summaryRows.length > 0) {
+        const points: YTDAgentRawPoint[] = summaryRows.map((r: any) => ({
+          agent_id: r.agent_id,
+          label: r.period_label,
+          sortKey: r.period_key,
+          quotes: r.quotes_deduped || 0,
+          nb: r.nb_auto_count || 0,
+          items: r.nb_auto_items || 0,
+        }))
+        return { success: true, data: points }
+      }
+    } catch {
+      // period_summaries table may not exist yet — fall through to legacy path
+    }
+
+    // ── Fallback: re-aggregate from daily_metrics ──────────────────────
     const yesterday = new Date()
     yesterday.setDate(yesterday.getDate() - 1)
     const yesterdayStr = yesterday.toISOString().split("T")[0]
@@ -373,16 +411,12 @@ export async function getYTDBreakdown(
     const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
     if (groupBy === "monthly") {
-      // Group by calendar month and agent
       const buckets: Record<string, { quotes: number; nb: number; items: number }> = {}
       for (const m of metrics) {
-        const monthKey = m.report_date.substring(0, 7) // "2026-01"
+        const monthKey = m.report_date.substring(0, 7)
         const key = `${m.agent_id}||${monthKey}`
         if (!buckets[key]) buckets[key] = { quotes: 0, nb: 0, items: 0 }
-        
-        // Use quotes_deduped strictly — only Standard Auto quotes
-        const effectiveQuotes = m.quotes_deduped || 0
-        buckets[key].quotes += effectiveQuotes
+        buckets[key].quotes += m.quotes_deduped || 0
         buckets[key].nb += m.nb_auto_count || 0
         buckets[key].items += m.nb_auto_items || 0
       }
@@ -399,13 +433,11 @@ export async function getYTDBreakdown(
           items: vals.items,
         }
       })
-
       return { success: true, data: points }
     } else {
-      // Weekly: Thu–Wed buckets
       function getThursWeekStart(dateStr: string): Date {
         const d = new Date(dateStr + "T00:00:00")
-        const day = d.getDay() // 0=Sun, 4=Thu
+        const day = d.getDay()
         const diff = (day - 4 + 7) % 7
         d.setDate(d.getDate() - diff)
         return d
@@ -416,16 +448,12 @@ export async function getYTDBreakdown(
         const thuStart = getThursWeekStart(m.report_date)
         const weekKey = thuStart.toISOString().split("T")[0]
         const key = `${m.agent_id}||${weekKey}`
-
         if (!buckets[key]) {
           const wedEnd = new Date(thuStart)
           wedEnd.setDate(wedEnd.getDate() + 6)
           buckets[key] = { quotes: 0, nb: 0, items: 0, start: thuStart, end: wedEnd }
         }
-
-        // Use quotes_deduped strictly — only Standard Auto quotes
-        const effectiveQuotes = m.quotes_deduped || 0
-        buckets[key].quotes += effectiveQuotes
+        buckets[key].quotes += m.quotes_deduped || 0
         buckets[key].nb += m.nb_auto_count || 0
         buckets[key].items += m.nb_auto_items || 0
       }
@@ -434,17 +462,15 @@ export async function getYTDBreakdown(
         const [agent_id, weekKey] = key.split("||")
         const s = vals.start
         const e = vals.end
-        const label = `${s.getMonth() + 1}/${s.getDate()} - ${e.getMonth() + 1}/${e.getDate()}`
         return {
           agent_id,
-          label,
+          label: `${s.getMonth() + 1}/${s.getDate()} - ${e.getMonth() + 1}/${e.getDate()}`,
           sortKey: weekKey,
           quotes: vals.quotes,
           nb: vals.nb,
           items: vals.items,
         }
       })
-
       return { success: true, data: points }
     }
   } catch (error: any) {

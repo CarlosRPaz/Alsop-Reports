@@ -11,6 +11,7 @@ import { Spine } from "./spine"
 import { detectFileType, type ParseResult, type PipelineResult, type QuoteRecord, type QuoteDuplicate } from "./types"
 import { mergeAllData } from "./merge"
 import { pushToSupabase } from "./supabase-pusher"
+import { recalculateSummaries } from "./recalculate-summaries"
 
 // Lazy-load parsers to keep bundle size down
 async function loadParsers() {
@@ -272,6 +273,16 @@ export async function processUploadedFiles(
         )
         for (const l of pushLogs) log(`    ${l}`)
         datesProcessed.push(targetDate)
+
+        // Recalculate period summaries for the affected month
+        try {
+          const reportYear = parseInt(targetDate.substring(0, 4))
+          const reportMonth = parseInt(targetDate.substring(5, 7))
+          const recalcLogs = await recalculateSummaries(supabase, reportYear, { months: [reportMonth] })
+          for (const l of recalcLogs) log(`    ${l}`)
+        } catch (recalcErr) {
+          log(`    [Warning] Failed to recalculate summaries: ${recalcErr instanceof Error ? recalcErr.message : String(recalcErr)}`)
+        }
       }
     } else {
       // Single-date mode
@@ -305,6 +316,16 @@ export async function processUploadedFiles(
       )
       for (const l of pushLogs) log(`  ${l}`)
       datesProcessed.push(targetDate)
+
+      // Recalculate period summaries for the affected month
+      try {
+        const reportYear = parseInt(targetDate.substring(0, 4))
+        const reportMonth = parseInt(targetDate.substring(5, 7))
+        const recalcLogs = await recalculateSummaries(supabase, reportYear, { months: [reportMonth] })
+        for (const l of recalcLogs) log(`  ${l}`)
+      } catch (recalcErr) {
+        log(`  [Warning] Failed to recalculate summaries: ${recalcErr instanceof Error ? recalcErr.message : String(recalcErr)}`)
+      }
     }
 
     // Record upload history for source-tracking (used by getDailyCoverage sub-source detection)
