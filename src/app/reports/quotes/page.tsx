@@ -1380,7 +1380,7 @@ export default function QuotesPage() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
                     <Th field="name" label="Agent" onSort={handleSort} sortField={sortField} sortDir={sortDir} align="left" />
@@ -1405,32 +1405,32 @@ export default function QuotesPage() {
                           idx % 2 === 0 ? "bg-white" : "bg-slate-50/40"
                         }`}
                       >
-                        <td className="py-2 px-3 font-medium text-slate-800 whitespace-nowrap">
+                        <td className="py-1 px-2 font-medium text-slate-800 whitespace-nowrap">
                           {row.name}
                         </td>
-                        <td className="py-2 px-3 text-center font-mono text-purple-700 font-semibold">
+                        <td className="py-1 px-2 text-center font-mono text-purple-700 font-semibold">
                           {row.items}
                         </td>
-                        <td className="py-2 px-3 text-center font-mono font-semibold text-slate-900">
+                        <td className="py-1 px-2 text-center font-mono font-semibold text-slate-900">
                           {row.nb_policies}
                         </td>
-                        <td className="py-2 px-3 text-center font-mono text-slate-700">
+                        <td className="py-1 px-2 text-center font-mono text-slate-700">
                           {row.quote_count}
                         </td>
-                        <td className="py-2 px-3 text-center">
-                          <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${crColorClass(row.close_rate)}`}>
+                        <td className="py-1 px-2 text-center">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${crColorClass(row.close_rate)}`}>
                             {fmtPct(row.close_rate)}
                           </span>
                         </td>
-                        <td className="py-2 px-3 text-center font-mono text-slate-700">
+                        <td className="py-1 px-2 text-center font-mono text-slate-700">
                           {row.close_rate > 0 ? Math.round(row.monthly_target) : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className="py-2 px-3 text-center font-mono text-slate-700">
+                        <td className="py-1 px-2 text-center font-mono text-slate-700">
                           {row.close_rate > 0 ? fmtNum(row.daily_goal) : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className="py-2 px-3 text-center">
+                        <td className="py-1 px-2 text-center">
                           {actualVsGoal >= 0.8 ? (
-                            <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                               actualVsGoal >= 1 ? "text-emerald-700 bg-emerald-50" : "text-amber-700 bg-amber-50"
                             }`}>
                               {fmtNum(row.daily_actual)}
@@ -1441,7 +1441,7 @@ export default function QuotesPage() {
                             </span>
                           )}
                         </td>
-                        <td className="py-2 px-3 text-center font-mono text-slate-500">
+                        <td className="py-1 px-2 text-center font-mono text-slate-500">
                           {fmtNum(row.benchmark_15)}
                         </td>
                       </tr>
@@ -1450,25 +1450,25 @@ export default function QuotesPage() {
 
                   {/* Totals Row */}
                   <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
-                    <td className="py-2.5 px-3 text-slate-800">Total</td>
-                    <td className="py-2.5 px-3 text-center font-mono text-purple-800">{totals.totalItems}</td>
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-900">{totals.totalNB}</td>
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-900">{totals.totalQuotes}</td>
-                    <td className="py-2.5 px-3 text-center">
-                      <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${crColorClass(totals.cr)}`}>
+                    <td className="py-1.5 px-2 text-slate-800">Total</td>
+                    <td className="py-1.5 px-2 text-center font-mono text-purple-800">{totals.totalItems}</td>
+                    <td className="py-1.5 px-2 text-center font-mono text-slate-900">{totals.totalNB}</td>
+                    <td className="py-1.5 px-2 text-center font-mono text-slate-900">{totals.totalQuotes}</td>
+                    <td className="py-1.5 px-2 text-center">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${crColorClass(totals.cr)}`}>
                         {fmtPct(totals.cr)}
                       </span>
                     </td>
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-900">
+                    <td className="py-1.5 px-2 text-center font-mono text-slate-900">
                       {totals.cr > 0 ? Math.round(totals.monthlyTarget) : "—"}
                     </td>
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-900">
+                    <td className="py-1.5 px-2 text-center font-mono text-slate-900">
                       {totals.cr > 0 ? fmtNum(totals.dailyGoal) : "—"}
                     </td>
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-900">
+                    <td className="py-1.5 px-2 text-center font-mono text-slate-900">
                       {fmtNum(totals.dailyActual)}
                     </td>
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-600">
+                    <td className="py-1.5 px-2 text-center font-mono text-slate-600">
                       {fmtNum(totals.benchmark)}
                     </td>
                   </tr>
@@ -1818,7 +1818,7 @@ function Th({
   return (
     <th
       onClick={() => onSort(field)}
-      className={`py-2.5 px-3 text-[11px] font-semibold uppercase tracking-wider cursor-pointer select-none whitespace-pre-line transition-colors ${
+      className={`py-1.5 px-2 text-[10px] font-semibold uppercase tracking-wider cursor-pointer select-none whitespace-pre-line transition-colors ${
         align === "left" ? "text-left" : "text-center"
       } ${isActive ? "text-blue-700 bg-blue-50/50" : "text-slate-500 hover:text-slate-700 hover:bg-slate-100/50"}`}
     >
