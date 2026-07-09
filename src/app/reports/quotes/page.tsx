@@ -1390,18 +1390,13 @@ export default function QuotesPage() {
                     <Th field="cr" label="Close Rate" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
                     <Th field="monthly" label={`Mo. Quotes\nfor ${TARGET_AUTOS} Autos`} onSort={handleSort} sortField={sortField} sortDir={sortDir} />
                     <Th field="dailyGoal" label="Daily Quote\nGoal" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
-                    <Th field="benchmark" label={`Daily Quotes\n@ 15% CR`} onSort={handleSort} sortField={sortField} sortDir={sortDir} />
                     <Th field="dailyActual" label="Daily Quote\nActual" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
+                    <Th field="benchmark" label={`Daily Quotes\n@ 15% CR`} onSort={handleSort} sortField={sortField} sortDir={sortDir} />
                   </tr>
                 </thead>
                 <tbody>
                   {sortedRows.map((row, idx) => {
                     const actualVsGoal = row.daily_goal > 0 ? row.daily_actual / row.daily_goal : 0
-                    const actualHighlight = actualVsGoal >= 1
-                      ? "text-emerald-700 font-bold"
-                      : actualVsGoal >= 0.8
-                        ? "text-amber-700"
-                        : "text-slate-900"
 
                     return (
                       <tr
@@ -1433,11 +1428,21 @@ export default function QuotesPage() {
                         <td className="py-2 px-3 text-center font-mono text-slate-700">
                           {row.close_rate > 0 ? fmtNum(row.daily_goal) : <span className="text-slate-300">—</span>}
                         </td>
+                        <td className="py-2 px-3 text-center">
+                          {actualVsGoal >= 0.8 ? (
+                            <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${
+                              actualVsGoal >= 1 ? "text-emerald-700 bg-emerald-50" : "text-amber-700 bg-amber-50"
+                            }`}>
+                              {fmtNum(row.daily_actual)}
+                            </span>
+                          ) : (
+                            <span className="font-mono text-slate-900">
+                              {fmtNum(row.daily_actual)}
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2 px-3 text-center font-mono text-slate-500">
                           {fmtNum(row.benchmark_15)}
-                        </td>
-                        <td className={`py-2 px-3 text-center font-mono ${actualHighlight}`}>
-                          {fmtNum(row.daily_actual)}
                         </td>
                       </tr>
                     )
@@ -1460,11 +1465,11 @@ export default function QuotesPage() {
                     <td className="py-2.5 px-3 text-center font-mono text-slate-900">
                       {totals.cr > 0 ? fmtNum(totals.dailyGoal) : "—"}
                     </td>
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-600">
-                      {fmtNum(totals.benchmark)}
-                    </td>
                     <td className="py-2.5 px-3 text-center font-mono text-slate-900">
                       {fmtNum(totals.dailyActual)}
+                    </td>
+                    <td className="py-2.5 px-3 text-center font-mono text-slate-600">
+                      {fmtNum(totals.benchmark)}
                     </td>
                   </tr>
                 </tbody>
