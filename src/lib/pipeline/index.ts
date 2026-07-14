@@ -247,7 +247,7 @@ export async function processUploadedFiles(
         const dayNBMain = dayNB ? dayNB.filter(r => "NBCount" in r) : null
         const dayNBAuto = dayNB ? dayNB.filter(r => "NBAutoCount" in r) : null
 
-        const merged = mergeAllData(
+        const { data: merged, sourceAgents } = mergeAllData(
           spine,
           dayData.get("rc") || null,
           dayData.get("hs") || null,
@@ -270,6 +270,8 @@ export async function processUploadedFiles(
           supabase, merged, targetDate, dayTypes,
           dayQuoteRecords.length > 0 ? dayQuoteRecords : undefined,
           dayQuoteDuplicates.length > 0 ? dayQuoteDuplicates : undefined,
+          undefined,
+          sourceAgents,
         )
         for (const l of pushLogs) log(`    ${l}`)
         datesProcessed.push(targetDate)
@@ -294,7 +296,7 @@ export async function processUploadedFiles(
       const nbMainRows = parseResults.get("nb")?.rows.filter(r => "NBCount" in r) || null
       const nbAutoRows = parseResults.get("nb")?.rows.filter(r => "NBAutoCount" in r) || null
 
-      const merged = mergeAllData(
+      const { data: merged, sourceAgents } = mergeAllData(
         spine,
         parseResults.get("rc")?.rows || null,
         parseResults.get("hs")?.rows || null,
@@ -313,6 +315,8 @@ export async function processUploadedFiles(
         supabase, merged, targetDate, actualTypes,
         allQuoteRecords.length > 0 ? allQuoteRecords : undefined,
         allQuoteDuplicates.length > 0 ? allQuoteDuplicates : undefined,
+        undefined,
+        sourceAgents,
       )
       for (const l of pushLogs) log(`  ${l}`)
       datesProcessed.push(targetDate)

@@ -249,3 +249,47 @@ export async function updateUserRole(agentId: string, role: string): Promise<Inv
   }
   return { success: true, message: `Role updated successfully to ${role}.` }
 }
+
+/* ── Page Permissions ──────────────────────────────────────────────── */
+
+export interface PagePermission {
+  page_key: string
+  page_label: string
+  allowed_teams: string[]
+}
+
+/**
+ * Get all page permission rows.
+ */
+export async function getPagePermissions(): Promise<PagePermission[]> {
+  const supabase = createSupabaseAdmin()
+  const { data, error } = await supabase
+    .from("page_permissions")
+    .select("page_key, page_label, allowed_teams")
+    .order("page_key")
+
+  if (error) {
+    console.error("Failed to fetch page permissions:", error)
+    return []
+  }
+  return (data || []) as PagePermission[]
+}
+
+/**
+ * Update the allowed_teams array for a single page.
+ */
+export async function updatePagePermission(
+  pageKey: string,
+  allowedTeams: string[]
+): Promise<InviteResult> {
+  const supabase = createSupabaseAdmin()
+  const { error } = await supabase
+    .from("page_permissions")
+    .update({ allowed_teams: allowedTeams })
+    .eq("page_key", pageKey)
+
+  if (error) {
+    return { success: false, message: `Failed to update: ${error.message}` }
+  }
+  return { success: true, message: `Permissions updated for ${pageKey}.` }
+}

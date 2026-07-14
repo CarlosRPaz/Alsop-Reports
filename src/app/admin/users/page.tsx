@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/Badge"
 import {
   UserPlus, Shield, ShieldCheck, Search, Mail, KeyRound,
   Check, X, AlertCircle, Eye, EyeOff, ChevronDown,
-  Loader2, UserX, RefreshCw, ArrowLeft
+  Loader2, UserX, RefreshCw, ArrowLeft, Layout
 } from "lucide-react"
 import Link from "next/link"
 import {
@@ -18,7 +18,10 @@ import {
   resetUserPassword,
   revokeAccess,
   updateUserRole,
+  getPagePermissions,
+  updatePagePermission,
   type UnlinkedAgent,
+  type PagePermission,
 } from "./actions"
 
 export default function UserManagementPage() {
@@ -47,11 +50,20 @@ export default function UserManagementPage() {
   // Search
   const [searchLinked, setSearchLinked] = useState("")
 
+  // Page access permissions
+  const [pagePerms, setPagePerms] = useState<PagePermission[]>([])
+  const [permSaving, setPermSaving] = useState<string | null>(null)
+
   const fetchData = async () => {
     setLoading(true)
-    const [unlinked, linked] = await Promise.all([getUnlinkedAgents(), getLinkedAgents()])
+    const [unlinked, linked, perms] = await Promise.all([
+      getUnlinkedAgents(),
+      getLinkedAgents(),
+      getPagePermissions(),
+    ])
     setUnlinkedAgents(unlinked)
     setLinkedAgents(linked)
+    setPagePerms(perms)
     setLoading(false)
   }
 
@@ -447,6 +459,102 @@ export default function UserManagementPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Page Access by Team */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Layout className="w-4 h-4 text-indigo-600" />
+            Page Access by Team
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-slate-500 mb-4">
+            Control which teams can see each page. Admins and Managers always have full access regardless of these settings.
+          </p>
+
+          {pagePerms.length === 0 ? (
+            <div className="flex items-center justify-center py-8 gap-2 text-sm text-slate-400">
+              {loading ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Loading permissions...</>
+              ) : (
+                <p className="text-center">
+                  <AlertCircle className="w-4 h-4 inline mr-1.5 text-amber-500" />
+                  Page permissions table not found. Run the migration in{" "}
+                  <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded">supabase/migrations/00015_page_permissions.sql</code>
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="text-left py-2 pr-4 font-medium text-slate-600 text-xs uppercase tracking-wider">Page</th>
+                    {["Sales", "CSR", "EA"].map(team => (
+                      <th key={team} className="text-center py-2 px-3 font-medium text-slate-600 text-xs uppercase tracking-wider">
+                        {team}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pagePerms.map(perm => (
+                    <tr key={perm.page_key} className="group hover:bg-slate-50/50 transition-colors">
+                      <td className="py-2.5 pr-4 text-sm font-medium text-slate-700">
+                        {perm.page_label}
+                      </td>
+                      {["Sales", "CSR", "EA"].map(team => {
+                        const isAllowed = perm.allowed_teams.includes(team)
+                        const isSaving = permSaving === `${perm.page_key}-${team}`
+                        return (
+                          <td key={team} className="text-center py-2.5 px-3">
+                            <button
+                              disabled={isSaving}
+                              onClick={async () => {
+                                const key = `${perm.page_key}-${team}`
+                                setPermSaving(key)
+                                const newTeams = isAllowed
+                                  ? perm.allowed_teams.filter(t => t !== team)
+                                  : [...perm.allowed_teams, team]
+                                const result = await updatePagePermission(perm.page_key, newTeams)
+                                if (result.success) {
+                                  setPagePerms(prev =>
+                                    prev.map(p =>
+                                      p.page_key === perm.page_key
+                                        ? { ...p, allowed_teams: newTeams }
+                                        : p
+                                    )
+                                  )
+                                } else {
+                                  setFeedback({ type: "error", message: result.message })
+                                }
+                                setPermSaving(null)
+                              }}
+                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:ring-offset-1 ${
+                                isSaving ? "opacity-50 cursor-wait" : "cursor-pointer"
+                              } ${
+                                isAllowed ? "bg-blue-600" : "bg-slate-200"
+                              }`}
+                              title={isAllowed ? `Revoke ${team} access to ${perm.page_label}` : `Grant ${team} access to ${perm.page_label}`}
+                            >
+                              <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                                  isAllowed ? "translate-x-6" : "translate-x-1"
+                                }`}
+                              />
+                            </button>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

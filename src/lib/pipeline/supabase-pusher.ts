@@ -45,6 +45,7 @@ export async function pushToSupabase(
   quoteRecords?: QuoteRecord[],
   quoteDuplicates?: QuoteDuplicate[],
   uploadId?: string | null,
+  sourceAgents?: Record<string, Set<string>>,
 ): Promise<string[]> {
   const logs: string[] = []
   const isPartial = uploadTypes !== null && uploadTypes.length > 0
@@ -59,6 +60,18 @@ export async function pushToSupabase(
       for (const f of fields) partialFields.add(f)
     }
     logs.push(`[Supabase] Partial update fields: ${[...partialFields].sort().join(", ")}`)
+  }
+
+  // Build reverse map: field → set of source types that own it.
+  // Fields owned by multiple sources (e.g. talk_time_seconds → rc + rico_ch)
+  // need special handling in partial mode to avoid cross-source overwrites.
+  const fieldToSources = new Map<string, string[]>()
+  for (const [src, fields] of Object.entries(SOURCE_FIELD_MAP)) {
+    for (const f of fields) {
+      const existing = fieldToSources.get(f) || []
+      existing.push(src)
+      fieldToSources.set(f, existing)
+    }
   }
 
   // 1. Upsert Agents
@@ -176,9 +189,37 @@ export async function pushToSupabase(
 
       for (const [field, newVal] of Object.entries(allFields)) {
         if (partialFields.has(field)) {
-          // Always write the new value for targeted fields — the pipeline
-          // output is authoritative, even if the value is zero.
-          metric[field] = newVal
+          // Check if this field is shared between multiple sources
+          // (e.g. talk_time_seconds is owned by both "rc" and "rico_ch").
+          // If so, only write if the agent was actually present in the
+          // uploaded source's data — otherwise preserve the existing value
+          // to avoid cross-source overwrites.
+          const fieldSources = fieldToSources.get(field) || []
+          const isSharedField = fieldSources.length > 1
+
+          if (isSharedField && sourceAgents) {
+            // Which of the currently-uploaded sources own this field?
+            const uploadedSourcesForField = fieldSources.filter(
+              s => uploadTypes!.includes(s)
+            )
+            // Was this agent present in ANY of those sources' raw data?
+            const agentInSource = uploadedSourcesForField.some(
+              s => sourceAgents[s]?.has(row.agent)
+            )
+
+            if (agentInSource) {
+              // Agent was in the source data — write the new value
+              metric[field] = newVal
+            } else {
+              // Agent was NOT in the uploaded source — preserve existing
+              const ev = (existingRow as Record<string, unknown>)[field]
+              metric[field] = (ev !== null && ev !== undefined) ? ev : newVal
+            }
+          } else {
+            // Single-source field or no source tracking — write normally.
+            // The pipeline output is authoritative for these fields.
+            metric[field] = newVal
+          }
         } else {
           // Keep existing value, fall back to 0/default if no existing row
           const ev = (existingRow as Record<string, unknown>)[field]

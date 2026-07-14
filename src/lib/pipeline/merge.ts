@@ -7,7 +7,7 @@
 
 import { Spine } from "./spine"
 
-interface AgentMetrics {
+export interface AgentMetrics {
   agent: string
   office: string
   team: string
@@ -31,6 +31,18 @@ interface AgentMetrics {
   PremPoints: number
 }
 
+/** Result of merging all sources — includes per-agent source tracking */
+export interface MergeResult {
+  data: AgentMetrics[]
+  /**
+   * Maps source type (e.g. "rc", "rico_ch", "hs") to the set of agent names
+   * that had actual data from that source. Used by the pusher to avoid
+   * overwriting shared fields (like talk_time_seconds) for agents that
+   * weren't present in the uploaded source.
+   */
+  sourceAgents: Record<string, Set<string>>
+}
+
 /**
  * Merge all parsed source data into a single array of agent metrics.
  * Mirrors Python's merge_all_data() function exactly.
@@ -46,10 +58,18 @@ export function mergeAllData(
   ricoAPData: Record<string, unknown>[] | null,
   quotesDeduped: Record<string, unknown>[] | null,
   nbAutoData: Record<string, unknown>[] | null,
-): AgentMetrics[] {
+): MergeResult {
   // Start with all agents from spine
   const allAgents = spine.allAgents()
   const agentMap = new Map<string, AgentMetrics>()
+
+  // Track which agents had real data from each source.
+  // This prevents partial uploads from overwriting shared fields
+  // (e.g. talk_time_seconds) for agents not in the uploaded source.
+  const sourceAgents: Record<string, Set<string>> = {
+    rc: new Set(), rico_ap: new Set(), rico_ch: new Set(),
+    hs: new Set(), quotes: new Set(), nb: new Set(), premium: new Set(),
+  }
 
   for (const a of allAgents) {
     agentMap.set(a.agent, {
@@ -79,8 +99,10 @@ export function mergeAllData(
 
   if (rcData && rcData.length > 0) {
     for (const row of rcData) {
+      const agent = String(row.Agent || "")
+      if (agent) sourceAgents.rc.add(agent)
       callFrames.push({
-        Agent: String(row.Agent || ""),
+        Agent: agent,
         Calls: toInt(row.Calls),
         Inbound: toInt(row.Inbound),
         Outbound: toInt(row.Outbound),
@@ -96,12 +118,14 @@ export function mergeAllData(
     if (ricoCHData && ricoCHData.length > 0) {
       for (const row of ricoCHData) {
         const agent = String(row.Agent || "")
+        if (agent) sourceAgents.rico_ch.add(agent)
         chTalkMap.set(agent, (chTalkMap.get(agent) || 0) + toInt(row.TalkTimeSeconds))
       }
     }
 
     for (const row of ricoAPData) {
       const agent = String(row.Agent || "")
+      if (agent) sourceAgents.rico_ap.add(agent)
       callFrames.push({
         Agent: agent,
         Calls: toInt(row.Calls),
@@ -113,8 +137,13 @@ export function mergeAllData(
   } else if (ricoCHData && ricoCHData.length > 0) {
     // No AP data — fall back to CH data for both calls + talk time (legacy behavior)
     for (const row of ricoCHData) {
+      const agent = String(row.Agent || "")
+      if (agent) {
+        sourceAgents.rico_ch.add(agent)
+        sourceAgents.rico_ap.add(agent)  // CH provides both calls + talk in legacy mode
+      }
       callFrames.push({
-        Agent: String(row.Agent || ""),
+        Agent: agent,
         Calls: toInt(row.Calls),
         Inbound: toInt(row.Inbound),
         Outbound: toInt(row.Outbound),
@@ -151,6 +180,7 @@ export function mergeAllData(
   if (hsData && hsData.length > 0) {
     const hsAgg = aggregateByAgent(hsData, ["Texts", "OutTexts", "OptIns", "OptOuts"])
     for (const [agent, vals] of hsAgg) {
+      sourceAgents.hs.add(agent)
       const m = agentMap.get(agent)
       if (m) {
         m.Texts = vals.Texts || 0
@@ -165,6 +195,7 @@ export function mergeAllData(
   if (quotesData && quotesData.length > 0) {
     const qAgg = aggregateByAgent(quotesData, ["QuoteCount"])
     for (const [agent, vals] of qAgg) {
+      sourceAgents.quotes.add(agent)
       const m = agentMap.get(agent)
       if (m) {
         m.Quotes = vals.QuoteCount || 0
@@ -187,6 +218,7 @@ export function mergeAllData(
   if (nbData && nbData.length > 0) {
     const nbAgg = aggregateByAgent(nbData, ["NBCount", "Items", "WrittenPremium"])
     for (const [agent, vals] of nbAgg) {
+      sourceAgents.nb.add(agent)
       const m = agentMap.get(agent)
       if (m) {
         m.NB = vals.NBCount || 0
@@ -212,6 +244,7 @@ export function mergeAllData(
   if (premiumData && premiumData.length > 0) {
     const pAgg = aggregateByAgent(premiumData, ["PremItems", "PremPremium", "PremPoints"])
     for (const [agent, vals] of pAgg) {
+      sourceAgents.premium.add(agent)
       const m = agentMap.get(agent)
       if (m) {
         m.PremPremium = vals.PremPremium || 0
@@ -221,7 +254,7 @@ export function mergeAllData(
     }
   }
 
-  return Array.from(agentMap.values())
+  return { data: Array.from(agentMap.values()), sourceAgents }
 }
 
 

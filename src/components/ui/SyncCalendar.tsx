@@ -96,6 +96,15 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
 
         if (leadsErr) throw leadsErr
 
+        // Fetch upload_history_files for file type tracking
+        const { data: uploadedFiles, error: filesErr } = await supabase
+          .from("upload_history_files")
+          .select("target_date, file_type")
+          .gte("target_date", startDate)
+          .lte("target_date", endStr)
+
+        if (filesErr) throw filesErr
+
         // Build per-date source presence map
         const result = new Map<string, DaySources>()
 
@@ -109,14 +118,22 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
           leads: { present: false, agentCount: 0 },
         })
 
-        // Track which dates have daily_metrics rows at all (i.e. data was synced)
-        const datesWithRows = new Set<string>()
+        // Build day uploads map: date -> Set of file types
+        const dayUploads = new Map<string, Set<string>>()
+        if (uploadedFiles) {
+          for (const f of uploadedFiles) {
+            if (!f.target_date) continue
+            if (!dayUploads.has(f.target_date)) {
+              dayUploads.set(f.target_date, new Set())
+            }
+            dayUploads.get(f.target_date)!.add(f.file_type)
+          }
+        }
 
         // Process daily_metrics rows
         if (metrics) {
           for (const row of metrics) {
             const d = row.report_date
-            datesWithRows.add(d)
             if (!result.has(d)) result.set(d, emptyDay())
             const entry = result.get(d)!
 
@@ -160,13 +177,16 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
           }
         }
 
-        // Mark Quotes/Items/Premium as "present" for any date that has
-        // daily_metrics rows — the data was synced, values are just zero.
-        for (const d of datesWithRows) {
-          const entry = result.get(d)!
-          entry.quotes.present = true
-          entry.items.present = true
-          entry.premium.present = true
+        // Mark Quotes/Items/Premium/Calls/Texts as "present" if they have data (agentCount > 0)
+        // OR if the respective file type was uploaded.
+        for (const [d, entry] of result.entries()) {
+          const uploadsForDay = dayUploads.get(d) || new Set<string>()
+          
+          entry.calls.present = entry.calls.present || uploadsForDay.has("rc") || uploadsForDay.has("rico_ch") || uploadsForDay.has("rico_ap")
+          entry.texts.present = entry.texts.present || uploadsForDay.has("hs")
+          entry.quotes.present = entry.quotes.agentCount > 0 || uploadsForDay.has("quotes")
+          entry.items.present = entry.items.agentCount > 0 || uploadsForDay.has("nb")
+          entry.premium.present = entry.premium.agentCount > 0 || uploadsForDay.has("premium")
         }
 
         // Process daily_reports_meta for eAgent (eagent_submitted flag)

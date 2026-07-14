@@ -1,5 +1,6 @@
 "use client"
 
+import { PageGuard } from "@/components/layout/PageGuard";
 import { useState, useEffect, useMemo } from "react"
 import { getMTDData } from "./actions"
 import { formatValue } from "@/lib/formatters"
@@ -359,6 +360,7 @@ export default function MTDReport() {
   }, [])
 
   return (
+    <PageGuard pageKey="mtd">
     <div className="p-4 md:p-6 max-w-[1800px] mx-auto space-y-4">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
@@ -715,5 +717,6 @@ export default function MTDReport() {
         onSuccess={fetchData}
       />
     </div>
+    </PageGuard>
   )
 }

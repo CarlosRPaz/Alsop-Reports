@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { PageGuard } from "@/components/layout/PageGuard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -726,6 +727,7 @@ export default function Home() {
   }, [savedViews, startDate, endDate]);
 
   return (
+    <PageGuard pageKey="overview">
     <main className="p-8 max-w-7xl mx-auto min-h-screen flex flex-col gap-8 text-slate-800">
       
       {/* Compact Header */}
@@ -1145,6 +1147,7 @@ export default function Home() {
       )}
 
     </main>
+    </PageGuard>
   );
 }
 

@@ -60,15 +60,16 @@ type NavItem = {
   href: string
   icon?: React.ComponentType<{ className?: string }>
   letter?: string
+  pageKey?: string // maps to page_permissions.page_key for access control
 }
 
 const navItems: NavItem[] = [
-  { name: 'Overview', href: '/', icon: BarChart3 },
-  { name: 'Daily Standup', href: '/reports/daily', letter: 'D' },
-  { name: 'Weekly Report', href: '/reports/weekly', letter: 'W' },
-  { name: 'MTD Performance', href: '/reports/mtd', letter: 'M' },
-  { name: 'Quotes & NB', href: '/reports/quotes', icon: Percent },
-  { name: 'Agent Portal', href: '/reports/agent', icon: UserCircle },
+  { name: 'Overview', href: '/', icon: BarChart3, pageKey: 'overview' },
+  { name: 'Daily Standup', href: '/reports/daily', letter: 'D', pageKey: 'daily' },
+  { name: 'Weekly Report', href: '/reports/weekly', letter: 'W', pageKey: 'weekly' },
+  { name: 'MTD Performance', href: '/reports/mtd', letter: 'M', pageKey: 'mtd' },
+  { name: 'Quotes & NB', href: '/reports/quotes', icon: Percent, pageKey: 'quotes' },
+  { name: 'Agent Portal', href: '/reports/agent', icon: UserCircle, pageKey: 'agent_portal' },
   { name: 'Communication', href: '/communication', icon: MessageSquare },
   { name: 'My Settings', href: '/settings', icon: Settings },
   { name: 'Admin Panel', href: '/admin', icon: Shield },
@@ -88,6 +89,7 @@ export function Sidebar() {
   const [modalEmoji, setModalEmoji] = useState('💬')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [recentStatuses, setRecentStatuses] = useState<{ emoji: string; text: string }[]>([])
+  const [pagePerms, setPagePerms] = useState<Record<string, string[]>>({})
 
   useEffect(() => {
     const loadAgent = async () => {
@@ -97,12 +99,22 @@ export function Sidebar() {
       
       const { data } = await supabase
         .from('agents')
-        .select('id, name, presence, status_message, role')
+        .select('id, name, presence, status_message, role, team')
         .eq('auth_user_id', user.id)
         .single()
       
       if (data) {
         setCurrentAgent(data)
+      }
+
+      // Load page permissions
+      const { data: perms } = await supabase
+        .from('page_permissions')
+        .select('page_key, allowed_teams')
+      if (perms) {
+        const map: Record<string, string[]> = {}
+        for (const p of perms) map[p.page_key] = p.allowed_teams
+        setPagePerms(map)
       }
     }
     
@@ -234,10 +246,22 @@ export function Sidebar() {
 
       <nav className="flex-1 px-2 space-y-1 mt-4">
         {navItems.filter(item => {
+          // Admin Panel: only visible to admins
           if (item.href === '/admin' && currentAgent?.role !== 'admin') {
             return false
           }
-          return true
+          // Admins and Managers bypass page-level restrictions
+          if (currentAgent?.role === 'admin' || currentAgent?.team === 'Managers') {
+            return true
+          }
+          // Items without a pageKey (Settings, Admin) are always visible
+          if (!item.pageKey) return true
+          // If page permissions haven't loaded yet, show everything
+          if (Object.keys(pagePerms).length === 0) return true
+          // Check if the agent's team is allowed
+          const allowed = pagePerms[item.pageKey]
+          if (!allowed) return true // page not in permissions table = visible
+          return allowed.includes(currentAgent?.team || '')
         }).map((item) => {
           const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
           return (

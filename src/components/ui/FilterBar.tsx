@@ -66,6 +66,30 @@ export function FilterBar({ onFilterChange, availableAgents = [], availableMeeti
               {activeCount} Active
             </span>
           )}
+          {activeCount > 0 && !isExpanded && (
+            <div className="flex items-center gap-1.5 ml-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+              {filters.offices.map(o => (
+                <span key={o} className="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md">
+                  {o}
+                </span>
+              ))}
+              {filters.teams.map(t => (
+                <span key={t} className="text-[10px] font-semibold text-violet-700 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-md">
+                  {t}
+                </span>
+              ))}
+              {filters.agents.map(a => (
+                <span key={a} className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md truncate max-w-[120px]">
+                  {a}
+                </span>
+              ))}
+              {filters.meetings.map(m => (
+                <span key={m} className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-md truncate max-w-[120px]">
+                  {m}
+                </span>
+              ))}
+            </div>
+          )}
           <span className="text-[10px] text-slate-400 font-normal ml-3 hidden sm:inline select-none bg-slate-50 border border-slate-100 rounded px-1.5 py-0.5">
             Ctrl+Click to select multiple
           </span>

@@ -24,10 +24,12 @@ function getThursWeekStart(dateStr: string): Date {
   return d
 }
 
-/** ISO week key like "2026-W26" from the Thursday start date. */
+/** ISO week key like "2026-W26" from the Thursday start date. DST-safe. */
 function isoWeekKey(thuStart: Date): string {
   const jan1 = new Date(thuStart.getFullYear(), 0, 1)
-  const dayOfYear = Math.floor((thuStart.getTime() - jan1.getTime()) / 86_400_000) + 1
+  const utc1 = Date.UTC(jan1.getFullYear(), jan1.getMonth(), jan1.getDate(), 12, 0, 0)
+  const utcD = Date.UTC(thuStart.getFullYear(), thuStart.getMonth(), thuStart.getDate(), 12, 0, 0)
+  const dayOfYear = Math.floor((utcD - utc1) / 86_400_000) + 1
   const weekNum = Math.ceil(dayOfYear / 7)
   return `${thuStart.getFullYear()}-W${String(weekNum).padStart(2, "0")}`
 }
@@ -200,33 +202,48 @@ export async function recalculateSummaries(
     ? new Set(opts.months.map((m) => String(m).padStart(2, "0")))
     : null // null = all months
 
+  // If targeting specific months, pre-identify which ISO weeks have at least one day in those months.
+  // This ensures that we fully recalculate the spanning weeks without boundary leakage.
+  const targetWeeks = new Set<string>()
+  if (doWeekly && targetMonths) {
+    for (const m of metrics) {
+      const monthStr = m.report_date.substring(5, 7)
+      if (targetMonths.has(monthStr)) {
+        const thuStart = getThursWeekStart(m.report_date)
+        targetWeeks.add(isoWeekKey(thuStart))
+      }
+    }
+  }
+
   for (const m of metrics) {
     const monthStr = m.report_date.substring(5, 7) // "06"
-    if (targetMonths && !targetMonths.has(monthStr)) continue
-
     const monthKey = m.report_date.substring(0, 7) // "2026-06"
-    const agentMonthKey = `${m.agent_id}||${monthKey}`
 
-    // Monthly
-    if (!monthlyBuckets.has(agentMonthKey)) {
-      monthlyBuckets.set(agentMonthKey, emptyBucket())
+    // Monthly: only calculate for target months
+    if (!targetMonths || targetMonths.has(monthStr)) {
+      const agentMonthKey = `${m.agent_id}||${monthKey}`
+      if (!monthlyBuckets.has(agentMonthKey)) {
+        monthlyBuckets.set(agentMonthKey, emptyBucket())
+      }
+      addToBucket(monthlyBuckets.get(agentMonthKey)!, m)
     }
-    addToBucket(monthlyBuckets.get(agentMonthKey)!, m)
 
-    // Weekly
+    // Weekly: only calculate for target weeks
     if (doWeekly) {
       const thuStart = getThursWeekStart(m.report_date)
       const weekKey = isoWeekKey(thuStart)
-      const agentWeekKey = `${m.agent_id}||${weekKey}`
-      if (!weeklyBuckets.has(agentWeekKey)) {
-        const wedEnd = new Date(thuStart)
-        wedEnd.setDate(wedEnd.getDate() + 6)
-        weeklyBuckets.set(agentWeekKey, { bucket: emptyBucket(), start: thuStart, end: wedEnd })
+      if (!targetMonths || targetWeeks.has(weekKey)) {
+        const agentWeekKey = `${m.agent_id}||${weekKey}`
+        if (!weeklyBuckets.has(agentWeekKey)) {
+          const wedEnd = new Date(thuStart)
+          wedEnd.setDate(wedEnd.getDate() + 6)
+          weeklyBuckets.set(agentWeekKey, { bucket: emptyBucket(), start: thuStart, end: wedEnd })
+        }
+        addToBucket(weeklyBuckets.get(agentWeekKey)!.bucket, m)
       }
-      addToBucket(weeklyBuckets.get(agentWeekKey)!.bucket, m)
     }
 
-    // YTD — always recalculates from all months even if targeting specific months
+    // YTD — always recalculates from all months in the year to ensure accuracy
     if (doYtd) {
       if (!ytdBuckets.has(m.agent_id)) {
         ytdBuckets.set(m.agent_id, emptyBucket())

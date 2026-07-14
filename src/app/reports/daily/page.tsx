@@ -1,5 +1,6 @@
 "use client"
 
+import { PageGuard } from "@/components/layout/PageGuard";
 import { useEffect, useState, useMemo } from "react"
 import { getDailyData, getDailyCoverage, getDailyInsights } from "./actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
@@ -477,6 +478,7 @@ export default function DailyReport() {
 
 
   return (
+    <PageGuard pageKey="daily">
     <div className="p-4 md:p-6 max-w-[1800px] mx-auto space-y-4">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
@@ -1221,5 +1223,6 @@ export default function DailyReport() {
         }}
       />
     </div>
+    </PageGuard>
   )
 }

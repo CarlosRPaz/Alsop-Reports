@@ -1,5 +1,6 @@
 "use client"
 
+import { PageGuard } from "@/components/layout/PageGuard";
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { getWeeklyData, getWeekCoverage, getWeeklyAutoSums } from "./actions"
 import { runDataSyncPipeline } from "@/app/admin/sync/actions"
@@ -455,6 +456,7 @@ export default function WeeklyReport() {
   }, [filteredMetrics]);
 
   return (
+    <PageGuard pageKey="weekly">
     <div className="p-4 md:p-6 max-w-[1800px] mx-auto space-y-4">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
@@ -978,5 +980,6 @@ export default function WeeklyReport() {
         eagentComplete={isEagentComplete}
       />
     </div>
+    </PageGuard>
   )
 }

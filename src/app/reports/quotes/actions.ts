@@ -46,11 +46,12 @@ export interface QuotesAgentRow {
   quote_count: number
   items: number
   report_visible: boolean
+  active: boolean
 }
 
 export interface QuotesDataResult {
   agents: QuotesAgentRow[]
-  allAgents: { id: string; name: string; team: string | null; office: string | null }[]
+  allAgents: { id: string; name: string; team: string | null; office: string | null; report_visible: boolean; active: boolean }[]
   businessDaysTotal: number
   businessDaysPassed: number
   periodLabel: string
@@ -117,11 +118,10 @@ export async function getQuotesData(
       periodLabel = `${monthNames[m]} ${y} (MTD)`
     }
 
-    // Fetch all active agents (including non-report-visible ones for metadata mapping)
+    // Fetch all agents (including inactive ones for metadata mapping and totals)
     const { data: agents } = await supabase
       .from("agents")
       .select("id, name, team, office, active, report_visible")
-      .eq("active", true)
       .order("name")
 
     // Fetch daily_metrics in the date range (include nb_auto_items for MTD count)
@@ -187,7 +187,7 @@ export async function getQuotesData(
       }
     }
 
-    // Build result rows (only report-visible agents for the table)
+    // Build result rows (keep all agents; visibility/activity filtering is done UI-side)
     const rows: QuotesAgentRow[] = (agents || [])
       .map(a => ({
         agent_id: a.id,
@@ -198,8 +198,8 @@ export async function getQuotesData(
         quote_count: agentQuotes[a.id]?.quotes || 0,
         items: agentQuotes[a.id]?.items || 0,
         report_visible: a.report_visible ?? true,
+        active: a.active ?? true,
       }))
-      .filter(r => r.report_visible)
 
     // Agency-wide totals: include ALL agents (even non-visible ones)
     // Hidden agents should still count in aggregate numbers

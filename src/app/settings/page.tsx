@@ -8,8 +8,10 @@ import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser"
 import {
   User, Bell, Shield, KeyRound, Loader2, Check, AlertCircle, X,
   Mail, Building, Users, ShieldCheck, UserCog, Moon,
-  Monitor, MessageSquare, ShieldAlert
+  Monitor, MessageSquare, ShieldAlert, Send
 } from "lucide-react"
+import { sendDesktopNotification, requestDesktopPermission } from "@/lib/chat/notifications"
+import { useToast } from "@/components/ui/Toast"
 
 interface Agent {
   id: string
@@ -24,6 +26,7 @@ interface Agent {
 
 interface Preferences {
   desktop_enabled: boolean
+  toast_enabled: boolean
   notify_on_dm: boolean
   notify_on_mentions: boolean
   notify_on_team_mentions: boolean
@@ -38,6 +41,7 @@ export default function PersonalSettingsPage() {
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingPrefs, setSavingPrefs] = useState(false)
   const [updatingPassword, setUpdatingPassword] = useState(false)
+  const { addToast } = useToast()
 
   // Profile fields
   const [agent, setAgent] = useState<Agent | null>(null)
@@ -46,6 +50,7 @@ export default function PersonalSettingsPage() {
   // Preferences fields
   const [prefs, setPrefs] = useState<Preferences>({
     desktop_enabled: true,
+    toast_enabled: true,
     notify_on_dm: true,
     notify_on_mentions: true,
     notify_on_team_mentions: true,
@@ -97,6 +102,7 @@ export default function PersonalSettingsPage() {
         if (prefData) {
           setPrefs({
             desktop_enabled: prefData.desktop_enabled ?? true,
+            toast_enabled: prefData.toast_enabled ?? true,
             notify_on_dm: prefData.notify_on_dm ?? true,
             notify_on_mentions: prefData.notify_on_mentions ?? true,
             notify_on_team_mentions: prefData.notify_on_team_mentions ?? true,
@@ -164,6 +170,7 @@ export default function PersonalSettingsPage() {
         .upsert({
           agent_id: agent.id,
           desktop_enabled: prefs.desktop_enabled,
+          toast_enabled: prefs.toast_enabled,
           notify_on_dm: prefs.notify_on_dm,
           notify_on_mentions: prefs.notify_on_mentions,
           notify_on_team_mentions: prefs.notify_on_team_mentions,
@@ -395,7 +402,51 @@ export default function PersonalSettingsPage() {
               <CardDescription>Control how and when you receive internal chat alerts.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              
+
+              {/* Preview Test Notification */}
+              <button
+                onClick={async () => {
+                  const firstName = agent?.name?.split(' ')[0] || 'there'
+
+                  // 1. Always fire the in-app toast (works immediately)
+                  addToast({
+                    title: `Hey ${firstName}! 👋`,
+                    message: 'This is what your chat notifications will look like. Looking good!',
+                    variant: 'notification',
+                    duration: 6000,
+                  })
+
+                  // 2. Try desktop notification too
+                  if (typeof window !== 'undefined' && 'Notification' in window) {
+                    if (Notification.permission === 'default') {
+                      const perm = await requestDesktopPermission()
+                      if (perm === 'granted') {
+                        sendDesktopNotification(
+                          `Hey ${firstName}! 👋`,
+                          'This is your desktop notification preview. It works!',
+                        )
+                      } else {
+                        addToast({
+                          title: 'Desktop notifications blocked',
+                          message: 'Your browser blocked desktop notifications. You can enable them in browser settings.',
+                          variant: 'warning',
+                          duration: 6000,
+                        })
+                      }
+                    } else if (Notification.permission === 'granted') {
+                      sendDesktopNotification(
+                        `Hey ${firstName}! 👋`,
+                        'This is your desktop notification preview. It works!',
+                      )
+                    }
+                  }
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 hover:border-indigo-200 transition-all cursor-pointer group"
+              >
+                <Send className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                Preview Test Notification
+              </button>
+
               {/* Toggles */}
               <div className="space-y-4">
                 
@@ -413,6 +464,26 @@ export default function PersonalSettingsPage() {
                       type="checkbox"
                       checked={prefs.desktop_enabled}
                       onChange={(e) => handleDesktopToggle(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+
+                {/* In-App Toast Toggle */}
+                <div className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                  <div className="flex gap-2.5 items-start">
+                    <Bell className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                    <div>
+                      <span className="block text-sm font-semibold text-slate-800">In-App Toasts</span>
+                      <span className="block text-xs text-slate-400 mt-0.5">Show pop-up alerts in the bottom-right</span>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={prefs.toast_enabled}
+                      onChange={(e) => setPrefs(prev => ({ ...prev, toast_enabled: e.target.checked }))}
                       className="sr-only peer"
                     />
                     <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>

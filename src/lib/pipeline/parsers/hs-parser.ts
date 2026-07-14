@@ -24,7 +24,9 @@ const COL_MAP: Record<string, string> = {
   "Number of Outbound Messages": "OutTexts",
   "Number of Opt-Ins": "OptIns",
   "Number of Opt-Outs": "OptOuts",
+  "Workspace Name": "WorkspaceName",
 };
+
 
 const NUMERIC_COLS = ["Texts", "OutTexts", "OptIns", "OptOuts"] as const;
 
@@ -143,7 +145,28 @@ function aggregate(
     { Date: string | null; Agent: string; Texts: number; OutTexts: number; OptIns: number; OptOuts: number }
   >();
 
+  // Deduplicate by Date|Agent|WorkspaceName to prevent double-counting when duplicate files are uploaded
+  const uniqueRows: Record<string, unknown>[] = []
+  const seenKeys = new Set<string>()
+
   for (const row of data) {
+    const date = row["Date"] != null ? toDateString(row["Date"]) : null
+    const agent = String(row["Agent"])
+    const workspace = String(row["WorkspaceName"] || "DefaultWorkspace").trim()
+    const key = `${date}|${agent}|${workspace}`
+
+    if (seenKeys.has(key)) {
+      continue
+    }
+    seenKeys.add(key)
+    uniqueRows.push(row)
+  }
+
+  if (uniqueRows.length < data.length) {
+    logs.push(`[hs-parser] Deduplicated: kept ${uniqueRows.length} unique workspace rows out of ${data.length} total rows`);
+  }
+
+  for (const row of uniqueRows) {
     const date = row["Date"] != null ? toDateString(row["Date"]) : null;
     const agent = String(row["Agent"]);
     const key = `${date}|${agent}`;

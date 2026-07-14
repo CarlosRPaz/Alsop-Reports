@@ -1,5 +1,6 @@
 "use client"
 
+import { PageGuard } from "@/components/layout/PageGuard";
 import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { getAllAgents, AgentInfo } from "./actions"
@@ -75,6 +76,7 @@ export default function AgentPortalPage() {
   }, [filtered])
 
   return (
+    <PageGuard pageKey="agent_portal">
     <div className="p-6 max-w-[1400px] mx-auto">
       {/* Header */}
       <div className="mb-8">
@@ -240,5 +242,6 @@ export default function AgentPortalPage() {
         </Card>
       )}
     </div>
+    </PageGuard>
   )
 }

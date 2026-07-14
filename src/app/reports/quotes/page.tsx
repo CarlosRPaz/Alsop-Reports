@@ -1,7 +1,8 @@
 "use client"
 
+import { PageGuard } from "@/components/layout/PageGuard";
 import { useState, useEffect, useMemo } from "react"
-import { getQuotesData, getDailyBreakdown, getDuplicateQuotes, getYTDBreakdown, ViewMode, QuotesAgentRow, DuplicateGroup, YTDAgentRawPoint, DailyBreakdownData } from "./actions"
+import { getQuotesData, getDailyBreakdown, getDuplicateQuotes, getYTDBreakdown, ViewMode, QuotesAgentRow, QuotesDataResult, DuplicateGroup, YTDAgentRawPoint, DailyBreakdownData } from "./actions"
 import {
   ResponsiveContainer, ComposedChart, Line, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, LabelList, ReferenceArea, ReferenceLine
@@ -39,13 +40,12 @@ function fmtNum(val: number, decimals = 1): string {
 
 function crColorClass(cr: number): string {
   if (cr >= 0.15) return "text-emerald-700 bg-emerald-50"
-  if (cr >= 0.10) return "text-amber-700 bg-amber-50"
-  return "text-red-700 bg-red-50"
+  return "text-amber-700 bg-amber-50"
 }
 
 function cardCrColorClass(cr: number): string {
   if (cr >= 0.15) return "text-emerald-700 bg-emerald-50 border-emerald-200"
-  return "text-red-700 bg-red-50 border-red-200"
+  return "text-amber-700 bg-amber-50 border-amber-200"
 }
 
 type SortField = "name" | "nb" | "items" | "quotes" | "cr" | "monthly" | "dailyGoal" | "benchmark" | "dailyActual"
@@ -60,23 +60,81 @@ interface ComputedRow extends QuotesAgentRow {
   daily_actual: number
 }
 
+// ── Custom Tooltip for Recharts ──
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const quotes = payload.find((p: any) => p.dataKey === "quotes")?.value
+    const nb = payload.find((p: any) => p.dataKey === "nb")?.value
+    const items = payload.find((p: any) => p.dataKey === "items")?.value
+    const cumulativeItems = payload.find((p: any) => p.dataKey === "cumulativeItems")?.value
+    const cr = payload.find((p: any) => p.dataKey === "closeRate")?.value
+
+    return (
+      <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-lg text-xs min-w-[170px] z-50">
+        <div className="font-bold text-slate-700 mb-2 border-b border-slate-100 pb-1">
+          {label}
+        </div>
+        <div className="space-y-1.5 font-medium">
+          {quotes !== undefined && (
+            <div className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-1.5 text-slate-500">
+                <span className="w-2 h-2 rounded-full bg-blue-500" />
+                Quotes:
+              </span>
+              <span className="text-slate-800 font-semibold">{quotes.toLocaleString()}</span>
+            </div>
+          )}
+          {nb !== undefined && (
+            <div className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-1.5 text-slate-500">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                NB Policies:
+              </span>
+              <span className="text-slate-800 font-semibold">{nb.toLocaleString()}</span>
+            </div>
+          )}
+          {items !== undefined && (
+            <div className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-1.5 text-slate-500">
+                <span className="w-2 h-2 rounded-full bg-violet-500" />
+                Auto Items:
+              </span>
+              <span className="text-slate-800 font-semibold">{items.toLocaleString()}</span>
+            </div>
+          )}
+          {cumulativeItems !== undefined && (
+            <div className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-1.5 text-slate-500">
+                <span className="w-2 h-2 rounded-full bg-pink-500" />
+                Cum. Items:
+              </span>
+              <span className="text-slate-800 font-semibold">{cumulativeItems.toLocaleString()}</span>
+            </div>
+          )}
+          {cr !== undefined && (
+            <div className="flex items-center justify-between gap-4 pt-1.5 mt-1 border-t border-slate-100 font-semibold">
+              <span className="flex items-center gap-1.5 text-slate-600">
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                Close Rate:
+              </span>
+              <span className={`px-1.5 py-0.5 rounded text-[10px] ${cr >= 15 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                {Number(cr).toFixed(1)}%
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+  return null
+}
+
 export default function QuotesPage() {
   // ── State ──
   const [mode, setMode] = useState<ViewMode>("monthly")
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
-  const [data, setData] = useState<{
-    agents: QuotesAgentRow[]
-    allAgents: { id: string; name: string; team: string | null; office: string | null }[]
-    businessDaysTotal: number
-    businessDaysPassed: number
-    periodLabel: string
-    lastDataDate: string
-    mtdItems: number
-    rawQuotesTotal: number
-    agencyTotals: { totalQuotes: number; totalNB: number; totalItems: number }
-    dateRangeEnd: string
-  } | null>(null)
+  const [data, setData] = useState<QuotesDataResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<FilterState>({ offices: [], teams: [], agents: [], meetings: [] })
   const [sortField, setSortField] = useState<SortField>("nb")
@@ -95,10 +153,10 @@ export default function QuotesPage() {
 
   // ── Lookup map + Memoized dynamic charts ──
   const agentMetadataMap = useMemo(() => {
-    const map = new Map<string, { name: string; team: string | null; office: string | null }>()
+    const map = new Map<string, { name: string; team: string | null; office: string | null; report_visible: boolean; active: boolean }>()
     if (data?.allAgents) {
       data.allAgents.forEach(a => {
-        map.set(a.id, { name: a.name, team: a.team, office: a.office })
+        map.set(a.id, { name: a.name, team: a.team, office: a.office, report_visible: a.report_visible ?? true, active: a.active ?? true })
       })
     }
     return map
@@ -383,7 +441,7 @@ export default function QuotesPage() {
 
   // ── Sorting ──
   const sortedRows = useMemo(() => {
-    const rows = computedRows.filter(r => r.report_visible)
+    const rows = computedRows.filter(r => r.report_visible && r.active)
     const dir = sortDir === "asc" ? 1 : -1
 
     rows.sort((a, b) => {
@@ -442,35 +500,128 @@ export default function QuotesPage() {
   }, [totals.totalItems, filters, data])
 
   // ── Group summaries (Team & Office) ──
-  const teamSummary = useMemo(() => {
-    const groups: Record<string, { nb: number; quotes: number; items: number }> = {}
-    computedRows.forEach(r => {
-      const key = r.team || "N/A"
-      if (!groups[key]) groups[key] = { nb: 0, quotes: 0, items: 0 }
-      groups[key].nb += r.nb_policies
-      groups[key].quotes += r.quote_count
-      groups[key].items += r.items
-    })
-    return Object.entries(groups)
-      .filter(([team]) => team !== "N/A") // Exclude N/A teams from display (still in totals)
+  const { teamSummary, otherTeamStats } = useMemo(() => {
+    const teamMap: Record<string, string> = {
+      "Sales": "Sales", "Service": "CSR", "EA": "EA", "Manager": "Managers"
+    }
+    const groups: Record<string, { nb: number; quotes: number; items: number }> = {
+      "Sales": { nb: 0, quotes: 0, items: 0 },
+      "CSR": { nb: 0, quotes: 0, items: 0 },
+      "EA": { nb: 0, quotes: 0, items: 0 }
+    }
+    let otherNB = 0
+    let otherQuotes = 0
+    let otherItems = 0
+
+    if (data?.agents) {
+      data.agents.forEach(a => {
+        // Apply office and agent filters, but ignore team filter
+        if (filters.offices.length > 0) {
+          const officeMap: Record<string, string> = {
+            "Montclair": "MCM", "Montebello": "MB",
+            "Rancho Cucamonga": "RC", "Chino": "CH", "Claremont": "CH"
+          }
+          const abbr = officeMap[a.office || ""] || a.office || ""
+          if (!filters.offices.includes(abbr) && !filters.offices.includes(a.office || "")) return
+        }
+        if (filters.agents.length > 0 && !filters.agents.includes(a.name)) return
+
+        const mappedTeam = teamMap[a.team || ""] || a.team || "N/A"
+        if (mappedTeam === "N/A" || mappedTeam === "Managers" || mappedTeam === "Support") {
+          otherNB += a.nb_policies
+          otherQuotes += a.quote_count
+          otherItems += a.items
+          return
+        }
+
+        if (!groups[mappedTeam]) {
+          groups[mappedTeam] = { nb: 0, quotes: 0, items: 0 }
+        }
+        groups[mappedTeam].nb += a.nb_policies
+        groups[mappedTeam].quotes += a.quote_count
+        groups[mappedTeam].items += a.items
+      })
+    }
+
+    const summaryList = Object.entries(groups)
       .map(([team, v]) => ({ team, cr: pct(v.nb, v.quotes), nb: v.nb, quotes: v.quotes, items: v.items }))
       .sort((a, b) => b.cr - a.cr)
-  }, [computedRows])
 
-  const officeSummary = useMemo(() => {
-    const groups: Record<string, { nb: number; quotes: number; items: number }> = {}
-    computedRows.forEach(r => {
-      const key = r.office || "N/A"
-      if (!groups[key]) groups[key] = { nb: 0, quotes: 0, items: 0 }
-      groups[key].nb += r.nb_policies
-      groups[key].quotes += r.quote_count
-      groups[key].items += r.items
-    })
-    return Object.entries(groups)
-      .filter(([office]) => office !== "N/A") // Exclude N/A offices from display (still in totals)
+    return {
+      teamSummary: summaryList,
+      otherTeamStats: { nb: otherNB, quotes: otherQuotes, items: otherItems }
+    }
+  }, [data, filters.offices, filters.agents])
+
+  const { officeSummary, otherOfficeStats } = useMemo(() => {
+    const officeMap: Record<string, string> = {
+      "Montclair": "MCM", "Montebello": "MB",
+      "Rancho Cucamonga": "RC", "Chino": "CH", "Claremont": "CH"
+    }
+    const groups: Record<string, { nb: number; quotes: number; items: number }> = {
+      "MCM": { nb: 0, quotes: 0, items: 0 },
+      "MB": { nb: 0, quotes: 0, items: 0 },
+      "RC": { nb: 0, quotes: 0, items: 0 },
+      "CH": { nb: 0, quotes: 0, items: 0 }
+    }
+    let otherNB = 0
+    let otherQuotes = 0
+    let otherItems = 0
+
+    if (data?.agents) {
+      data.agents.forEach(a => {
+        // Apply team and agent filters, but ignore office filter
+        if (filters.teams.length > 0) {
+          const teamMap: Record<string, string> = {
+            "Sales": "Sales", "Service": "CSR", "EA": "EA", "Manager": "Managers"
+          }
+          const mapped = teamMap[a.team || ""] || a.team || ""
+          if (!filters.teams.includes(mapped) && !filters.teams.includes(a.team || "")) return
+        }
+        if (filters.agents.length > 0 && !filters.agents.includes(a.name)) return
+
+        const mappedOffice = officeMap[a.office || ""] || a.office || "N/A"
+        if (mappedOffice === "N/A") {
+          otherNB += a.nb_policies
+          otherQuotes += a.quote_count
+          otherItems += a.items
+          return
+        }
+
+        if (!groups[mappedOffice]) {
+          groups[mappedOffice] = { nb: 0, quotes: 0, items: 0 }
+        }
+        groups[mappedOffice].nb += a.nb_policies
+        groups[mappedOffice].quotes += a.quote_count
+        groups[mappedOffice].items += a.items
+      })
+    }
+
+    const summaryList = Object.entries(groups)
       .map(([office, v]) => ({ office, cr: pct(v.nb, v.quotes), nb: v.nb, quotes: v.quotes, items: v.items }))
       .sort((a, b) => b.cr - a.cr)
-  }, [computedRows])
+
+    return {
+      officeSummary: summaryList,
+      otherOfficeStats: { nb: otherNB, quotes: otherQuotes, items: otherItems }
+    }
+  }, [data, filters.teams, filters.agents])
+
+  const teamTotal = useMemo(() => {
+    const nb = teamSummary.reduce((sum, t) => sum + t.nb, 0) + otherTeamStats.nb
+    const quotes = teamSummary.reduce((sum, t) => sum + t.quotes, 0) + otherTeamStats.quotes
+    const items = teamSummary.reduce((sum, t) => sum + t.items, 0) + otherTeamStats.items
+    const cr = quotes > 0 ? nb / quotes : 0
+    return { nb, quotes, items, cr }
+  }, [teamSummary, otherTeamStats])
+
+  const officeTotal = useMemo(() => {
+    const nb = officeSummary.reduce((sum, o) => sum + o.nb, 0) + otherOfficeStats.nb
+    const quotes = officeSummary.reduce((sum, o) => sum + o.quotes, 0) + otherOfficeStats.quotes
+    const items = officeSummary.reduce((sum, o) => sum + o.items, 0) + otherOfficeStats.items
+    const cr = quotes > 0 ? nb / quotes : 0
+    return { nb, quotes, items, cr }
+  }, [officeSummary, otherOfficeStats])
 
   // ── Monthly CR Breakdown by Team & Office (for YTD view) ──
   const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -572,27 +723,56 @@ export default function QuotesPage() {
       : <ArrowDown className="w-3 h-3 text-blue-600" />
   }
 
-  // ── Available filter values ──
   const availableAgents = useMemo(() =>
     data?.agents.filter(a => a.report_visible).map(a => a.name).sort() || [], [data])
 
-  // Generate month options for the monthly picker
-  const monthOptions = useMemo(() => {
-    const today = new Date()
-    const options: { year: number; month: number; label: string }[] = []
-    // Go back 12 months
-    for (let i = 0; i < 12; i++) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
-      options.push({
-        year: d.getFullYear(),
-        month: d.getMonth() + 1,
-        label: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`
-      })
+  const isStale = useMemo(() => {
+    if (!data) return false
+    const start = new Date(data.lastDataDate + "T00:00:00")
+    const end = new Date(data.dateRangeEnd + "T00:00:00")
+    let bizDaysBetween = 0
+    const cursor = new Date(start)
+    const holidaySet = new Set((data.holidays || []).map((h: any) => h.holiday_date))
+    while (cursor <= end) {
+      const dateStr = cursor.toISOString().split("T")[0]
+      const day = cursor.getDay()
+      const isWeekend = day === 0 || day === 6
+      if (!isWeekend && !holidaySet.has(dateStr)) {
+        bizDaysBetween++
+      }
+      cursor.setDate(cursor.getDate() + 1)
     }
-    return options
-  }, [])
+    return bizDaysBetween >= 3
+  }, [data])
+
+  const bizDaysInYear = useMemo(() => {
+    if (!data) return 0
+    const start = new Date(`${selectedYear}-01-01T00:00:00`)
+    const end = new Date(`${selectedYear}-12-31T00:00:00`)
+    const holidaySet = new Set((data.holidays || []).map((h: any) => h.holiday_date))
+    let count = 0
+    const cursor = new Date(start)
+    while (cursor <= end) {
+      const dateStr = cursor.toISOString().split("T")[0]
+      const day = cursor.getDay()
+      if (day !== 0 && day !== 6 && !holidaySet.has(dateStr)) {
+        count++
+      }
+      cursor.setDate(cursor.getDate() + 1)
+    }
+    return count
+  }, [data, selectedYear])
+
+  const getFiltersLabel = () => {
+    const parts: string[] = []
+    if (filters.offices.length > 0) parts.push(`Offices: ${filters.offices.join(", ")}`)
+    if (filters.teams.length > 0) parts.push(`Teams: ${filters.teams.join(", ")}`)
+    if (filters.agents.length > 0) parts.push(`Agents: ${filters.agents.length} selected`)
+    return parts.join(" · ")
+  }
 
   return (
+    <PageGuard pageKey="quotes">
     <div className="p-6 max-w-[1600px] mx-auto">
 
       {/* ── Header ── */}
@@ -623,62 +803,89 @@ export default function QuotesPage() {
             }
             setDupeLoading(false)
           }}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 hover:border-amber-300 transition-all"
+          className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl border border-slate-200 transition-all shadow-sm"
         >
           <Copy className="w-4 h-4" />
-          View Duplicates
+          View Dupes {data && `(${data.rawQuotesTotal - data.agencyTotals.totalQuotes} flagged)`}
         </button>
       </div>
 
-      {/* ── View Mode Tabs + Period Picker ── */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        <div className="flex bg-slate-100 rounded-lg p-0.5 border border-slate-200">
-          {(["monthly", "ytd"] as ViewMode[]).map(m => (
-            <button
-              key={m}
-              onClick={() => {
-                setMode(m)
-                if (m === "monthly") {
-                  setSelectedYear(new Date().getFullYear())
-                  setSelectedMonth(new Date().getMonth() + 1)
-                }
-                if (m === "ytd") {
-                  setSelectedYear(new Date().getFullYear())
-                }
-              }}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                mode === m
-                  ? "bg-white text-blue-700 shadow-sm border border-blue-200"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              {m === "monthly" ? "Monthly" : "YTD"}
-            </button>
-          ))}
+      {/* ── Period Selector (YTD vs Monthly) ── */}
+      <div className="flex items-center gap-4 mb-6 flex-wrap">
+        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
+          <button
+            onClick={() => setMode("monthly")}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              mode === "monthly"
+                ? "bg-white text-slate-800 shadow-md border border-slate-200"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            Monthly View
+          </button>
+          <button
+            onClick={() => setMode("ytd")}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              mode === "ytd"
+                ? "bg-white text-slate-800 shadow-md border border-slate-200"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            YTD View
+          </button>
         </div>
 
-        {/* Month picker — always visible in Monthly mode */}
+        {/* Monthly month/year pickers */}
         {mode === "monthly" && (
-          <div className="relative">
-            <select
-              value={`${selectedYear}-${selectedMonth}`}
-              onChange={e => {
-                const [y, m] = e.target.value.split("-").map(Number)
-                setSelectedYear(y)
+          <div className="flex gap-2">
+            <div className="relative">
+              <select
+                value={selectedMonth}
+                onChange={e => setSelectedMonth(Number(e.target.value))}
+                className="appearance-none bg-white border border-slate-300 rounded-lg px-4 py-1.5 pr-8 text-sm font-medium text-slate-700 cursor-pointer hover:border-blue-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                  <option key={m} value={m}>{MONTH_NAMES[m - 1]}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            </div>
+
+            <div className="relative">
+              <select
+                value={selectedYear}
+                onChange={e => setSelectedYear(Number(e.target.value))}
+                className="appearance-none bg-white border border-slate-300 rounded-lg px-4 py-1.5 pr-8 text-sm font-medium text-slate-700 cursor-pointer hover:border-blue-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              >
+                {[2026, 2025].map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            </div>
+
+            {/* Previous Month Navigation Button */}
+            <button
+              onClick={() => {
+                let m = selectedMonth - 1
+                let y = selectedYear
+                if (m === 0) {
+                  m = 12
+                  y -= 1
+                }
                 setSelectedMonth(m)
+                setSelectedYear(y)
               }}
-              className="appearance-none bg-white border border-slate-300 rounded-lg px-4 py-1.5 pr-8 text-sm font-medium text-slate-700 cursor-pointer hover:border-blue-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-all"
             >
-              {monthOptions.map(opt => {
-                const isCurrent = opt.year === new Date().getFullYear() && opt.month === new Date().getMonth() + 1
-                return (
-                  <option key={`${opt.year}-${opt.month}`} value={`${opt.year}-${opt.month}`}>
-                    {opt.label}{isCurrent ? " (MTD)" : ""}
-                  </option>
-                )
-              })}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+              ← View Previous Month
+            </button>
+            <button
+              onClick={() => setMode("ytd")}
+              className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-all"
+            >
+              View YTD
+            </button>
           </div>
         )}
 
@@ -710,25 +917,25 @@ export default function QuotesPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* Most Recent Data Date */}
           <div className={`rounded-xl border p-4 ${
-            data.lastDataDate < data.dateRangeEnd
+            isStale
               ? "bg-amber-50 border-amber-200"
               : "bg-emerald-50 border-emerald-200"
           }`}>
             <div className="flex items-center gap-2 mb-1">
               <CalendarCheck className={`w-4 h-4 ${
-                data.lastDataDate < data.dateRangeEnd ? "text-amber-600" : "text-emerald-600"
+                isStale ? "text-amber-600" : "text-emerald-600"
               }`} />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Most Recent Quote-Production Date
+                Data Through
               </span>
             </div>
             <div className="flex items-center gap-2">
               <span className={`text-xl font-bold ${
-                data.lastDataDate < data.dateRangeEnd ? "text-amber-800" : "text-emerald-800"
+                isStale ? "text-amber-800" : "text-emerald-800"
               }`}>
                 {new Date(data.lastDataDate + "T00:00:00").toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" })}
               </span>
-              {data.lastDataDate < data.dateRangeEnd && (
+              {isStale && (
                 <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
                   <AlertTriangle className="w-3 h-3" />
                   Stale
@@ -736,7 +943,16 @@ export default function QuotesPage() {
               )}
             </div>
             <div className="mt-1.5 text-xs text-slate-500">
-              {data.businessDaysPassed} <span className="text-slate-400">of</span> {data.businessDaysTotal} <span className="text-slate-400">business days</span>
+              {mode === "ytd" ? (
+                <span>
+                  {data.businessDaysPassed} business days elapsed YTD{" "}
+                  <span className="text-slate-400">
+                    ({bizDaysInYear - data.businessDaysPassed} remaining in {selectedYear})
+                  </span>
+                </span>
+              ) : (
+                <span>{data.businessDaysPassed} of {data.businessDaysTotal} business days elapsed</span>
+              )}
             </div>
           </div>
 
@@ -745,7 +961,7 @@ export default function QuotesPage() {
             <div className="flex items-center gap-2 mb-1">
               <Package className="w-4 h-4 text-blue-600" />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                {mode === "ytd" ? "YTD Items" : "MTD Items"}
+                {mode === "ytd" ? "YTD Auto Items" : "MTD Auto Items"}
               </span>
             </div>
             <span className="text-xl font-bold text-blue-800">
@@ -763,119 +979,49 @@ export default function QuotesPage() {
             <div className="flex items-center gap-2 mb-1">
               <TrendingUp className="w-4 h-4" />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                {mode === "ytd" ? "YTD Close Rate" : "MTD Close Rate"}
+                {mode === "ytd" ? "YTD Auto Close Rate" : "MTD Auto Close Rate"}
               </span>
             </div>
             <span className="text-xl font-bold">
               {fmtPct(totals.cr)}
             </span>
-            {(filters.offices.length > 0 || filters.teams.length > 0 || filters.agents.length > 0) && (
-              <div className="mt-1 text-xs text-slate-500">
-                Agency: {fmtPct(agencyTotals.cr)}
+            {filters.offices.length > 0 || filters.teams.length > 0 || filters.agents.length > 0 ? (
+              <div className="mt-1 text-xs text-slate-500 flex flex-col gap-0.5">
+                <span className="font-semibold text-blue-600 truncate">{getFiltersLabel()}</span>
+                <span>Agency actual: {fmtPct(agencyTotals.cr)}</span>
+              </div>
+            ) : (
+              <div className="mt-1 text-xs text-slate-400">
+                Agency actual
               </div>
             )}
           </div>
 
           {/* NB / Quotes Summary */}
           <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-2">
               <BarChart3 className="w-4 h-4 text-slate-500" />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 NB / Quotes
               </span>
             </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-xl font-bold text-emerald-700">{totals.totalNB}</span>
-              <span className="text-sm text-slate-400">/</span>
-              <span className="text-xl font-bold text-blue-700">{totals.totalQuotes}</span>
+            <div className="flex gap-4 items-center mb-1">
+              <div>
+                <span className="text-xl font-bold text-emerald-700 block leading-tight">{totals.totalNB}</span>
+                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">NB Policies</span>
+              </div>
+              <div className="border-r border-slate-200 h-6 my-auto" />
+              <div>
+                <span className="text-xl font-bold text-blue-700 block leading-tight">{totals.totalQuotes}</span>
+                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Deduped Quotes</span>
+              </div>
             </div>
-            <div className="mt-1 text-xs text-slate-400">
-              {totals.totalNB} policies · {totals.totalQuotes} deduped quotes{data?.rawQuotesTotal ? ` · ${data.rawQuotesTotal} Std Auto total` : ""}
-            </div>
+            {data?.rawQuotesTotal ? (
+              <div className="text-xs text-slate-500 mt-2 border-t border-slate-100 pt-1.5 font-medium">
+                {data.rawQuotesTotal.toLocaleString()} Standard Auto Quotes Total
+              </div>
+            ) : null}
           </div>
-        </div>
-      )}
-
-      {/* ── Summary Cards: Team & Office Close Rates ── */}
-      {data && !loading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {/* Team Close Rate */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-slate-600 flex items-center gap-2">
-                <Users className="w-4 h-4 text-blue-500" />
-                Close Rate by Team
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {teamSummary.map(t => (
-                  <div key={t.team} className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-700">{t.team}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-slate-400">
-                        {t.nb} NB / {t.quotes} Q / {t.items} items
-                      </span>
-                      <span className={`text-sm font-bold px-2 py-0.5 rounded-md ${crColorClass(t.cr)}`}>
-                        {fmtPct(t.cr)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {/* Totals */}
-                <div className="flex items-center justify-between pt-2 mt-1 border-t border-slate-200">
-                  <span className="text-sm font-bold text-slate-800">Total</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-semibold text-slate-500">
-                      {totals.totalNB} NB / {totals.totalQuotes} Q / {totals.totalItems} items
-                    </span>
-                    <span className={`text-sm font-bold px-2 py-0.5 rounded-md ${crColorClass(totals.cr)}`}>
-                      {fmtPct(totals.cr)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Office Close Rate */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-slate-600 flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-purple-500" />
-                Close Rate by Office
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {officeSummary.map(o => (
-                  <div key={o.office} className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-700">{o.office}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-slate-400">
-                        {o.nb} NB / {o.quotes} Q / {o.items} items
-                      </span>
-                      <span className={`text-sm font-bold px-2 py-0.5 rounded-md ${crColorClass(o.cr)}`}>
-                        {fmtPct(o.cr)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {/* Totals */}
-                <div className="flex items-center justify-between pt-2 mt-1 border-t border-slate-200">
-                  <span className="text-sm font-bold text-slate-800">Total</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-semibold text-slate-500">
-                      {totals.totalNB} NB / {totals.totalQuotes} Q / {totals.totalItems} items
-                    </span>
-                    <span className={`text-sm font-bold px-2 py-0.5 rounded-md ${crColorClass(totals.cr)}`}>
-                      {fmtPct(totals.cr)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       )}
 
@@ -924,32 +1070,20 @@ export default function QuotesPage() {
                     />
                     <YAxis
                       yAxisId="count"
-                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                      tick={{ fontSize: 11, fill: "#3b82f6", fontWeight: 600 }}
                       tickLine={false}
                       axisLine={false}
                     />
                     <YAxis
                       yAxisId="pct"
                       orientation="right"
-                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                      tick={{ fontSize: 11, fill: "#d97706", fontWeight: 600 }}
                       tickLine={false}
                       axisLine={false}
                       tickFormatter={(v: number) => `${v}%`}
-                      label={{ value: "Close Rate", angle: 90, position: "insideRight", style: { fontSize: 11, fill: "#94a3b8" } }}
+                      label={{ value: "Close Rate", angle: 90, position: "insideRight", style: { fontSize: 11, fill: "#d97706", fontWeight: 600 } }}
                     />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#fff",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "8px",
-                        boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
-                        fontSize: "12px",
-                      }}
-                      formatter={(value: any, name: any) => {
-                        if (name === "Close Rate" && typeof value === "number") return [`${value.toFixed(1)}%`, name]
-                        return [value, name]
-                      }}
-                    />
+                    <Tooltip content={<CustomTooltip />} />
                     <Legend
                       wrapperStyle={{ fontSize: "12px", paddingTop: "8px", cursor: "pointer" }}
                       onClick={(e: any) => toggleLine(e.dataKey)}
@@ -957,6 +1091,17 @@ export default function QuotesPage() {
                         const active = highlightedLines.size === 0 || highlightedLines.has(entry.dataKey)
                         return <span style={{ color: active ? entry.color : "#cbd5e1", fontWeight: active ? 600 : 400 }}>{value}</span>
                       }}
+                    />
+
+                    {/* 15% benchmark reference line on close rate axis */}
+                    <ReferenceLine
+                      yAxisId="pct"
+                      y={15}
+                      stroke="#d97706"
+                      strokeDasharray="8 4"
+                      strokeWidth={1.5}
+                      strokeOpacity={0.6}
+                      label={{ value: "15% CR Target", position: "right", fill: "#d97706", fontSize: 10, fontWeight: 600 }}
                     />
 
                     <Line
@@ -1161,37 +1306,23 @@ export default function QuotesPage() {
                       textAnchor="end"
                       height={50}
                     />
-                    <YAxis
-                      yAxisId="count"
-                      tick={{ fontSize: 11, fill: "#94a3b8" }}
-                      tickLine={false}
-                      axisLine={false}
-                      label={{ value: "Count", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "#94a3b8" } }}
-                    />
-                    <YAxis
-                      yAxisId="pct"
-                      orientation="right"
-                      tick={{ fontSize: 11, fill: "#94a3b8" }}
-                      tickLine={false}
-                      axisLine={false}
-                      tickFormatter={(v: number) => `${v}%`}
-                      label={{ value: "Close Rate", angle: 90, position: "insideRight", style: { fontSize: 11, fill: "#94a3b8" } }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#fff",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "8px",
-                        boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
-                        fontSize: "12px",
-                      }}
-                      formatter={(value: any, name: any) => {
-                        if (name === "Close Rate" && typeof value === "number") return [`${value.toFixed(1)}%`, name]
-                        if (name === "_bizDay") return [null, null]
-                        return [value, name]
-                      }}
-                      itemSorter={() => 0}
-                    />
+                     <YAxis
+                       yAxisId="count"
+                       tick={{ fontSize: 11, fill: "#3b82f6", fontWeight: 600 }}
+                       tickLine={false}
+                       axisLine={false}
+                       label={{ value: "Count", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "#3b82f6", fontWeight: 600 } }}
+                     />
+                     <YAxis
+                       yAxisId="pct"
+                       orientation="right"
+                       tick={{ fontSize: 11, fill: "#d97706", fontWeight: 600 }}
+                       tickLine={false}
+                       axisLine={false}
+                       tickFormatter={(v: number) => `${v}%`}
+                       label={{ value: "Close Rate", angle: 90, position: "insideRight", style: { fontSize: 11, fill: "#d97706", fontWeight: 600 } }}
+                     />
+                    <Tooltip content={<CustomTooltip />} />
                     <Legend
                       wrapperStyle={{ fontSize: "12px", paddingTop: "8px", cursor: "pointer" }}
                       onClick={(e: any) => toggleLine(e.dataKey)}
@@ -1285,14 +1416,14 @@ export default function QuotesPage() {
 
                     {/* 15% benchmark reference line on close rate axis */}
                     <ReferenceLine
-                      yAxisId="pct"
-                      y={15}
-                      stroke="#ef4444"
-                      strokeDasharray="8 4"
-                      strokeWidth={1.5}
-                      strokeOpacity={0.6}
-                      label={{ value: "15% CR", position: "right", fill: "#ef4444", fontSize: 10, fontWeight: 600 }}
-                    />
+                       yAxisId="pct"
+                       y={15}
+                       stroke="#d97706"
+                       strokeDasharray="8 4"
+                       strokeWidth={1.5}
+                       strokeOpacity={0.6}
+                       label={{ value: "15% CR Target", position: "right", fill: "#d97706", fontSize: 10, fontWeight: 600 }}
+                     />
 
                     {/* Cumulative Items running total */}
                     <Line
@@ -1320,13 +1451,90 @@ export default function QuotesPage() {
         </Card>
       )}
 
-      {/* ── Loading State ── */}
+      {/* ── Loading Skeleton ── */}
       {loading && (
-        <div className="flex items-center justify-center py-20">
-          <div className="flex items-center gap-3 text-slate-500">
-            <BarChart3 className="w-5 h-5 animate-pulse" />
-            <span className="text-sm">Loading quotes data...</span>
+        <div className="space-y-6 animate-in fade-in duration-300">
+          {/* Skeleton KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="rounded-xl border border-slate-200 bg-white p-4" style={{ animationDelay: `${i * 80}ms` }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-4 h-4 rounded bg-slate-200 animate-pulse" />
+                  <div className="h-3 w-24 rounded bg-slate-200 animate-pulse" />
+                </div>
+                <div className="h-7 w-16 rounded bg-slate-200 animate-pulse mt-1" />
+                <div className="h-2.5 w-32 rounded bg-slate-100 animate-pulse mt-2" />
+              </div>
+            ))}
           </div>
+
+          {/* Skeleton Chart */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-4.5 h-4.5 rounded bg-slate-200 animate-pulse" />
+                <div className="h-4 w-48 rounded bg-slate-200 animate-pulse" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[280px] flex items-end gap-1 px-8 pb-6 pt-4">
+                {Array.from({ length: 20 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="flex-1 rounded-t bg-gradient-to-t from-slate-200 to-slate-100 animate-pulse"
+                    style={{
+                      height: `${30 + Math.sin(i * 0.7) * 25 + (i * 17 % 30)}%`,
+                      animationDelay: `${i * 50}ms`,
+                    }}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Skeleton Table */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-4.5 h-4.5 rounded bg-slate-200 animate-pulse" />
+                <div className="h-4 w-36 rounded bg-slate-200 animate-pulse" />
+                <div className="h-3 w-28 rounded bg-slate-100 animate-pulse ml-2" />
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      {["Agent", "Items", "NB Policies", "Quote Count", "Close Rate", "Mo. Quotes", "Daily Goal", "Daily Actual", "@ 15% CR"].map((h) => (
+                        <th key={h} className="py-2 px-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: 15 }).map((_, idx) => (
+                      <tr
+                        key={idx}
+                        className={`border-b border-slate-100 ${idx % 2 === 0 ? "bg-white" : "bg-slate-200/40"}`}
+                        style={{ animationDelay: `${idx * 30}ms` }}
+                      >
+                        <td className="py-1.5 px-2">
+                          <div className="h-3.5 rounded bg-slate-200 animate-pulse" style={{ width: `${50 + (idx * 13 % 40)}%` }} />
+                        </td>
+                        {Array.from({ length: 8 }).map((_, ci) => (
+                          <td key={ci} className="py-1.5 px-2">
+                            <div className="h-3.5 w-8 mx-auto rounded bg-slate-200/70 animate-pulse" style={{ animationDelay: `${(idx * 8 + ci) * 15}ms` }} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -1366,129 +1574,233 @@ export default function QuotesPage() {
         </Card>
       )}
 
-      {/* ── Main Data Table ── */}
+      {/* ── Main Data Section (Grid) ── */}
       {data && !loading && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-slate-700 flex items-center gap-2 text-base">
-              <BarChart3 className="w-4.5 h-4.5 text-blue-600" />
-              {data.periodLabel}
-              <span className="text-xs text-slate-400 font-normal ml-2">
-                {sortedRows.length} agents with activity
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <Th field="name" label="Agent" onSort={handleSort} sortField={sortField} sortDir={sortDir} align="left" />
-                    <Th field="items" label="Items" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
-                    <Th field="nb" label="NB Policies" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
-                    <Th field="quotes" label="Quote Count" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
-                    <Th field="cr" label="Close Rate" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
-                    <Th field="monthly" label={`Mo. Quotes\nfor ${TARGET_AUTOS} Autos`} onSort={handleSort} sortField={sortField} sortDir={sortDir} />
-                    <Th field="dailyGoal" label="Daily Quote\nGoal" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
-                    <Th field="dailyActual" label="Daily Quote\nActual" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
-                    <Th field="benchmark" label={`Daily Quotes\n@ 15% CR`} onSort={handleSort} sortField={sortField} sortDir={sortDir} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedRows.map((row, idx) => {
-                    const actualVsGoal = row.daily_goal > 0 ? row.daily_actual / row.daily_goal : 0
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          {/* Main Data Table (Left Column, spans 2/3 width) */}
+          <div className="lg:col-span-2 space-y-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-slate-700 flex items-center gap-2 text-base">
+                  <BarChart3 className="w-4.5 h-4.5 text-blue-600" />
+                  {data.periodLabel}
+                  <span className="text-xs text-slate-400 font-normal ml-2">
+                    {sortedRows.length} agents with activity
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <Th field="name" label="Agent" onSort={handleSort} sortField={sortField} sortDir={sortDir} align="left" />
+                        <Th field="items" label="Items" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
+                        <Th field="nb" label={["NB", "Policies"]} onSort={handleSort} sortField={sortField} sortDir={sortDir} />
+                        <Th field="quotes" label={["Quote", "Count"]} onSort={handleSort} sortField={sortField} sortDir={sortDir} />
+                        <Th field="cr" label={["Close", "Rate"]} onSort={handleSort} sortField={sortField} sortDir={sortDir} />
+                        <Th field="monthly" label={["Mo. Quotes", `for ${TARGET_AUTOS} Autos`]} onSort={handleSort} sortField={sortField} sortDir={sortDir} />
+                        <Th field="dailyGoal" label={["Daily Quote", "Goal"]} onSort={handleSort} sortField={sortField} sortDir={sortDir} />
+                        <Th field="dailyActual" label={["Daily Quote", "Actual"]} onSort={handleSort} sortField={sortField} sortDir={sortDir} />
+                        <Th field="benchmark" label={["Daily Quotes", "@ 15% CR"]} onSort={handleSort} sortField={sortField} sortDir={sortDir} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedRows.map((row, idx) => {
+                        const actualVsGoal = row.daily_goal > 0 ? row.daily_actual / row.daily_goal : 0
 
-                    return (
-                      <tr
-                        key={row.agent_id}
-                        className={`border-b border-slate-100 hover:bg-blue-50/30 transition-colors ${
-                          idx % 2 === 0 ? "bg-white" : "bg-slate-200"
-                        }`}
-                      >
-                        <td className="py-1 px-2 font-medium text-slate-800 whitespace-nowrap">
-                          {row.name}
-                        </td>
-                        <td className="py-1 px-2 text-center font-mono text-purple-700 font-semibold">
-                          {row.items}
-                        </td>
-                        <td className="py-1 px-2 text-center font-mono font-semibold text-slate-900">
-                          {row.nb_policies}
-                        </td>
-                        <td className="py-1 px-2 text-center font-mono text-slate-700">
-                          {row.quote_count}
-                        </td>
-                        <td className="py-1 px-2 text-center">
-                          <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${crColorClass(row.close_rate)}`}>
-                            {fmtPct(row.close_rate)}
+                        return (
+                          <tr
+                            key={row.agent_id}
+                            className={`border-b border-slate-100 hover:bg-blue-50/30 transition-colors ${
+                              idx % 2 === 0 ? "bg-white" : "bg-slate-200"
+                            }`}
+                          >
+                            <td className="py-1 px-2 font-bold text-slate-800 whitespace-nowrap">
+                              {row.name}
+                            </td>
+                            <td className="py-1 px-2 text-center font-mono text-purple-700 font-bold">
+                              {row.items}
+                            </td>
+                            <td className="py-1 px-2 text-center font-mono font-bold text-slate-900">
+                              {row.nb_policies}
+                            </td>
+                            <td className="py-1 px-2 text-center font-mono text-slate-700 font-bold">
+                              {row.quote_count}
+                            </td>
+                            <td className="py-1 px-2 text-center">
+                              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${crColorClass(row.close_rate)}`}>
+                                {fmtPct(row.close_rate)}
+                              </span>
+                            </td>
+                            <td className="py-1 px-2 text-center font-mono text-slate-700 font-bold">
+                              {row.close_rate > 0 ? Math.round(row.monthly_target) : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="py-1 px-2 text-center font-mono text-slate-700 font-bold">
+                              {row.close_rate > 0 ? fmtNum(row.daily_goal) : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="py-1 px-2 text-center">
+                              {actualVsGoal >= 0.8 ? (
+                                <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
+                                  actualVsGoal >= 1 ? "text-emerald-700 bg-emerald-50" : "text-amber-700 bg-amber-50"
+                                }`}>
+                                  {fmtNum(row.daily_actual)}
+                                </span>
+                              ) : (
+                                <span className="font-mono text-slate-900 font-bold">
+                                  {fmtNum(row.daily_actual)}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-1 px-2 text-center font-mono text-slate-500 font-bold">
+                              {fmtNum(row.benchmark_15)}
+                            </td>
+                          </tr>
+                        )
+                      })}
+
+                      {/* Totals Row */}
+                      <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
+                        <td className="py-1.5 px-2 text-slate-800">Total</td>
+                        <td className="py-1.5 px-2 text-center font-mono text-purple-800">{totals.totalItems}</td>
+                        <td className="py-1.5 px-2 text-center font-mono text-slate-900">{totals.totalNB}</td>
+                        <td className="py-1.5 px-2 text-center font-mono text-slate-900">{totals.totalQuotes}</td>
+                        <td className="py-1.5 px-2 text-center">
+                          <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${crColorClass(totals.cr)}`}>
+                            {fmtPct(totals.cr)}
                           </span>
                         </td>
-                        <td className="py-1 px-2 text-center font-mono text-slate-700">
-                          {row.close_rate > 0 ? Math.round(row.monthly_target) : <span className="text-slate-300">—</span>}
+                        <td className="py-1.5 px-2 text-center font-mono text-slate-900">
+                          {totals.cr > 0 ? Math.round(totals.monthlyTarget) : "—"}
                         </td>
-                        <td className="py-1 px-2 text-center font-mono text-slate-700">
-                          {row.close_rate > 0 ? fmtNum(row.daily_goal) : <span className="text-slate-300">—</span>}
+                        <td className="py-1.5 px-2 text-center font-mono text-slate-900">
+                          {totals.cr > 0 ? fmtNum(totals.dailyGoal) : "—"}
                         </td>
-                        <td className="py-1 px-2 text-center">
-                          {actualVsGoal >= 0.8 ? (
-                            <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
-                              actualVsGoal >= 1 ? "text-emerald-700 bg-emerald-50" : "text-amber-700 bg-amber-50"
-                            }`}>
-                              {fmtNum(row.daily_actual)}
-                            </span>
-                          ) : (
-                            <span className="font-mono text-slate-900">
-                              {fmtNum(row.daily_actual)}
-                            </span>
-                          )}
+                        <td className="py-1.5 px-2 text-center font-mono text-slate-900">
+                          {fmtNum(totals.dailyActual)}
                         </td>
-                        <td className="py-1 px-2 text-center font-mono text-slate-500">
-                          {fmtNum(row.benchmark_15)}
+                        <td className="py-1.5 px-2 text-center font-mono text-slate-600">
+                          {fmtNum(totals.benchmark)}
                         </td>
                       </tr>
-                    )
-                  })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
 
-                  {/* Totals Row */}
-                  <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
-                    <td className="py-1.5 px-2 text-slate-800">Total</td>
-                    <td className="py-1.5 px-2 text-center font-mono text-purple-800">{totals.totalItems}</td>
-                    <td className="py-1.5 px-2 text-center font-mono text-slate-900">{totals.totalNB}</td>
-                    <td className="py-1.5 px-2 text-center font-mono text-slate-900">{totals.totalQuotes}</td>
-                    <td className="py-1.5 px-2 text-center">
-                      <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${crColorClass(totals.cr)}`}>
-                        {fmtPct(totals.cr)}
-                      </span>
-                    </td>
-                    <td className="py-1.5 px-2 text-center font-mono text-slate-900">
-                      {totals.cr > 0 ? Math.round(totals.monthlyTarget) : "—"}
-                    </td>
-                    <td className="py-1.5 px-2 text-center font-mono text-slate-900">
-                      {totals.cr > 0 ? fmtNum(totals.dailyGoal) : "—"}
-                    </td>
-                    <td className="py-1.5 px-2 text-center font-mono text-slate-900">
-                      {fmtNum(totals.dailyActual)}
-                    </td>
-                    <td className="py-1.5 px-2 text-center font-mono text-slate-600">
-                      {fmtNum(totals.benchmark)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            {/* Footer Info */}
+            <div className="mt-4 text-xs text-slate-400 flex items-center gap-4 flex-wrap">
+              <span className="flex items-center gap-1">
+                <Target className="w-3 h-3" />
+                Target: {TARGET_AUTOS} autos/mo &middot; {AVG_ITEMS_PER_POLICY} avg items/policy &middot; {POLICIES_NEEDED} policies needed
+              </span>
+              <span>
+                Benchmark: 15% CR = {fmtNum(POLICIES_NEEDED / BENCHMARK_CR, 0)} quotes/mo
+              </span>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
 
-      {/* ── Footer Info ── */}
-      <div className="mt-4 text-xs text-slate-400 flex items-center gap-4 flex-wrap">
-        <span className="flex items-center gap-1">
-          <Target className="w-3 h-3" />
-          Target: {TARGET_AUTOS} autos/mo &middot; {AVG_ITEMS_PER_POLICY} avg items/policy &middot; {POLICIES_NEEDED} policies needed
-        </span>
-        <span>
-          Benchmark: 15% CR = {fmtNum(POLICIES_NEEDED / BENCHMARK_CR, 0)} quotes/mo
-        </span>
-      </div>
+          {/* Right Column (Summaries Stacked) */}
+          <div className="space-y-6">
+            {/* Team Close Rate */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-blue-500" />
+                  Close Rate by Team
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {teamSummary.map(t => (
+                    <div key={t.team} className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-slate-700">{t.team}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-slate-400">
+                          {t.nb} NB / {t.quotes} Q / {t.items} items
+                        </span>
+                        <span className={`text-sm font-bold px-2 py-0.5 rounded-md ${crColorClass(t.cr)}`}>
+                          {fmtPct(t.cr)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {/* Other / Unassigned */}
+                  {(otherTeamStats.nb > 0 || otherTeamStats.quotes > 0 || otherTeamStats.items > 0) && (
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 italic px-1 pt-1 border-t border-slate-100/50">
+                      <span>Other / Unassigned</span>
+                      <span>
+                        {otherTeamStats.nb} NB / {otherTeamStats.quotes} Q / {otherTeamStats.items} item{otherTeamStats.items !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                  )}
+                  {/* Totals */}
+                  <div className="flex items-center justify-between pt-2 mt-1 border-t border-slate-200">
+                    <span className="text-sm font-bold text-slate-800">Total</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-semibold text-slate-500">
+                        {teamTotal.nb} NB / {teamTotal.quotes} Q / {teamTotal.items} items
+                      </span>
+                      <span className={`text-sm font-bold px-2 py-0.5 rounded-md ${crColorClass(teamTotal.cr)}`}>
+                        {fmtPct(teamTotal.cr)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Office Close Rate */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-purple-500" />
+                  Close Rate by Office
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {officeSummary.map(o => (
+                    <div key={o.office} className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-slate-700">{o.office}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-slate-400">
+                          {o.nb} NB / {o.quotes} Q / {o.items} items
+                        </span>
+                        <span className={`text-sm font-bold px-2 py-0.5 rounded-md ${crColorClass(o.cr)}`}>
+                          {fmtPct(o.cr)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {/* Other / Unassigned */}
+                  {(otherOfficeStats.nb > 0 || otherOfficeStats.quotes > 0 || otherOfficeStats.items > 0) && (
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 italic px-1 pt-1 border-t border-slate-100/50">
+                      <span>Other / Unassigned</span>
+                      <span>
+                        {otherOfficeStats.nb} NB / {otherOfficeStats.quotes} Q / {otherOfficeStats.items} item{otherOfficeStats.items !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                  )}
+                  {/* Totals */}
+                  <div className="flex items-center justify-between pt-2 mt-1 border-t border-slate-200">
+                    <span className="text-sm font-bold text-slate-800">Total</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-semibold text-slate-500">
+                        {officeTotal.nb} NB / {officeTotal.quotes} Q / {officeTotal.items} items
+                      </span>
+                      <span className={`text-sm font-bold px-2 py-0.5 rounded-md ${crColorClass(officeTotal.cr)}`}>
+                        {fmtPct(officeTotal.cr)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
 
       {/* ── Duplicates Modal ── */}
       {showDupes && (
@@ -1800,6 +2112,7 @@ export default function QuotesPage() {
       )}
 
     </div>
+    </PageGuard>
   )
 }
 
@@ -1808,7 +2121,7 @@ function Th({
   field, label, onSort, sortField, sortDir, align = "center"
 }: {
   field: SortField
-  label: string
+  label: string | string[]
   onSort: (f: SortField) => void
   sortField: SortField
   sortDir: SortDir
@@ -1818,16 +2131,22 @@ function Th({
   return (
     <th
       onClick={() => onSort(field)}
-      className={`py-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider cursor-pointer select-none whitespace-pre-line transition-colors ${
+      className={`py-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider cursor-pointer select-none transition-colors ${
         align === "left" ? "text-left" : "text-center"
       } ${isActive ? "text-blue-700 bg-blue-50/50" : "text-slate-500 hover:text-slate-700 hover:bg-slate-100/50"}`}
     >
-      <span className="inline-flex items-center gap-1">
-        {label}
+      <span className={`inline-flex items-center gap-1 ${align === "left" ? "justify-start" : "justify-center"}`}>
+        <span className={`flex flex-col leading-tight ${align === "left" ? "text-left" : "text-center"}`}>
+          {Array.isArray(label) ? (
+            label.map((line, idx) => <span key={idx}>{line}</span>)
+          ) : (
+            <span>{label}</span>
+          )}
+        </span>
         {isActive ? (
-          sortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+          sortDir === "asc" ? <ArrowUp className="w-3 h-3 shrink-0" /> : <ArrowDown className="w-3 h-3 shrink-0" />
         ) : (
-          <ArrowUpDown className="w-3 h-3 opacity-30" />
+          <ArrowUpDown className="w-3 h-3 opacity-30 shrink-0" />
         )}
       </span>
     </th>
