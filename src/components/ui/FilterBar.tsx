@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Filter, X, Clock, ChevronDown } from "lucide-react"
 import { Button } from "./Button"
 import { Badge } from "./Badge"
@@ -16,18 +16,41 @@ interface FilterBarProps {
   onFilterChange: (filters: FilterState) => void;
   availableAgents?: string[];
   availableMeetings?: string[];
+  initialFilters?: FilterState;
+  enforceTeamSelection?: boolean;
 }
 
 const OFFICES = ["MCM", "MB", "RC", "CH"];
 const TEAMS = ["Sales", "CSR", "EA"];
 
-export function FilterBar({ onFilterChange, availableAgents = [], availableMeetings = [] }: FilterBarProps) {
-  const [filters, setFilters] = useState<FilterState>({ offices: [], teams: [], agents: [], meetings: [] });
+export function FilterBar({ 
+  onFilterChange, 
+  availableAgents = [], 
+  availableMeetings = [],
+  initialFilters,
+  enforceTeamSelection = false
+}: FilterBarProps) {
+  const [filters, setFilters] = useState<FilterState>(
+    initialFilters || { offices: [], teams: [], agents: [], meetings: [] }
+  );
+
+  useEffect(() => {
+    if (initialFilters) {
+      setFilters(initialFilters);
+    }
+  }, [initialFilters]);
   const [isExpanded, setIsExpanded] = useState(true);
 
   const toggleFilter = (category: keyof FilterState, value: string, isMulti: boolean) => {
     const current = filters[category];
     let updated: string[];
+
+    if (category === "teams" && enforceTeamSelection) {
+      // Enforce that at least one team remains selected!
+      if (current.includes(value) && current.length === 1) {
+        return;
+      }
+    }
 
     if (isMulti) {
       updated = current.includes(value) 

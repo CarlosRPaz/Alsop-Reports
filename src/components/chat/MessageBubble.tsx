@@ -204,6 +204,13 @@ export default function MessageBubble({
         setShowEmojiPicker(false)
       }}
     >
+      {isGrouped && (
+        <div className="absolute left-[16px] top-1/2 -translate-y-1/2 w-[36px] text-right opacity-0 group-hover:opacity-100 transition-opacity duration-150 select-none pointer-events-none z-10">
+          <span className="text-[9px] font-bold text-slate-400 font-mono">
+            {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+          </span>
+        </div>
+      )}
       {/* Reply Context Header */}
       {message.parent_preview && (
         <div className="flex items-center gap-2 pl-[60px] pr-4 mb-0.5 text-[11px] text-slate-400 select-none relative">

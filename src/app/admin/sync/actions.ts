@@ -6,11 +6,13 @@ import path from "path"
 import { revalidatePath } from "next/cache"
 import { unstable_noStore as noStore } from "next/cache"
 import { supabase } from "@/lib/supabaseClient"
+import { requireAdmin } from "@/lib/auth"
 
 const execAsync = promisify(exec)
 
 export async function runDataSyncPipeline(dateString?: string, sources?: string[]) {
   try {
+    await requireAdmin()
     // Determine the path to the python directory (one level up from dsr-dashboard)
     const pythonDir = path.resolve(process.cwd(), "..", "excel-report-automation")
     
@@ -53,6 +55,7 @@ export async function runDataSyncPipeline(dateString?: string, sources?: string[
 export async function getRangeCoverage(startDate: string, endDate: string) {
   noStore()
   try {
+    await requireAdmin()
     // Fetch all daily_metrics rows for the date range
     const { data: metrics, error: metricsError } = await supabase
       .from("daily_metrics")

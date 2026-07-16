@@ -527,7 +527,7 @@ export default function QuotesPage() {
         if (filters.agents.length > 0 && !filters.agents.includes(a.name)) return
 
         const mappedTeam = teamMap[a.team || ""] || a.team || "N/A"
-        if (mappedTeam === "N/A" || mappedTeam === "Managers" || mappedTeam === "Support") {
+        if (mappedTeam === "N/A" || mappedTeam === "Managers" || mappedTeam === "Support" || mappedTeam === "System") {
           otherNB += a.nb_policies
           otherQuotes += a.quote_count
           otherItems += a.items
@@ -581,7 +581,7 @@ export default function QuotesPage() {
         if (filters.agents.length > 0 && !filters.agents.includes(a.name)) return
 
         const mappedOffice = officeMap[a.office || ""] || a.office || "N/A"
-        if (mappedOffice === "N/A") {
+        if (mappedOffice === "N/A" || mappedOffice === "System") {
           otherNB += a.nb_policies
           otherQuotes += a.quote_count
           otherItems += a.items
@@ -656,7 +656,7 @@ export default function QuotesPage() {
       allMonthKeys.add(point.sortKey)
 
       // Team
-      if (team !== "N/A") {
+      if (team !== "N/A" && team !== "System" && team !== "Managers" && team !== "Support") {
         if (!teamByMonth[team]) teamByMonth[team] = {}
         if (!teamByMonth[team][monthLabel]) teamByMonth[team][monthLabel] = { nb: 0, quotes: 0 }
         teamByMonth[team][monthLabel].nb += point.nb
@@ -667,7 +667,7 @@ export default function QuotesPage() {
       }
 
       // Office
-      if (office !== "N/A") {
+      if (office !== "N/A" && office !== "System") {
         if (!officeByMonth[office]) officeByMonth[office] = {}
         if (!officeByMonth[office][monthLabel]) officeByMonth[office][monthLabel] = { nb: 0, quotes: 0 }
         officeByMonth[office][monthLabel].nb += point.nb
@@ -857,7 +857,7 @@ export default function QuotesPage() {
                 onChange={e => setSelectedYear(Number(e.target.value))}
                 className="appearance-none bg-white border border-slate-300 rounded-lg px-4 py-1.5 pr-8 text-sm font-medium text-slate-700 cursor-pointer hover:border-blue-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
               >
-                {[2026, 2025].map(y => (
+                {Array.from({ length: new Date().getFullYear() - 2025 + 2 }, (_, i) => new Date().getFullYear() + 1 - i).map(y => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
@@ -897,7 +897,7 @@ export default function QuotesPage() {
               onChange={e => setSelectedYear(Number(e.target.value))}
               className="appearance-none bg-white border border-slate-300 rounded-lg px-4 py-1.5 pr-8 text-sm font-medium text-slate-700 cursor-pointer hover:border-blue-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
             >
-              {[2026, 2025].map(y => (
+              {Array.from({ length: new Date().getFullYear() - 2025 + 2 }, (_, i) => new Date().getFullYear() + 1 - i).map(y => (
                 <option key={y} value={y}>{y}</option>
               ))}
             </select>

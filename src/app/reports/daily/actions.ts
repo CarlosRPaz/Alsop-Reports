@@ -446,3 +446,96 @@ export async function getDailyInsights(dateStr: string) {
     return { success: false, error: error.message }
   }
 }
+
+export async function getDailyNotes(dateStr: string) {
+  try {
+    noStore()
+    let { data: notesAgent, error } = await supabase
+      .from("agents")
+      .select("system_variants")
+      .eq("name", "__standup_notes__")
+      .single()
+
+    if (error || !notesAgent) {
+      const { data: newAgent, error: createError } = await supabase
+        .from("agents")
+        .insert({
+          name: "__standup_notes__",
+          active: false,
+          report_visible: false,
+          team: "System",
+          office: "System",
+          system_variants: {}
+        })
+        .select("system_variants")
+        .single()
+
+      if (createError) {
+        console.error("Failed to create standup notes dummy agent:", createError)
+        return { success: true, notes: "" }
+      }
+      notesAgent = newAgent
+    }
+
+    const variants = (notesAgent?.system_variants as Record<string, string>) || {}
+    return { success: true, notes: variants[dateStr] || "" }
+  } catch (error: any) {
+    console.error("Error fetching daily standup notes:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+export async function saveDailyNotes(dateStr: string, notes: string) {
+  try {
+    noStore()
+    let { data: notesAgent } = await supabase
+      .from("agents")
+      .select("id, system_variants")
+      .eq("name", "__standup_notes__")
+      .single()
+
+    let agentId = notesAgent?.id
+    let variants = (notesAgent?.system_variants as Record<string, string>) || {}
+
+    if (!notesAgent) {
+      const { data: newAgent } = await supabase
+        .from("agents")
+        .insert({
+          name: "__standup_notes__",
+          active: false,
+          report_visible: false,
+          team: "System",
+          office: "System",
+          system_variants: {}
+        })
+        .select("id, system_variants")
+        .single()
+
+      if (newAgent) {
+        agentId = newAgent.id
+        variants = {}
+      }
+    }
+
+    if (!agentId) {
+      throw new Error("Unable to resolve standup notes dummy agent ID")
+    }
+
+    variants[dateStr] = notes
+
+    const { error: updateError } = await supabase
+      .from("agents")
+      .update({
+        system_variants: variants,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", agentId)
+
+    if (updateError) throw updateError
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error saving daily standup notes:", error)
+    return { success: false, error: error.message }
+  }
+}

@@ -45,10 +45,8 @@ export default function CommunicationLayout({
   children: React.ReactNode
 }) {
   return (
-    <ChatProvider>
-      <ChatGate>
-        {children}
-      </ChatGate>
-    </ChatProvider>
+    <ChatGate>
+      {children}
+    </ChatGate>
   )
 }

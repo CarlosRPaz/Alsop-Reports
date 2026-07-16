@@ -1,6 +1,7 @@
 "use server"
 
 import { createSupabaseAdmin } from "@/lib/supabaseServer"
+import { requireAdmin } from "@/lib/auth"
 
 export interface InviteResult {
   success: boolean
@@ -22,6 +23,7 @@ export interface UnlinkedAgent {
  * These are the agents available to invite.
  */
 export async function getUnlinkedAgents(): Promise<UnlinkedAgent[]> {
+  await requireAdmin()
   const supabase = createSupabaseAdmin()
   const { data, error } = await supabase
     .from("agents")
@@ -41,6 +43,7 @@ export async function getUnlinkedAgents(): Promise<UnlinkedAgent[]> {
  * Get all agents that already have a linked auth account.
  */
 export async function getLinkedAgents(): Promise<UnlinkedAgent[]> {
+  await requireAdmin()
   const supabase = createSupabaseAdmin()
   const { data, error } = await supabase
     .from("agents")
@@ -65,6 +68,7 @@ export async function inviteExistingAgent(
   email: string,
   tempPassword: string
 ): Promise<InviteResult> {
+  await requireAdmin()
   const supabase = createSupabaseAdmin()
 
   if (!agentId || !email || !tempPassword) {
@@ -132,6 +136,7 @@ export async function inviteNewUser(
   email: string,
   tempPassword: string
 ): Promise<InviteResult> {
+  await requireAdmin()
   const supabase = createSupabaseAdmin()
 
   if (!name || !email || !tempPassword) {
@@ -185,6 +190,7 @@ export async function inviteNewUser(
  * Reset a user's password (admin action).
  */
 export async function resetUserPassword(agentId: string, newPassword: string): Promise<InviteResult> {
+  await requireAdmin()
   const supabase = createSupabaseAdmin()
 
   const { data: agent, error: fetchError } = await supabase
@@ -212,6 +218,7 @@ export async function resetUserPassword(agentId: string, newPassword: string): P
  * Remove a user's login access (unlink auth, keep agent record).
  */
 export async function revokeAccess(agentId: string): Promise<InviteResult> {
+  await requireAdmin()
   const supabase = createSupabaseAdmin()
 
   const { data: agent, error: fetchError } = await supabase
@@ -238,6 +245,7 @@ export async function revokeAccess(agentId: string): Promise<InviteResult> {
  * Update a user's role (admin action).
  */
 export async function updateUserRole(agentId: string, role: string): Promise<InviteResult> {
+  await requireAdmin()
   const supabase = createSupabaseAdmin()
   const { error } = await supabase
     .from("agents")
@@ -262,6 +270,7 @@ export interface PagePermission {
  * Get all page permission rows.
  */
 export async function getPagePermissions(): Promise<PagePermission[]> {
+  await requireAdmin()
   const supabase = createSupabaseAdmin()
   const { data, error } = await supabase
     .from("page_permissions")
@@ -282,6 +291,7 @@ export async function updatePagePermission(
   pageKey: string,
   allowedTeams: string[]
 ): Promise<InviteResult> {
+  await requireAdmin()
   const supabase = createSupabaseAdmin()
   const { error } = await supabase
     .from("page_permissions")

@@ -64,6 +64,10 @@ export default function PersonalSettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
 
+  // Display & theme preferences
+  const [theme, setTheme] = useState("light")
+  const [savingTheme, setSavingTheme] = useState(false)
+
   // Feedback states
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null)
 
@@ -91,6 +95,11 @@ export default function PersonalSettingsPage() {
         }
         setAgent(enrichedAgent)
         setStatusMessage(agentData.status_message || "")
+
+        if (agentData && agentData.system_variants) {
+          const displayPrefs = (agentData.system_variants as Record<string, any>).display_prefs || {}
+          setTheme(displayPrefs.theme || localStorage.getItem("dsr_theme") || "light")
+        }
 
         // 2. Fetch preferences
         const { data: prefData } = await supabase
@@ -188,6 +197,45 @@ export default function PersonalSettingsPage() {
       setFeedback({ type: "error", message: err.message || "Failed to save preferences." })
     } finally {
       setSavingPrefs(false)
+    }
+  }
+
+  const handleToggleTheme = async (isDark: boolean) => {
+    if (!agent) return
+    const newTheme = isDark ? "dark" : "light"
+    setTheme(newTheme)
+    setSavingTheme(true)
+
+    try {
+      const { data: agentData } = await supabase
+        .from('agents')
+        .select('system_variants')
+        .eq('id', agent.id)
+        .single()
+
+      const variants = (agentData?.system_variants as Record<string, any>) || {}
+      variants.display_prefs = {
+        ...(variants.display_prefs || {}),
+        theme: newTheme
+      }
+
+      const { error } = await supabase
+        .from('agents')
+        .update({
+          system_variants: variants,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', agent.id)
+
+      if (error) throw error
+
+      localStorage.setItem("dsr_theme", newTheme)
+      window.dispatchEvent(new Event("theme-change"))
+    } catch (err: any) {
+      console.error(err)
+      setFeedback({ type: "error", message: err.message || "Failed to update theme on server." })
+    } finally {
+      setSavingTheme(false)
     }
   }
 
@@ -329,6 +377,38 @@ export default function PersonalSettingsPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Color Theme Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Moon className="w-4 h-4 text-blue-600" />
+                Color Theme
+              </CardTitle>
+              <CardDescription>Choose your dashboard color theme.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100 hover:bg-slate-100/50 transition-colors">
+                <div className="flex gap-2.5 items-start">
+                  <Moon className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                  <div>
+                    <span className="block text-sm font-semibold text-slate-800">Dark Mode</span>
+                    <span className="block text-xs text-slate-400 mt-0.5">Toggle deep charcoal dark colors</span>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={theme === "dark"}
+                    disabled={savingTheme}
+                    onChange={(e) => handleToggleTheme(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Password Update Card */}
           <Card>

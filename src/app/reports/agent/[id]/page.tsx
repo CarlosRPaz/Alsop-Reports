@@ -3,15 +3,17 @@
 import { useState, useEffect, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { getAgentMonthlyData, AgentMonthlyData, RankingEntry } from "../actions"
+import { getAgentMonthlyData, AgentMonthlyData, RankingEntry, getAgentNotes, saveAgentNotes } from "../actions"
 import { formatValue } from "@/lib/formatters"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { DataTable, ColumnDef } from "@/components/ui/DataTable"
 import { TrendChart } from "@/components/charts/TrendChart"
 import { Badge } from "@/components/ui/Badge"
+import { useChat } from "@/lib/chat/chatContext"
+import { Button } from "@/components/ui/Button"
 import {
   ArrowLeft, CalendarDays, Phone, MessageSquare,
-  FileBarChart, ShieldCheck, DollarSign, Trophy, Users, AlertTriangle, AlertCircle, Package
+  FileBarChart, ShieldCheck, DollarSign, Trophy, Users, AlertTriangle, AlertCircle, Package, Loader2
 } from "lucide-react"
 
 // Month options (past 12 months)
@@ -63,11 +65,19 @@ export default function AgentDashboardPage() {
   const router = useRouter()
   const agentId = params.id as string
 
+  const { currentAgent } = useChat()
+  const isAuthorizedManager = currentAgent?.role === 'admin' || currentAgent?.team === 'Managers'
+
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<AgentMonthlyData | null>(null)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [error, setError] = useState<string | null>(null)
+
+  const [managerNotes, setManagerNotes] = useState("")
+  const [isAiNote, setIsAiNote] = useState(false)
+  const [savingNotes, setSavingNotes] = useState(false)
+  const [generatingAi, setGeneratingAi] = useState(false)
 
   const isCurrentMonth = selectedYear === new Date().getFullYear() && selectedMonth === new Date().getMonth() + 1
 
@@ -83,6 +93,13 @@ export default function AgentDashboardPage() {
         return
       }
 
+      // Fetch manager notes for agent
+      const notesRes = await getAgentNotes(agentId)
+      if (notesRes.success) {
+        setManagerNotes(notesRes.notes || "")
+        setIsAiNote(!!notesRes.isAi)
+      }
+
       // Auto-fallback for current month if empty
       if (res.data && res.data.dailyRows.length === 0 && isCurrentMonth) {
         const prev = new Date(selectedYear, selectedMonth - 2, 1)
@@ -96,6 +113,53 @@ export default function AgentDashboardPage() {
     }
     if (agentId) load()
   }, [agentId, selectedYear, selectedMonth, isCurrentMonth])
+
+  const handleSaveManagerNotes = async () => {
+    setSavingNotes(true)
+    const res = await saveAgentNotes(agentId, managerNotes, isAiNote)
+    if (!res.success) {
+      console.error("Failed to save manager notes:", res.error)
+    }
+    setSavingNotes(false)
+  }
+
+  const handleGenerateAiNote = async () => {
+    if (!data) return
+    setGeneratingAi(true)
+    
+    const kpis = data.kpis
+    const name = data.agent.name
+    const period = data.periodLabel
+    
+    const items = kpis.items
+    const premium = Math.round(kpis.written_premium)
+    const quotes = kpis.quotes
+    const closeRate = (kpis.close_rate * 100).toFixed(1)
+    const calls = kpis.calls
+    const hours = Math.floor(kpis.talk_time_seconds / 3600)
+    const mins = Math.floor((kpis.talk_time_seconds % 3600) / 60)
+    
+    let coachingAdvice = ""
+    if (kpis.close_rate < 0.12) {
+      coachingAdvice = "Focus coaching on close rate conversion and overcoming common objections."
+    } else if (kpis.calls < 200) {
+      coachingAdvice = "Focus coaching on daily outbound dials and active lead follow-up to increase pipeline."
+    } else {
+      coachingAdvice = "Performance is solid. Continue maintaining current activity and close rate standard."
+    }
+
+    const aiText = `AI Summary (${period}): ${name} has written $${premium.toLocaleString()} premium across ${items} items. DSR metrics include: ${quotes} quotes with a close rate of ${closeRate}%, ${calls} outbound calls, and ${hours}h ${mins}m talk time. ${coachingAdvice}`
+    
+    setManagerNotes(aiText)
+    setIsAiNote(true)
+    
+    const res = await saveAgentNotes(agentId, aiText, true)
+    if (!res.success) {
+      console.error("Failed to save AI generated note:", res.error)
+    }
+    
+    setGeneratingAi(false)
+  }
 
   // Table Columns (matching ColumnDef interface)
   const COLUMNS: ColumnDef[] = [
@@ -406,6 +470,57 @@ export default function AgentDashboardPage() {
               </Card>
             </div>
           </div>
+
+          {/* ── Manager Notes (Only visible to Managers & Admins) ── */}
+          {isAuthorizedManager && (
+            <Card className="mt-6 border border-slate-200 shadow-sm bg-white overflow-hidden no-print">
+              <CardHeader className="pb-2 border-b border-slate-100 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <FileBarChart className="w-5 h-5 text-indigo-500" /> Manager Feedback & Notes
+                  </CardTitle>
+                  <p className="text-xs text-slate-500 mt-0.5">Private notes on agent performance (visible only to managers & admins)</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {isAiNote && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 flex items-center gap-1 select-none">
+                      ✨ AI Generated
+                    </span>
+                  )}
+                  {savingNotes && (
+                    <span className="text-xs text-slate-400 font-medium flex items-center gap-1.5 animate-pulse">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500" /> Saving...
+                    </span>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleGenerateAiNote}
+                    className="text-xs h-7 gap-1 font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50/50 border-indigo-200"
+                    disabled={generatingAi}
+                  >
+                    {generatingAi ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <span>✨ Generate AI Summary</span>
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <textarea
+                  value={managerNotes}
+                  onChange={(e) => {
+                    setManagerNotes(e.target.value)
+                    setIsAiNote(false) // If they start typing/editing, remove the AI flag
+                  }}
+                  onBlur={handleSaveManagerNotes}
+                  placeholder="Write feedback, coaching notes, or observation details here. Changes auto-save on blur..."
+                  className="w-full min-h-[100px] p-3 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all text-slate-800 placeholder:text-slate-400 resize-y"
+                />
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>

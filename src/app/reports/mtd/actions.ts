@@ -300,3 +300,69 @@ export async function getMTDData(year: number, month: number) {
     return { success: false, error: error.message }
   }
 }
+
+/**
+ * Fetch aggregated totals for the PRIOR month, limited to the same day-of-month
+ * as the selected month's end date. This enables apples-to-apples comparison.
+ *
+ * If viewing current month July on July 15 → compare Jul 1-15 vs Jun 1-15.
+ * If viewing a past month (e.g. June) → compare full June vs full May.
+ */
+export async function getPriorMonthComparison(year: number, month: number) {
+  noStore()
+  try {
+    const today = new Date()
+    const isCurrentMonth = today.getFullYear() === year && (today.getMonth() + 1) === month
+
+    // Determine the "as of" day for the selected month
+    const lastDayOfMonth = new Date(year, month, 0).getDate()
+    const asOfDay = isCurrentMonth ? today.getDate() : lastDayOfMonth
+
+    // Prior month boundaries
+    const prevMonth = month === 1 ? 12 : month - 1
+    const prevYear = month === 1 ? year - 1 : year
+    const prevStartDate = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`
+
+    // Clamp to same day-of-month (or last day of prior month if prior month is shorter)
+    const prevLastDay = new Date(prevYear, prevMonth, 0).getDate()
+    const clampedDay = Math.min(asOfDay, prevLastDay)
+    const prevEndDate = `${prevYear}-${String(prevMonth).padStart(2, "0")}-${String(clampedDay).padStart(2, "0")}`
+
+    // Fetch aggregated daily_metrics for prior month period
+    const rows = await fetchAllRows((from, to) =>
+      supabase
+        .from("daily_metrics")
+        .select("agent_id, nb_auto_items, prem_premium, quotes, agents!inner(active, report_visible)")
+        .gte("report_date", prevStartDate)
+        .lte("report_date", prevEndDate)
+        .eq("agents.active", true)
+        .eq("agents.report_visible", true)
+        .range(from, to)
+    )
+
+    // Aggregate totals
+    let items = 0
+    let premium = 0
+    let quotes = 0
+    for (const row of rows) {
+      items += row.nb_auto_items || 0
+      premium += Number(row.prem_premium) || 0
+      quotes += row.quotes || 0
+    }
+
+    return {
+      success: true,
+      data: {
+        items,
+        premium,
+        quotes,
+        prevMonth,
+        prevYear,
+        asOfDay: clampedDay,
+      }
+    }
+  } catch (error: any) {
+    console.error("Error fetching prior month comparison:", error)
+    return { success: false, error: error.message }
+  }
+}

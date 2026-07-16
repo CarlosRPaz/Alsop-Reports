@@ -19,12 +19,15 @@ import {
   Trash2,
   Building2,
   Bookmark,
-  Megaphone
+  Megaphone,
+  Target,
+  Users
 } from "lucide-react";
 import Link from "next/link";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { OfficeBreakdownChart } from "@/components/charts/OfficeBreakdownChart";
 import { FilterBar, FilterState } from "@/components/ui/FilterBar";
+import { ChartSkeleton } from "@/components/ui/Skeleton";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -134,6 +137,7 @@ export default function Home() {
   const [metrics, setMetrics] = useState<any[]>([]);
   const [goals, setGoals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
 
   // Saved Views State
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
@@ -164,21 +168,41 @@ export default function Home() {
 
   // Load Saved Views from LocalStorage on mount
   useEffect(() => {
-    const today = new Date();
-    const todayStr = toLocalDateStr(today);
-
-    // Load custom saved views from localStorage
-    const stored = localStorage.getItem("dsr_dashboard_saved_views");
-    if (stored) {
+    const loadSavedViews = async () => {
       try {
-        const parsed = JSON.parse(stored);
-        setSavedViews(parsed);
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: agent } = await supabase
+            .from("agents")
+            .select("id, system_variants")
+            .eq("auth_user_id", user.id)
+            .single()
+
+          if (agent && agent.system_variants) {
+            const variants = agent.system_variants as Record<string, any>
+            if (variants.saved_views) {
+              setSavedViews(variants.saved_views)
+              return
+            }
+          }
+        }
       } catch (e) {
-        setSavedViews([]);
+        console.error("Failed to load saved views from database:", e)
       }
-    } else {
-      setSavedViews([]);
+      
+      const stored = localStorage.getItem("dsr_dashboard_saved_views")
+      if (stored) {
+        try {
+          setSavedViews(JSON.parse(stored))
+        } catch {
+          setSavedViews([])
+        }
+      } else {
+        setSavedViews([])
+      }
     }
+
+    loadSavedViews()
   }, []);
 
   // Fetch metrics when date range changes
@@ -218,6 +242,17 @@ export default function Home() {
 
       setAllActiveAgents(activeAgents || []);
       setMetrics(allMetrics);
+
+      // 4. Fetch last synced timestamp
+      const { data: latestRow } = await supabase
+        .from("daily_metrics")
+        .select("updated_at")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .single();
+      if (latestRow?.updated_at) {
+        setLastSynced(latestRow.updated_at);
+      }
     } catch (err) {
       console.error("Error fetching overview data:", err);
     } finally {
@@ -452,6 +487,163 @@ export default function Home() {
     };
   }, [metrics, goals, filters.agents, allActiveAgents, activePreset]);
 
+  // Team / Office-level talking points
+  const groupInsights = useMemo(() => {
+    if (!metrics.length || !allActiveAgents.length) return null;
+
+    // Determine group type and name
+    let groupType: "team" | "office" | null = null;
+    let groupName = "";
+
+    if (filters.agents.length === 0 && filters.teams.length === 1) {
+      groupType = "team";
+      groupName = filters.teams[0];
+    } else if (filters.agents.length === 0 && filters.teams.length === 0 && filters.offices.length === 1) {
+      groupType = "office";
+      groupName = filters.offices[0];
+    }
+
+    if (!groupType) return null;
+
+    // Get agents in this group
+    const groupAgents = allActiveAgents.filter(a =>
+      groupType === "team" ? a.team === groupName : a.office === groupName
+    );
+    if (groupAgents.length < 2) return null; // Need at least 2 agents for group comparison
+
+    const groupAgentNames = new Set(groupAgents.map((a: any) => a.name));
+
+    // Aggregate per-agent totals within the group
+    const perAgent: Record<string, { name: string; outbound: number; quotes: number; items: number; premium: number; days: number }> = {};
+    metrics.forEach(m => {
+      const agentName = m.agents?.name;
+      if (!agentName || !groupAgentNames.has(agentName)) return;
+      if (!perAgent[agentName]) {
+        perAgent[agentName] = { name: agentName, outbound: 0, quotes: 0, items: 0, premium: 0, days: 0 };
+      }
+      perAgent[agentName].outbound += m.outbound || 0;
+      perAgent[agentName].quotes += m.quotes || 0;
+      perAgent[agentName].items += m.nb_auto_items || 0;
+      perAgent[agentName].premium += parseFloat(m.prem_premium || 0);
+      perAgent[agentName].days += 1;
+    });
+
+    const agentList = Object.values(perAgent).filter(a => a.days > 0);
+    if (agentList.length < 2) return null;
+
+    // Group averages (per agent across the period)
+    const groupAgentCount = agentList.length;
+    const groupTotalOutbound = agentList.reduce((s, a) => s + a.outbound, 0);
+    const groupTotalQuotes = agentList.reduce((s, a) => s + a.quotes, 0);
+    const groupTotalItems = agentList.reduce((s, a) => s + a.items, 0);
+    const groupTotalPremium = agentList.reduce((s, a) => s + a.premium, 0);
+
+    const groupAvgOutbound = groupTotalOutbound / groupAgentCount;
+    const groupAvgQuotes = groupTotalQuotes / groupAgentCount;
+    const groupAvgItems = groupTotalItems / groupAgentCount;
+    const groupAvgPremium = groupTotalPremium / groupAgentCount;
+
+    // Agency-wide averages (all agents, unfiltered)
+    const allPerAgent: Record<string, { outbound: number; quotes: number; items: number; premium: number; days: number }> = {};
+    metrics.forEach(m => {
+      const agentName = m.agents?.name;
+      if (!agentName) return;
+      if (!allPerAgent[agentName]) {
+        allPerAgent[agentName] = { outbound: 0, quotes: 0, items: 0, premium: 0, days: 0 };
+      }
+      allPerAgent[agentName].outbound += m.outbound || 0;
+      allPerAgent[agentName].quotes += m.quotes || 0;
+      allPerAgent[agentName].items += m.nb_auto_items || 0;
+      allPerAgent[agentName].premium += parseFloat(m.prem_premium || 0);
+      allPerAgent[agentName].days += 1;
+    });
+
+    const allAgentList = Object.values(allPerAgent).filter(a => a.days > 0);
+    const allAgentCount = allAgentList.length;
+    if (allAgentCount === 0) return null;
+
+    const agencyAvgOutbound = allAgentList.reduce((s, a) => s + a.outbound, 0) / allAgentCount;
+    const agencyAvgQuotes = allAgentList.reduce((s, a) => s + a.quotes, 0) / allAgentCount;
+    const agencyAvgItems = allAgentList.reduce((s, a) => s + a.items, 0) / allAgentCount;
+    const agencyAvgPremium = allAgentList.reduce((s, a) => s + a.premium, 0) / allAgentCount;
+
+    // Top and bottom performers (by premium)
+    const sortedByPremium = [...agentList].sort((a, b) => b.premium - a.premium);
+    const topPerformer = sortedByPremium[0];
+    const bottomPerformer = sortedByPremium[sortedByPremium.length - 1];
+
+    // Generate insights
+    const positives: string[] = [];
+    const negatives: string[] = [];
+    const recommendations: string[] = [];
+
+    const pctDiff = (groupVal: number, agencyVal: number) =>
+      agencyVal > 0 ? ((groupVal - agencyVal) / agencyVal) * 100 : 0;
+
+    // Outbound calls
+    const outboundPct = pctDiff(groupAvgOutbound, agencyAvgOutbound);
+    if (outboundPct >= 5) {
+      positives.push(`${groupName} ${groupType} averaging ${groupAvgOutbound.toFixed(1)} outbound calls/agent — ${Math.abs(outboundPct).toFixed(0)}% above agency average.`);
+    } else if (outboundPct <= -10) {
+      negatives.push(`${groupName} ${groupType} averaging only ${groupAvgOutbound.toFixed(1)} outbound calls/agent — ${Math.abs(outboundPct).toFixed(0)}% below agency average.`);
+      recommendations.push(`Review outbound call expectations with the ${groupName} ${groupType}. Consider setting a minimum daily dial target.`);
+    }
+
+    // Quotes
+    const quotesPct = pctDiff(groupAvgQuotes, agencyAvgQuotes);
+    if (quotesPct >= 5) {
+      positives.push(`${groupName} ${groupType} averaging ${groupAvgQuotes.toFixed(1)} quotes/agent — ${Math.abs(quotesPct).toFixed(0)}% above agency average.`);
+    } else if (quotesPct <= -10) {
+      negatives.push(`${groupName} ${groupType} averaging only ${groupAvgQuotes.toFixed(1)} quotes/agent — ${Math.abs(quotesPct).toFixed(0)}% below agency average.`);
+      recommendations.push(`Investigate quote generation workflow for the ${groupName} ${groupType}. Ensure leads are being worked and quoted promptly.`);
+    }
+
+    // Items
+    const itemsPct = pctDiff(groupAvgItems, agencyAvgItems);
+    if (itemsPct >= 5) {
+      positives.push(`${groupName} ${groupType} averaging ${groupAvgItems.toFixed(1)} items/agent — ${Math.abs(itemsPct).toFixed(0)}% above agency average.`);
+    } else if (itemsPct <= -10) {
+      negatives.push(`${groupName} ${groupType} averaging only ${groupAvgItems.toFixed(1)} items/agent — ${Math.abs(itemsPct).toFixed(0)}% below agency average.`);
+    }
+
+    // Premium
+    const premiumPct = pctDiff(groupAvgPremium, agencyAvgPremium);
+    if (premiumPct >= 5) {
+      positives.push(`${groupName} ${groupType} averaging $${Math.round(groupAvgPremium).toLocaleString()} premium/agent — ${Math.abs(premiumPct).toFixed(0)}% above agency average.`);
+    } else if (premiumPct <= -10) {
+      negatives.push(`${groupName} ${groupType} averaging only $${Math.round(groupAvgPremium).toLocaleString()} premium/agent — ${Math.abs(premiumPct).toFixed(0)}% below agency average.`);
+      recommendations.push(`Focus on higher-value opportunities within the ${groupName} ${groupType} to close the premium gap.`);
+    }
+
+    // Top/Bottom performer pairing
+    if (topPerformer && bottomPerformer && topPerformer.name !== bottomPerformer.name) {
+      positives.push(`Top performer: ${topPerformer.name} with $${Math.round(topPerformer.premium).toLocaleString()} in written premium.`);
+      if (bottomPerformer.premium < topPerformer.premium * 0.4) {
+        recommendations.push(`Consider pairing ${bottomPerformer.name} with ${topPerformer.name} for mentoring — significant premium gap between top and bottom performers.`);
+      }
+    }
+
+    // Fallbacks
+    if (positives.length === 0) {
+      positives.push(`${groupName} ${groupType} is performing in line with agency averages across key metrics.`);
+    }
+    if (negatives.length === 0) {
+      positives.push(`No critical performance gaps identified for the ${groupName} ${groupType}.`);
+    }
+    if (recommendations.length === 0) {
+      recommendations.push(`Continue monitoring ${groupName} ${groupType} pacing and maintain current performance standards.`);
+    }
+
+    return {
+      groupType,
+      groupName,
+      agentCount: groupAgentCount,
+      positives,
+      negatives,
+      recommendations
+    };
+  }, [metrics, allActiveAgents, filters.agents, filters.teams, filters.offices]);
+
   // Saved Views actions
   const handleSelectView = (view: SavedView) => {
     if (view.preset) {
@@ -465,7 +657,31 @@ export default function Home() {
     }
   };
 
-  const handleSaveView = () => {
+  const saveViewsToDB = async (updatedViews: SavedView[]) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: agent } = await supabase
+          .from("agents")
+          .select("id, system_variants")
+          .eq("auth_user_id", user.id)
+          .single()
+
+        if (agent) {
+          const variants = (agent.system_variants as Record<string, any>) || {}
+          variants.saved_views = updatedViews
+          await supabase
+            .from("agents")
+            .update({ system_variants: variants, updated_at: new Date().toISOString() })
+            .eq("id", agent.id)
+        }
+      }
+    } catch (e) {
+      console.error("Failed to save views to database:", e)
+    }
+  }
+
+  const handleSaveView = async () => {
     if (!newViewName.trim()) return;
 
     const newView: SavedView = {
@@ -481,13 +697,15 @@ export default function Home() {
     setSavedViews(updatedViews);
     setNewViewName("");
     setShowSaveModal(false);
+    await saveViewsToDB(updatedViews);
   };
 
-  const handleDeleteView = (id: string, e: React.MouseEvent) => {
+  const handleDeleteView = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const updatedViews = savedViews.filter(v => v.id !== id);
     localStorage.setItem("dsr_dashboard_saved_views", JSON.stringify(updatedViews));
     setSavedViews(updatedViews);
+    await saveViewsToDB(updatedViews);
   };
 
   // Custom date submission
@@ -572,7 +790,8 @@ export default function Home() {
         currentVal = stats.quotes;
       }
 
-      const target = Number(g.target_value);
+      // Multiply target by the number of active agents matching the current filter state
+      const target = Number(g.target_value) * (stats.agents || 1);
       const percent = target > 0 ? (currentVal / target) * 100 : 0;
 
       return {
@@ -751,6 +970,11 @@ export default function Home() {
           <span className="text-slate-500">to</span>
           <span>{formatShortDate(endDate)}</span>
         </div>
+        {lastSynced && (
+          <div className="absolute bottom-2 right-3 z-10 text-[10px] text-slate-500 font-medium">
+            Data as of {new Date(lastSynced).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+          </div>
+        )}
       </header>
 
       {/* Filter Bar */}
@@ -988,6 +1212,8 @@ export default function Home() {
         />
       </section>
 
+
+
       {/* Timeline Trend Charts — 2x2 Grid */}
       <section className="flex flex-col gap-6">
         <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
@@ -997,7 +1223,7 @@ export default function Home() {
         {loading ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {[1,2,3,4].map(i => (
-              <Card key={i} className="h-[380px] flex items-center justify-center text-slate-400">Loading chart...</Card>
+              <ChartSkeleton key={i} />
             ))}
           </div>
         ) : (
@@ -1146,6 +1372,82 @@ export default function Home() {
         </section>
       )}
 
+      {/* Team / Office-Level Talking Points */}
+      {groupInsights && (
+        <section className="mt-4 border-t border-slate-200 pt-6">
+          <Card className="border border-slate-200 shadow-md bg-white">
+            <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                <div>
+                  <Badge variant="outline" className="mb-1 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
+                    Group Insight • {groupInsights.agentCount} Agents
+                  </Badge>
+                  <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-indigo-500" />
+                    {groupInsights.groupType === "team" ? "Team" : "Office"} Insights: {groupInsights.groupName}
+                  </CardTitle>
+                </div>
+                <div className="text-xs text-slate-400 font-medium font-mono bg-white px-3 py-1 rounded border border-slate-200/60 shadow-inner shrink-0 self-start md:self-auto">
+                  {groupInsights.groupType === "team" ? "Team" : "Office"}: {groupInsights.groupName} • {groupInsights.agentCount} agents
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 flex flex-col gap-6">
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Positive Signals */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-emerald-600 uppercase tracking-widest flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" /> Positive Signals
+                  </h3>
+                  <ul className="space-y-2.5">
+                    {groupInsights.positives.map((p, idx) => (
+                      <li key={idx} className="text-xs font-medium text-slate-600 bg-emerald-50/30 border border-emerald-50 rounded-lg p-3 leading-relaxed flex items-start gap-2">
+                        <span className="text-emerald-500 font-bold shrink-0">✓</span>
+                        <span>{p}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Gaps & Concerns */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-rose-600 uppercase tracking-widest flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" /> Critical Concerns & Gaps
+                  </h3>
+                  <ul className="space-y-2.5">
+                    {groupInsights.negatives.length > 0 ? groupInsights.negatives.map((n, idx) => (
+                      <li key={idx} className="text-xs font-medium text-slate-600 bg-rose-50/30 border border-rose-50 rounded-lg p-3 leading-relaxed flex items-start gap-2">
+                        <span className="text-rose-500 font-bold shrink-0">⚠️</span>
+                        <span>{n}</span>
+                      </li>
+                    )) : (
+                      <li className="text-xs font-medium text-slate-400 italic p-3">No critical concerns identified.</li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+
+              {/* Recommendations */}
+              <div className="border-t border-slate-100 pt-5 space-y-3">
+                <h3 className="text-xs font-bold text-indigo-600 uppercase tracking-widest flex items-center gap-1.5">
+                  💡 Manager Action Items
+                </h3>
+                <ul className="space-y-2">
+                  {groupInsights.recommendations.map((r, idx) => (
+                    <li key={idx} className="text-xs font-semibold text-slate-700 bg-indigo-50/20 border border-indigo-50/50 rounded-lg p-3 leading-relaxed flex items-start gap-2.5">
+                      <span className="text-indigo-500 shrink-0 mt-0.5">🔹</span>
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
     </main>
     </PageGuard>
   );
@@ -1154,31 +1456,31 @@ export default function Home() {
 // Subcomponents
 
 function KPICard({ title, value, description, icon, color }: { title: string; value: string; description: string; icon: React.ReactNode; color: string }) {
-  const borderMap: Record<string, string> = {
-    emerald: "border-emerald-500",
-    blue: "border-blue-500",
-    amber: "border-amber-500",
-    violet: "border-violet-500"
+  const bgHeaderMap: Record<string, string> = {
+    emerald: "bg-emerald-50/60 text-emerald-900 border-emerald-100/50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30",
+    blue: "bg-blue-50/60 text-blue-900 border-blue-100/50 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30",
+    amber: "bg-amber-50/60 text-amber-900 border-amber-100/50 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30",
+    violet: "bg-violet-50/60 text-violet-900 border-violet-100/50 dark:bg-violet-950/20 dark:text-violet-400 dark:border-violet-900/30"
   };
 
   const bgGradientMap: Record<string, string> = {
-    emerald: "from-emerald-50/40 to-emerald-100/10",
-    blue: "from-blue-550/40 to-blue-100/10",
-    amber: "from-amber-50/40 to-amber-100/10",
-    violet: "from-violet-50/40 to-violet-100/10"
+    emerald: "from-emerald-50/40 to-emerald-100/10 dark:from-emerald-950/20 dark:to-emerald-950/5",
+    blue: "from-blue-50/40 to-blue-100/10 dark:from-blue-950/20 dark:to-blue-950/5",
+    amber: "from-amber-50/40 to-amber-100/10 dark:from-amber-950/20 dark:to-amber-950/5",
+    violet: "from-violet-50/40 to-violet-100/10 dark:from-violet-950/20 dark:to-violet-950/5"
   };
 
   return (
-    <Card className={`overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border-t-4 ${borderMap[color] || "border-slate-500"} bg-white`}>
-      <CardContent className={`p-5 flex flex-col justify-between h-full bg-gradient-to-br ${bgGradientMap[color] || "from-slate-50/50 to-slate-100/10"}`}>
-        <div className="flex justify-between items-start mb-2">
-          <span className="text-slate-400 font-bold text-[10px] uppercase tracking-wider">{title}</span>
-          <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-100 shadow-inner">{icon}</div>
+    <Card className="overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border border-slate-200/80 flex flex-col h-full bg-white">
+      <div className={`px-4 py-2.5 border-b text-[10px] font-bold uppercase tracking-wider ${bgHeaderMap[color] || "bg-slate-50 text-slate-800"}`}>
+        {title}
+      </div>
+      <CardContent className={`p-4 flex-1 flex flex-col justify-between bg-gradient-to-br ${bgGradientMap[color] || "from-slate-50/50 to-slate-100/10"}`}>
+        <div className="flex justify-between items-end gap-2 mt-1">
+          <h3 className="text-2xl lg:text-3xl font-black text-slate-900 dark:text-slate-100 font-mono tracking-tight truncate leading-none">{value}</h3>
+          <div className="bg-slate-50 dark:bg-slate-900 p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 shadow-inner -mt-1 shrink-0">{icon}</div>
         </div>
-        <div className="flex flex-col gap-1">
-          <h3 className="text-2xl lg:text-3xl font-black text-slate-900 font-mono tracking-tight truncate">{value}</h3>
-          <p className="text-[10px] text-slate-500 font-medium">{description}</p>
-        </div>
+        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mt-3">{description}</p>
       </CardContent>
     </Card>
   );
@@ -1200,19 +1502,19 @@ function LeaderboardCard({
   color: string;
 }) {
   const bgHeaderMap: Record<string, string> = {
-    emerald: "bg-emerald-50/60 text-emerald-800 border-emerald-100/50",
-    blue: "bg-blue-50/60 text-blue-800 border-blue-100/50",
-    amber: "bg-amber-50/60 text-amber-800 border-amber-100/50",
-    violet: "bg-violet-50/60 text-violet-800 border-violet-100/50",
-    pink: "bg-pink-50/60 text-pink-800 border-pink-100/50"
+    emerald: "bg-emerald-50/60 text-emerald-900 border-emerald-100/50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30",
+    blue: "bg-blue-50/60 text-blue-900 border-blue-100/50 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30",
+    amber: "bg-amber-50/60 text-amber-900 border-amber-100/50 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30",
+    violet: "bg-violet-50/60 text-violet-900 border-violet-100/50 dark:bg-violet-950/20 dark:text-violet-400 dark:border-violet-900/30",
+    pink: "bg-pink-50/60 text-pink-900 border-pink-100/50 dark:bg-pink-950/20 dark:text-pink-400 dark:border-pink-900/30"
   };
 
   const textValColorMap: Record<string, string> = {
-    emerald: "text-emerald-600",
-    blue: "text-blue-600",
-    amber: "text-amber-600",
-    violet: "text-violet-600",
-    pink: "text-pink-600"
+    emerald: "text-emerald-600 dark:text-emerald-400",
+    blue: "text-blue-600 dark:text-blue-400",
+    amber: "text-amber-600 dark:text-amber-400",
+    violet: "text-violet-600 dark:text-violet-400",
+    pink: "text-pink-600 dark:text-pink-400"
   };
 
   const medals = ["🥇", "🥈", "🥉"];
@@ -1222,21 +1524,21 @@ function LeaderboardCard({
       <div className={`px-4 py-3 border-b text-xs font-bold uppercase tracking-widest ${bgHeaderMap[color] || "bg-slate-50 text-slate-800"}`}>
         {title}
       </div>
-      <div className="divide-y divide-slate-100 flex-1 flex flex-col justify-between">
+      <div className="divide-y divide-slate-100 dark:divide-slate-800 flex-1 flex flex-col justify-between">
         {data.length > 0 ? (
           data.map((agent, i) => (
-            <div key={agent.id} className="p-3.5 flex items-center justify-between hover:bg-slate-50/80 transition-colors gap-2 flex-1">
+            <div key={agent.id} className="p-3.5 flex items-center justify-between hover:bg-slate-50/80 dark:hover:bg-slate-900/10 transition-colors gap-2 flex-1">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-base w-5 text-center shrink-0">{medals[i] || `${i + 1}.`}</span>
                 <div className="min-w-0">
-                  <Link href={`/reports/agent/${agent.id}`} className="font-bold text-slate-700 hover:text-blue-600 transition-colors text-xs truncate block">
+                  <Link href={`/reports/agent/${agent.id}`} className="font-bold text-slate-700 dark:text-slate-350 hover:text-blue-600 dark:hover:text-blue-400 transition-colors text-xs truncate block">
                     {agent.name}
                   </Link>
-                  <p className="text-[9px] text-slate-400 font-medium truncate">{agent.office} • {agent.team}</p>
+                  <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium truncate">{agent.office} • {agent.team}</p>
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <span className={`text-sm font-black font-mono ${textValColorMap[color] || "text-slate-800"}`}>
+                <span className={`text-sm font-black font-mono ${textValColorMap[color] || "text-slate-800 dark:text-slate-100"}`}>
                   {isCurrency
                     ? `$${Math.round(agent[metricKey]).toLocaleString()}`
                     : isDuration

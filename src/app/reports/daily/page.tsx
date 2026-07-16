@@ -2,7 +2,7 @@
 
 import { PageGuard } from "@/components/layout/PageGuard";
 import { useEffect, useState, useMemo } from "react"
-import { getDailyData, getDailyCoverage, getDailyInsights } from "./actions"
+import { getDailyData, getDailyCoverage, getDailyInsights, getDailyNotes, saveDailyNotes } from "./actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { DataTable, ColumnDef } from "@/components/ui/DataTable"
 import { FilterBar, FilterState } from "@/components/ui/FilterBar"
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button"
 import { Trophy, TrendingUp, Calendar, AlertCircle, Edit, CheckCircle2, Clock, DollarSign, Package, Car, RefreshCw, Loader2, MessageSquare, Phone, FileText, ShieldCheck, Zap, ChevronDown, ChevronLeft, ChevronRight, Flame, Lightbulb, Megaphone } from "lucide-react"
 import Link from "next/link"
 import { formatValue } from "@/lib/formatters"
+import { TableSkeleton } from "@/components/ui/Skeleton"
 import { EAgentModal } from "@/components/reports/EAgentModal"
 import { LeadsModal } from "@/components/reports/LeadsModal"
 import AgencyMTDPacing from "@/components/ui/AgencyMTDPacing"
@@ -290,6 +291,8 @@ export default function DailyReport() {
   const [streaks, setStreaks] = useState<any[]>([])
   const [talkingPointsExpanded, setTalkingPointsExpanded] = useState(true)
   const [streaksExpanded, setStreaksExpanded] = useState(true)
+  const [notesText, setNotesText] = useState("")
+  const [savingNotes, setSavingNotes] = useState(false)
 
   // Derive which specific sources are missing from the coverage state
   const SOURCE_LABELS: Record<string, string> = {
@@ -355,6 +358,26 @@ export default function DailyReport() {
     }
     fetchInsights()
   }, [date])
+
+  // Fetch standup notes when date changes
+  useEffect(() => {
+    const fetchNotes = async () => {
+      const result = await getDailyNotes(date)
+      if (result.success) {
+        setNotesText(result.notes || "")
+      }
+    }
+    fetchNotes()
+  }, [date])
+
+  const handleSaveNotes = async () => {
+    setSavingNotes(true)
+    const result = await saveDailyNotes(date, notesText)
+    if (!result.success) {
+      console.error("Failed to save standup notes:", result.error)
+    }
+    setSavingNotes(false)
+  }
 
   // Fetch coverage data when date changes
   useEffect(() => {
@@ -816,7 +839,7 @@ export default function DailyReport() {
         </CardHeader>
         <CardContent className="pt-0">
           {loading ? (
-            <div className="h-32 flex justify-center items-center"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div></div>
+            <TableSkeleton rows={8} cols={10} />
           ) : (
             <DataTable 
               columns={COLUMNS}
@@ -1199,6 +1222,32 @@ export default function DailyReport() {
           )}
         </Card>
       </div>
+
+      {/* ── Standup Annotations (Notes Section) ── */}
+      <Card className="no-print border border-slate-200 shadow-sm mt-6 bg-white overflow-hidden">
+        <CardHeader className="pb-2 border-b border-slate-100 flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-indigo-500" /> Daily Standup Notes
+            </CardTitle>
+            <p className="text-xs text-slate-500 mt-0.5">Manager announcements and notes for {formatHeaderDate(date)}</p>
+          </div>
+          {savingNotes && (
+            <span className="text-xs text-slate-400 font-medium flex items-center gap-1.5 animate-pulse">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500" /> Saving...
+            </span>
+          )}
+        </CardHeader>
+        <CardContent className="pt-4">
+          <textarea
+            value={notesText}
+            onChange={(e) => setNotesText(e.target.value)}
+            onBlur={handleSaveNotes}
+            placeholder="Type any announcements, notes, or highlights for today's standup here. Notes will auto-save on blur..."
+            className="w-full min-h-[120px] p-3 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all text-slate-800 placeholder:text-slate-400 resize-y"
+          />
+        </CardContent>
+      </Card>
 
       <EAgentModal 
         isOpen={isModalOpen}

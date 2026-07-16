@@ -266,6 +266,7 @@ export default function WeeklyReport() {
   })
   
   const [metrics, setMetrics] = useState<any[]>([])
+  const [priorMetrics, setPriorMetrics] = useState<any[]>([])
   const [goals, setGoals] = useState<any[]>([])
   const [manualSubmitted, setManualSubmitted] = useState(false)
   const [filters, setFilters] = useState<FilterState>({ offices: [], teams: [], agents: [], meetings: [] })
@@ -289,11 +290,18 @@ export default function WeeklyReport() {
 
   const fetchData = async () => {
     setLoading(true)
-    const [result, coverageResult, autoSumsResult] = await Promise.all([
+    const prevWeekStart = getPreviousWeekStart(weekStart)
+    const prevWeekEnd = getWeekEnd(prevWeekStart)
+    const prevWeekStartStr = toDateStr(prevWeekStart)
+    const prevWeekEndStr = toDateStr(prevWeekEnd)
+
+    const [result, coverageResult, autoSumsResult, priorResult] = await Promise.all([
       getWeeklyData(weekStartStr, weekEndStr),
       getWeekCoverage(weekStartStr, weekEndStr),
       getWeeklyAutoSums(weekStartStr, weekEndStr),
+      getWeeklyData(prevWeekStartStr, prevWeekEndStr),
     ])
+
     if (result.success && result.data) {
       setMetrics(result.data.metrics)
       setGoals(result.data.goals)
@@ -304,6 +312,13 @@ export default function WeeklyReport() {
     } else {
       setMetrics([])
     }
+
+    if (priorResult.success && priorResult.data) {
+      setPriorMetrics(priorResult.data.metrics || [])
+    } else {
+      setPriorMetrics([])
+    }
+
     if (coverageResult.success && coverageResult.data) {
       setCoverage(coverageResult.data)
     }
@@ -326,6 +341,30 @@ export default function WeeklyReport() {
     if (!bizDays.length) return false
     return bizDays.every((d: any) => d.sources.eagent)
   }, [coverage])
+
+  const currentTotals = useMemo(() => {
+    let premium = 0, items = 0, quotes = 0, outbound = 0, talk = 0
+    metrics.forEach(m => {
+      premium += Number(m.written_premium || 0)
+      items += Number(m.items || 0)
+      quotes += Number(m.quotes || 0)
+      outbound += Number(m.outbound || 0)
+      talk += Number(m.talk_time_seconds || 0)
+    })
+    return { premium, items, quotes, outbound, talk }
+  }, [metrics])
+
+  const priorTotals = useMemo(() => {
+    let premium = 0, items = 0, quotes = 0, outbound = 0, talk = 0
+    priorMetrics.forEach(m => {
+      premium += Number(m.written_premium || 0)
+      items += Number(m.items || 0)
+      quotes += Number(m.quotes || 0)
+      outbound += Number(m.outbound || 0)
+      talk += Number(m.talk_time_seconds || 0)
+    })
+    return { premium, items, quotes, outbound, talk }
+  }, [priorMetrics])
 
   // Count total missing file-based sources across past business days only
   const totalGaps = useMemo(() => {
@@ -967,6 +1006,77 @@ export default function WeeklyReport() {
           )}
         </Card>
       </div>
+
+      {/* ── Week-over-Week Comparison (WoW) ── */}
+      {metrics.length > 0 && priorMetrics.length > 0 && (
+        <Card className="no-print border border-slate-200 shadow-sm mt-6 bg-white overflow-hidden">
+          <CardHeader className="pb-2 border-b border-slate-100">
+            <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-emerald-500" /> Week-over-Week Performance Comparison
+            </CardTitle>
+            <p className="text-xs text-slate-500 mt-0.5">Comparison vs the prior week ({formatWeekRange(getPreviousWeekStart(weekStart))})</p>
+          </CardHeader>
+          <CardContent className="pt-4 pb-5">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {[
+                { 
+                  label: "Written Premium", 
+                  current: currentTotals.premium, 
+                  prior: priorTotals.premium, 
+                  format: (v: number) => `$${Math.round(v).toLocaleString()}`,
+                  color: "text-emerald-600"
+                },
+                { 
+                  label: "Auto Items Written", 
+                  current: currentTotals.items, 
+                  prior: priorTotals.items, 
+                  format: (v: number) => v.toLocaleString(),
+                  color: "text-blue-600"
+                },
+                { 
+                  label: "Quotes Provided", 
+                  current: currentTotals.quotes, 
+                  prior: priorTotals.quotes, 
+                  format: (v: number) => v.toLocaleString(),
+                  color: "text-amber-600"
+                },
+                { 
+                  label: "Outbound Calls", 
+                  current: currentTotals.outbound, 
+                  prior: priorTotals.outbound, 
+                  format: (v: number) => v.toLocaleString(),
+                  color: "text-sky-600"
+                },
+                { 
+                  label: "Talk Time", 
+                  current: currentTotals.talk, 
+                  prior: priorTotals.talk, 
+                  format: (v: number) => formatTime(v),
+                  color: "text-violet-600"
+                }
+              ].map((m, i) => {
+                const delta = m.prior > 0 ? ((m.current - m.prior) / m.prior) * 100 : 0
+                const isPositive = delta >= 0
+                const deltaColor = isPositive ? "text-emerald-600 bg-emerald-50 border-emerald-100" : "text-rose-600 bg-rose-50 border-rose-100"
+                return (
+                  <div key={i} className="flex flex-col border border-slate-100 rounded-xl p-3 bg-slate-50/50 shadow-sm">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{m.label}</span>
+                    <span className={`text-lg font-extrabold mt-1 ${m.color}`}>{m.format(m.current)}</span>
+                    <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100/60">
+                      <span className="text-[10px] text-slate-400 font-medium">Prior: {m.format(m.prior)}</span>
+                      {m.prior > 0 && (
+                        <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded border shrink-0 ${deltaColor}`}>
+                          {isPositive ? "↑" : "↓"}{Math.abs(delta).toFixed(0)}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <WeeklyManualModal 
         isOpen={isModalOpen}

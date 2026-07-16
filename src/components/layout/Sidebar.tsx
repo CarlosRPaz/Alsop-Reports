@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser"
+import { useChat } from "@/lib/chat/chatContext"
 import { 
   BarChart3,
   MessageSquare, 
@@ -18,7 +19,9 @@ import {
   Loader2,
   X,
   History,
-  Smile
+  Smile,
+  Menu,
+  Flame
 } from "lucide-react"
 
 /* ── Letter icon for D / W / M reports ─────────────────────────────── */
@@ -69,6 +72,7 @@ const navItems: NavItem[] = [
   { name: 'Weekly Report', href: '/reports/weekly', letter: 'W', pageKey: 'weekly' },
   { name: 'MTD Performance', href: '/reports/mtd', letter: 'M', pageKey: 'mtd' },
   { name: 'Quotes & NB', href: '/reports/quotes', icon: Percent, pageKey: 'quotes' },
+  { name: 'Agent Heatmap', href: '/reports/heatmap', icon: Flame, pageKey: 'heatmap' },
   { name: 'Agent Portal', href: '/reports/agent', icon: UserCircle, pageKey: 'agent_portal' },
   { name: 'Communication', href: '/communication', icon: MessageSquare },
   { name: 'My Settings', href: '/settings', icon: Settings },
@@ -79,7 +83,11 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [isExpanded, setIsExpanded] = useState(true)
+  const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+
+  const { unreadCounts } = useChat()
+  const totalUnread = Object.values(unreadCounts || {}).reduce((sum, count) => sum + (count || 0), 0)
 
   const [currentAgent, setCurrentAgent] = useState<any>(null)
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
@@ -210,121 +218,157 @@ export function Sidebar() {
   }
 
   return (
-    <aside 
-      className={cn(
-        "bg-white border-r border-slate-200 h-screen sticky top-0 hidden md:flex flex-col z-10 transition-all duration-300 shrink-0",
-        isExpanded ? "w-64" : "w-16"
-      )}
-    >
-      {/* Expand/Collapse Toggle */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        title={isExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
-        className="absolute -right-3.5 top-8 z-50 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-      >
-        {isExpanded ? (
-          <ChevronLeft className="h-4 w-4" />
-        ) : (
-          <ChevronRight className="h-4 w-4" />
-        )}
-      </button>
+    <>
+      {/* Mobile Header Top Bar */}
+      <header className="md:hidden flex items-center justify-between p-4 bg-slate-900 text-white w-full sticky top-0 z-30 shadow-md shrink-0 no-print">
+        <div>
+          <h2 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+            Alsop Reports
+          </h2>
+          <p className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">Command Center</p>
+        </div>
+        <button
+          onClick={() => setIsMobileOpen(true)}
+          className="p-2 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+          title="Open Menu"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+      </header>
 
-      <div className={cn("p-4 flex items-center", !isExpanded ? "justify-center" : "justify-between")}>
-        {isExpanded ? (
+      {/* Mobile Drawer Overlay */}
+      {isMobileOpen && (
+        <div 
+          className="md:hidden fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm transition-opacity no-print"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
+      {/* Mobile Drawer Navigation */}
+      <aside 
+        className={cn(
+          "md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-white flex flex-col shadow-2xl transition-transform duration-300 ease-in-out transform no-print",
+          isMobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        <div className="p-4 flex items-center justify-between border-b border-slate-100">
           <div>
-            <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 whitespace-nowrap">
+            <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
               Alsop Reports
             </h2>
-            <p className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider font-semibold whitespace-nowrap">Command Center</p>
+            <p className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider font-semibold">Command Center</p>
           </div>
-        ) : (
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white shrink-0">
-            A
-          </div>
-        )}
-      </div>
-
-      <nav className="flex-1 px-2 space-y-1 mt-4">
-        {navItems.filter(item => {
-          // Admin Panel: only visible to admins
-          if (item.href === '/admin' && currentAgent?.role !== 'admin') {
-            return false
-          }
-          // Admins and Managers bypass page-level restrictions
-          if (currentAgent?.role === 'admin' || currentAgent?.team === 'Managers') {
-            return true
-          }
-          // Items without a pageKey (Settings, Admin) are always visible
-          if (!item.pageKey) return true
-          // If page permissions haven't loaded yet, show everything
-          if (Object.keys(pagePerms).length === 0) return true
-          // Check if the agent's team is allowed
-          const allowed = pagePerms[item.pageKey]
-          if (!allowed) return true // page not in permissions table = visible
-          return allowed.includes(currentAgent?.team || '')
-        }).map((item) => {
-          const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              title={!isExpanded ? item.name : undefined}
-              className={cn(
-                "flex items-center rounded-lg text-sm font-medium transition-all group overflow-hidden",
-                !isExpanded ? "justify-center p-2" : "gap-3 px-3 py-2",
-                isActive 
-                  ? "bg-blue-50 text-blue-700" 
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              )}
-            >
-              {item.letter ? (
-                <LetterIcon letter={item.letter} isActive={isActive} compact={!isExpanded} />
-              ) : item.icon ? (
-                <item.icon className={cn(
-                  "shrink-0 transition-colors", 
-                  !isExpanded ? "w-5 h-5" : "w-4 h-4",
-                  isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700"
-                )} />
-              ) : null}
-              {isExpanded && <span className="whitespace-nowrap">{item.name}</span>}
-            </Link>
-          )
-        })}
-      </nav>
-
-      {/* User Profile Summary Component */}
-      {currentAgent && (
-        <div className="p-2 border-t border-slate-200">
           <button
-            onClick={openStatusModal}
-            title={!isExpanded ? `${currentAgent.name} (${currentAgent.presence})${currentAgent.status_message ? ` - ${currentAgent.status_message}` : ''}` : undefined}
-            className={cn(
-              "flex items-center rounded-lg text-slate-700 hover:bg-slate-50 transition-all text-left w-full",
-              !isExpanded ? "justify-center p-2" : "gap-3 px-3 py-2"
-            )}
+            onClick={() => setIsMobileOpen(false)}
+            className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+            title="Close Menu"
           >
-            {/* Avatar with Presence dot */}
-            <div className="relative shrink-0">
-              <div
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <nav className="flex-1 px-3 space-y-1 mt-4 overflow-y-auto">
+          {navItems.filter(item => {
+            // Admin Panel is rendered separately below the nav
+            if (item.href === '/admin') return false
+            // Heatmap is strictly Admin-only
+            if (item.pageKey === 'heatmap') {
+              return currentAgent?.role === 'admin'
+            }
+            // Admins and Managers bypass page-level restrictions
+            if (currentAgent?.role === 'admin' || currentAgent?.team === 'Managers') {
+              return true
+            }
+            // Items without a pageKey (Settings) are always visible
+            if (!item.pageKey) return true
+            // If page permissions haven't loaded yet, show everything
+            if (Object.keys(pagePerms).length === 0) return true
+            // Check if the agent's team is allowed
+            const allowed = pagePerms[item.pageKey]
+            if (!allowed) return true // page not in permissions table = visible
+            return allowed.includes(currentAgent?.team || '')
+          }).map((item) => {
+            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={() => setIsMobileOpen(false)}
                 className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold bg-blue-600 shadow-sm"
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
+                  isActive 
+                    ? "bg-blue-50 text-blue-700" 
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                 )}
               >
-                {currentAgent.name.charAt(0).toUpperCase()}
-              </div>
-              <div
-                className={cn(
-                  "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white shrink-0 shadow-sm",
-                  currentAgent.presence === 'online' && "bg-emerald-500",
-                  currentAgent.presence === 'away' && "bg-amber-500",
-                  currentAgent.presence === 'busy' && "bg-rose-500",
-                  currentAgent.presence === 'offline' && "bg-slate-400"
+                {item.letter ? (
+                  <LetterIcon letter={item.letter} isActive={isActive} compact={false} />
+                ) : item.icon ? (
+                  <item.icon className={cn(
+                    "shrink-0 transition-colors w-4 h-4", 
+                    isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700"
+                  )} />
+                ) : null}
+                <span className="flex-1">{item.name}</span>
+                {item.name === 'Communication' && totalUnread > 0 && (
+                  <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                    {totalUnread}
+                  </span>
                 )}
-              />
-            </div>
+              </Link>
+            )
+          })}
+        </nav>
 
-            {/* Details */}
-            {isExpanded && (
+        {/* Mobile Admin Panel link */}
+        {currentAgent?.role === 'admin' && (() => {
+          const isActive = pathname === '/admin' || pathname.startsWith('/admin')
+          return (
+            <div className="px-3 mb-1">
+              <Link
+                href="/admin"
+                onClick={() => setIsMobileOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
+                  isActive
+                    ? "bg-blue-50 text-blue-700"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                )}
+              >
+                <Shield className={cn(
+                  "shrink-0 transition-colors w-4 h-4",
+                  isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700"
+                )} />
+                <span>Admin Panel</span>
+              </Link>
+            </div>
+          )
+        })()}
+
+        {/* Mobile User Profile Summary */}
+        {currentAgent && (
+          <div className="p-3 border-t border-slate-200">
+            <button
+              onClick={() => {
+                setIsMobileOpen(false)
+                openStatusModal()
+              }}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-all text-left w-full"
+            >
+              <div className="relative shrink-0">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold bg-blue-600 shadow-sm">
+                  {currentAgent.name.charAt(0).toUpperCase()}
+                </div>
+                <div
+                  className={cn(
+                    "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white shrink-0 shadow-sm",
+                    currentAgent.presence === 'online' && "bg-emerald-500",
+                    currentAgent.presence === 'away' && "bg-amber-500",
+                    currentAgent.presence === 'busy' && "bg-rose-500",
+                    currentAgent.presence === 'offline' && "bg-slate-400"
+                  )}
+                />
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-800 truncate leading-tight">
                   {currentAgent.name}
@@ -333,27 +377,208 @@ export function Sidebar() {
                   {currentAgent.status_message ? currentAgent.status_message : `Set status message...`}
                 </p>
               </div>
-            )}
+            </button>
+          </div>
+        )}
+
+        <div className="p-3 border-t border-slate-200">
+          <button 
+            onClick={() => {
+              setIsMobileOpen(false)
+              handleSignOut()
+            }}
+            disabled={signingOut}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all w-full text-left"
+          >
+            <LogOut className="shrink-0 w-4 h-4" />
+            <span>{signingOut ? "Signing out..." : "Sign Out"}</span>
           </button>
         </div>
-      )}
+      </aside>
 
-      <div className="p-2 border-t border-slate-200">
-        <button 
-          onClick={handleSignOut}
-          disabled={signingOut}
-          title={!isExpanded ? "Sign Out" : undefined}
-          className={cn(
-            "flex items-center rounded-lg text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all",
-            !isExpanded ? "justify-center p-2" : "gap-3 px-3 py-2 w-full"
-          )}
+      {/* Desktop Sidebar (Rendered unchanged, but hidden on mobile) */}
+      <aside 
+        className={cn(
+          "bg-white border-r border-slate-200 h-screen sticky top-0 hidden md:flex flex-col z-10 transition-all duration-300 shrink-0",
+          isExpanded ? "w-64" : "w-16"
+        )}
+      >
+        {/* Expand/Collapse Toggle */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          title={isExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
+          className="absolute -right-3.5 top-8 z-50 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
         >
-          <LogOut className={cn("shrink-0", !isExpanded ? "w-5 h-5" : "w-4 h-4")} />
-          {isExpanded && <span className="whitespace-nowrap">{signingOut ? "Signing out..." : "Sign Out"}</span>}
+          {isExpanded ? (
+            <ChevronLeft className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
         </button>
-      </div>
 
-      {/* Status Modal */}
+        <div className={cn("p-4 flex items-center", !isExpanded ? "justify-center" : "justify-between")}>
+          {isExpanded ? (
+            <div>
+              <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 whitespace-nowrap">
+                Alsop Reports
+              </h2>
+              <p className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-wider font-semibold whitespace-nowrap">Command Center</p>
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white shrink-0">
+              A
+            </div>
+          )}
+        </div>
+
+        <nav className="flex-1 px-2 space-y-1 mt-4">
+          {navItems.filter(item => {
+            // Admin Panel is rendered separately below the nav
+            if (item.href === '/admin') return false
+            // Heatmap is strictly Admin-only
+            if (item.pageKey === 'heatmap') {
+              return currentAgent?.role === 'admin'
+            }
+            // Admins and Managers bypass page-level restrictions
+            if (currentAgent?.role === 'admin' || currentAgent?.team === 'Managers') {
+              return true
+            }
+            // Items without a pageKey (Settings) are always visible
+            if (!item.pageKey) return true
+            // If page permissions haven't loaded yet, show everything
+            if (Object.keys(pagePerms).length === 0) return true
+            // Check if the agent's team is allowed
+            const allowed = pagePerms[item.pageKey]
+            if (!allowed) return true // page not in permissions table = visible
+            return allowed.includes(currentAgent?.team || '')
+          }).map((item) => {
+            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                title={!isExpanded ? item.name : undefined}
+                className={cn(
+                  "flex items-center rounded-lg text-sm font-medium transition-all group overflow-hidden relative",
+                  !isExpanded ? "justify-center p-2" : "gap-3 px-3 py-2",
+                  isActive 
+                    ? "bg-blue-50 text-blue-700" 
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                )}
+              >
+                {item.letter ? (
+                  <LetterIcon letter={item.letter} isActive={isActive} compact={!isExpanded} />
+                ) : item.icon ? (
+                  <item.icon className={cn(
+                    "shrink-0 transition-colors", 
+                    !isExpanded ? "w-5 h-5" : "w-4 h-4",
+                    isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700"
+                  )} />
+                ) : null}
+                {isExpanded && <span className="whitespace-nowrap flex-1">{item.name}</span>}
+                {isExpanded && item.name === 'Communication' && totalUnread > 0 && (
+                  <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                    {totalUnread}
+                  </span>
+                )}
+                {!isExpanded && item.name === 'Communication' && totalUnread > 0 && (
+                  <div className="absolute top-1 right-1 w-2 h-2 bg-blue-600 rounded-full border border-white shrink-0 shadow-sm" />
+                )}
+              </Link>
+            )
+          })}
+        </nav>
+
+        {/* Admin Panel – pinned above user profile, visible only to admins */}
+        {currentAgent?.role === 'admin' && (() => {
+          const isActive = pathname === '/admin' || pathname.startsWith('/admin')
+          return (
+            <div className="px-2 mb-1">
+              <Link
+                href="/admin"
+                title={!isExpanded ? 'Admin Panel' : undefined}
+                className={cn(
+                  "flex items-center rounded-lg text-sm font-medium transition-all group overflow-hidden",
+                  !isExpanded ? "justify-center p-2" : "gap-3 px-3 py-2",
+                  isActive
+                    ? "bg-blue-50 text-blue-700"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                )}
+              >
+                <Shield className={cn(
+                  "shrink-0 transition-colors",
+                  !isExpanded ? "w-5 h-5" : "w-4 h-4",
+                  isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700"
+                )} />
+                {isExpanded && <span className="whitespace-nowrap">Admin Panel</span>}
+              </Link>
+            </div>
+          )
+        })()}
+
+        {/* User Profile Summary Component */}
+        {currentAgent && (
+          <div className="p-2 border-t border-slate-200">
+            <button
+              onClick={openStatusModal}
+              title={!isExpanded ? `${currentAgent.name} (${currentAgent.presence})${currentAgent.status_message ? ` - ${currentAgent.status_message}` : ''}` : undefined}
+              className={cn(
+                "flex items-center rounded-lg text-slate-700 hover:bg-slate-50 transition-all text-left w-full",
+                !isExpanded ? "justify-center p-2" : "gap-3 px-3 py-2"
+              )}
+            >
+              {/* Avatar with Presence dot */}
+              <div className="relative shrink-0">
+                <div
+                  className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold bg-blue-600 shadow-sm"
+                  )}
+                >
+                  {currentAgent.name.charAt(0).toUpperCase()}
+                </div>
+                <div
+                  className={cn(
+                    "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white shrink-0 shadow-sm",
+                    currentAgent.presence === 'online' && "bg-emerald-500",
+                    currentAgent.presence === 'away' && "bg-amber-500",
+                    currentAgent.presence === 'busy' && "bg-rose-500",
+                    currentAgent.presence === 'offline' && "bg-slate-400"
+                  )}
+                />
+              </div>
+
+              {/* Details */}
+              {isExpanded && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate leading-tight">
+                    {currentAgent.name}
+                  </p>
+                  <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                    {currentAgent.status_message ? currentAgent.status_message : `Set status message...`}
+                  </p>
+                </div>
+              )}
+            </button>
+          </div>
+        )}
+
+        <div className="p-2 border-t border-slate-200">
+          <button 
+            onClick={handleSignOut}
+            disabled={signingOut}
+            title={!isExpanded ? "Sign Out" : undefined}
+            className={cn(
+              "flex items-center rounded-lg text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all",
+              !isExpanded ? "justify-center p-2" : "gap-3 px-3 py-2 w-full"
+            )}
+          >
+            <LogOut className={cn("shrink-0", !isExpanded ? "w-5 h-5" : "w-4 h-4")} />
+            {isExpanded && <span className="whitespace-nowrap">{signingOut ? "Signing out..." : "Sign Out"}</span>}
+          </button>
+        </div>
+      </aside>
+
+      {/* Shared Status Modal */}
       {isStatusModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center">
           {/* Overlay */}
@@ -537,6 +762,6 @@ export function Sidebar() {
           </div>
         </div>
       )}
-    </aside>
+    </>
   )
 }

@@ -1,30 +1,170 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #f8fafc; /* slate-50 */
-  --color-foreground: #0f172a; /* slate-900 */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
   
-  --color-primary: #3b82f6; /* blue-500 */
-  --color-primary-dark: #2563eb; /* blue-600 */
-  --color-secondary: #8b5cf6; /* violet-500 */
-  --color-accent: #10b981; /* emerald-500 */
-  --color-danger: #ef4444; /* red-500 */
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
   
-  --color-surface: #ffffff; /* white */
-  --color-surface-muted: #f1f5f9; /* slate-100 */
-  --color-surface-hover: #e2e8f0; /* slate-200 */
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-hover: var(--surface-hover);
   
-  --color-border-subtle: #e2e8f0; /* slate-200 */
-  --color-border-hover: #cbd5e1; /* slate-300 */
+  --color-border-subtle: var(--border-subtle);
+  --color-border-hover: var(--border-hover);
   
-  --color-muted: #64748b; /* slate-500 */
+  --color-muted: var(--muted);
   
   --font-sans: 'Inter', system-ui, sans-serif;
 }
 
-/* Custom base styles for premium light mode */
+/* ── Design System Custom Properties ── */
 :root {
   color-scheme: light;
+  
+  /* Core Brand & Semantic Colors */
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  
+  --primary: #3b82f6;
+  --primary-dark: #2563eb;
+  --secondary: #8b5cf6;
+  --accent: #10b981;
+  --danger: #ef4444;
+  
+  --surface: #ffffff;
+  --surface-muted: #f1f5f9;
+  --surface-hover: #e2e8f0;
+  
+  --border-subtle: #e2e8f0;
+  --border-hover: #cbd5e1;
+  
+  --muted: #64748b;
+  
+  /* Utility Overrides for Existing Hardcoded Classes */
+  --theme-bg-white: #ffffff;
+  --theme-bg-slate-50: #f8fafc;
+  --theme-bg-slate-100: #f1f5f9;
+  --theme-bg-slate-50-50: rgba(248, 250, 252, 0.5);
+  
+  --theme-text-slate-900: #0f172a;
+  --theme-text-slate-800: #1e293b;
+  --theme-text-slate-700: #334155;
+  --theme-text-slate-600: #475569;
+  --theme-text-slate-500: #475569;
+  --theme-text-slate-400: #64748b;
+  --theme-text-slate-300: #94a3b8;
+  
+  --theme-border-slate-100: #f1f5f9;
+  --theme-border-slate-200: #e2e8f0;
+  --theme-border-slate-300: #cbd5e1;
+  
+  /* Accent/Pastel Semantic Utilities */
+  --theme-bg-blue-50: rgba(219, 234, 254, 0.5);
+  --theme-text-blue-700: #1d4ed8;
+  --theme-bg-indigo-50: rgba(224, 231, 255, 0.5);
+  --theme-text-indigo-700: #4338ca;
+  --theme-bg-emerald-50: rgba(209, 250, 229, 0.5);
+  --theme-text-emerald-700: #047857;
+  --theme-bg-rose-50: rgba(254, 226, 226, 0.5);
+  --theme-text-rose-700: #b91c1c;
+  --theme-bg-amber-50: rgba(254, 243, 199, 0.5);
+  --theme-bg-amber-100: #fef3c7;
+  --theme-text-amber-700: #b45309;
+  --theme-bg-sky-50: rgba(224, 242, 254, 0.5);
+  --theme-text-sky-700: #0369a1;
+  --theme-bg-violet-50: rgba(237, 233, 254, 0.5);
+  --theme-text-violet-700: #6d28d9;
+  --theme-bg-teal-50: rgba(204, 251, 241, 0.5);
+  --theme-text-teal-700: #0f766e;
+  --theme-bg-red-50: rgba(254, 226, 226, 0.5);
+  --theme-text-red-600: #dc2626;
+  
+  /* Sidebar custom variables */
+  --sidebar-bg: #ffffff;
+  --sidebar-border: #e2e8f0;
+  --sidebar-link-hover: #f1f5f9;
+  
+  /* Scrollbar custom variables */
+  --scrollbar-thumb: rgba(148, 163, 184, 0.5);
+  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.8);
+  --scrollbar-track: rgba(241, 245, 249, 0.8);
+}
+
+.dark {
+  color-scheme: dark;
+  
+  /* Core Brand & Semantic Colors */
+  --background: #0d0e11;
+  --foreground: #f8fafc;
+  
+  --primary: #3b82f6;
+  --primary-dark: #2563eb;
+  --secondary: #a78bfa;
+  --accent: #34d399;
+  --danger: #f87171;
+  
+  --surface: #17181c;
+  --surface-muted: #222429;
+  --surface-hover: #2d3037;
+  
+  --border-subtle: #222429;
+  --border-hover: #2d3037;
+  
+  --muted: #9ca3af;
+  
+  /* Utility Overrides for Existing Hardcoded Classes */
+  --theme-bg-white: #17181c;
+  --theme-bg-slate-50: #0d0e11;
+  --theme-bg-slate-100: #222429;
+  --theme-bg-slate-50-50: #17181c;
+  
+  --theme-text-slate-900: #ffffff;
+  --theme-text-slate-800: #ffffff;
+  --theme-text-slate-700: #d1d5db;
+  --theme-text-slate-600: #9ca3af;
+  --theme-text-slate-500: #9ca3af;
+  --theme-text-slate-400: #6b7280;
+  --theme-text-slate-300: #cbd5e1;
+  
+  --theme-border-slate-100: #222429;
+  --theme-border-slate-200: #222429;
+  --theme-border-slate-300: #2d3037;
+  
+  /* Accent/Pastel Semantic Utilities mapped to rich charcoal variants */
+  --theme-bg-blue-50: rgba(30, 58, 138, 0.25);
+  --theme-text-blue-700: #60a5fa;
+  --theme-bg-indigo-50: rgba(49, 46, 129, 0.25);
+  --theme-text-indigo-700: #a5b4fc;
+  --theme-bg-emerald-50: rgba(6, 78, 59, 0.25);
+  --theme-text-emerald-700: #34d399;
+  --theme-bg-rose-50: rgba(136, 19, 55, 0.25);
+  --theme-text-rose-700: #fb7185;
+  --theme-bg-amber-50: rgba(120, 53, 15, 0.25);
+  --theme-bg-amber-100: rgba(120, 53, 15, 0.25);
+  --theme-text-amber-700: #fbbf24;
+  --theme-bg-sky-50: rgba(12, 74, 110, 0.25);
+  --theme-text-sky-700: #38bdf8;
+  --theme-bg-violet-50: rgba(76, 29, 149, 0.25);
+  --theme-text-violet-700: #a78bfa;
+  --theme-bg-teal-50: rgba(17, 94, 89, 0.25);
+  --theme-text-teal-700: #2dd4bf;
+  --theme-bg-red-50: rgba(239, 68, 68, 0.15);
+  --theme-text-red-600: #f87171;
+  
+  /* Sidebar custom variables */
+  --sidebar-bg: #0d0e11;
+  --sidebar-border: #222429;
+  --sidebar-link-hover: #222429;
+  
+  /* Scrollbar custom variables */
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
+  --scrollbar-track: #0d0e11;
 }
 
 body {
@@ -34,9 +174,10 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Light mode card utilities */
+/* Base card layout properties */
 .glass-panel {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border-subtle);
@@ -68,7 +209,7 @@ body {
   animation: pulse-glow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Scrollbar styling (default) */
+/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -77,11 +218,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.5); /* slate-400 */
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.8); /* slate-500 */
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Thick scrollbar for DSR table */
@@ -89,14 +230,203 @@ body {
   height: 14px;
 }
 .dsr-scrollbar::-webkit-scrollbar-track {
-  background: rgba(241, 245, 249, 0.8); /* slate-100 */
+  background: var(--scrollbar-track);
   border-radius: 7px;
 }
 .dsr-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(90deg, rgba(203, 213, 225, 0.7), rgba(148, 163, 184, 0.7)); /* slate-300 to slate-400 */
+  background: var(--scrollbar-thumb);
   border-radius: 7px;
-  border: 2px solid rgba(241, 245, 249, 0.8);
+  border: 2px solid var(--scrollbar-track);
 }
 .dsr-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(90deg, rgba(148, 163, 184, 0.9), rgba(100, 116, 139, 0.9));
+  background: var(--scrollbar-thumb-hover);
 }
+
+/* ── Class-Level Theme variable mapping overrides ── */
+.bg-white {
+  background-color: var(--theme-bg-white) !important;
+}
+.bg-slate-50 {
+  background-color: var(--theme-bg-slate-50) !important;
+}
+.bg-slate-100 {
+  background-color: var(--theme-bg-slate-100) !important;
+}
+.bg-slate-50\/50 {
+  background-color: var(--theme-bg-slate-50-50) !important;
+}
+
+/* Text class mapping overrides */
+.text-slate-900 { color: var(--theme-text-slate-900) !important; }
+.text-slate-800 { color: var(--theme-text-slate-800) !important; }
+.text-slate-700 { color: var(--theme-text-slate-700) !important; }
+.text-slate-600 { color: var(--theme-text-slate-600) !important; }
+.text-slate-500 { color: var(--theme-text-slate-500) !important; }
+.text-slate-400 { color: var(--theme-text-slate-400) !important; }
+.text-slate-300 { color: var(--theme-text-slate-300) !important; }
+
+/* Border class mapping overrides */
+.border-slate-100 { border-color: var(--theme-border-slate-100) !important; }
+.border-slate-200 { border-color: var(--theme-border-slate-200) !important; }
+.border-slate-300 { border-color: var(--theme-border-slate-300) !important; }
+.divide-slate-100 > * + * { border-color: var(--theme-border-slate-100) !important; }
+.divide-slate-200 > * + * { border-color: var(--theme-border-slate-200) !important; }
+
+/* Forms & Inputs mapping overrides */
+input, select, textarea {
+  background-color: var(--theme-bg-slate-50) !important;
+  color: var(--theme-text-slate-900) !important;
+  border-color: var(--theme-border-slate-200) !important;
+}
+
+/* Sidebar overrides mapped to variables */
+aside {
+  background-color: var(--sidebar-bg) !important;
+  border-right-color: var(--sidebar-border) !important;
+}
+aside a:hover {
+  background-color: var(--sidebar-link-hover) !important;
+}
+
+/* Accents mapping overrides */
+.bg-blue-50 { background-color: var(--theme-bg-blue-50) !important; }
+.text-blue-700 { color: var(--theme-text-blue-700) !important; }
+.bg-indigo-50 { background-color: var(--theme-bg-indigo-50) !important; }
+.text-indigo-700 { color: var(--theme-text-indigo-700) !important; }
+.bg-emerald-50 { background-color: var(--theme-bg-emerald-50) !important; }
+.text-emerald-700 { color: var(--theme-text-emerald-700) !important; }
+.bg-rose-50 { background-color: var(--theme-bg-rose-50) !important; }
+.text-rose-700 { color: var(--theme-text-rose-700) !important; }
+.bg-amber-50 { background-color: var(--theme-bg-amber-50) !important; }
+.bg-amber-100 { background-color: var(--theme-bg-amber-100) !important; }
+.text-amber-700 { color: var(--theme-text-amber-700) !important; }
+.bg-sky-50 { background-color: var(--theme-bg-sky-50) !important; }
+.text-sky-700 { color: var(--theme-text-sky-700) !important; }
+.bg-violet-50 { background-color: var(--theme-bg-violet-50) !important; }
+.text-violet-700 { color: var(--theme-text-violet-700) !important; }
+.bg-teal-50 { background-color: var(--theme-bg-teal-50) !important; }
+.text-teal-700 { color: var(--theme-text-teal-700) !important; }
+.bg-red-50 { background-color: var(--theme-bg-red-50) !important; }
+.text-red-600 { color: var(--theme-text-red-600) !important; }
+
+/* Interactive Hover utilities */
+.hover\:bg-blue-100:hover {
+  background-color: var(--theme-bg-blue-50) !important;
+}
+.hover\:bg-indigo-100:hover {
+  background-color: var(--theme-bg-indigo-50) !important;
+}
+.hover\:bg-emerald-100:hover {
+  background-color: var(--theme-bg-emerald-50) !important;
+}
+.hover\:bg-rose-100:hover {
+  background-color: var(--theme-bg-rose-50) !important;
+}
+.hover\:bg-slate-100:hover {
+  background-color: var(--theme-bg-slate-100) !important;
+}
+.hover\:bg-slate-50:hover {
+  background-color: var(--theme-bg-slate-100) !important;
+}
+
+/* ── Leaderboard Card Header Legibility Overrides (Adaptive) ── */
+.bg-emerald-50\/60 {
+  background-color: var(--theme-bg-emerald-50) !important;
+}
+.text-emerald-900 {
+  color: var(--theme-text-emerald-700) !important;
+}
+
+.bg-blue-50\/60 {
+  background-color: var(--theme-bg-blue-50) !important;
+}
+.text-blue-900 {
+  color: var(--theme-text-blue-700) !important;
+}
+
+.bg-amber-50\/60 {
+  background-color: var(--theme-bg-amber-50) !important;
+}
+.text-amber-900 {
+  color: var(--theme-text-amber-700) !important;
+}
+
+.bg-violet-50\/60 {
+  background-color: var(--theme-bg-violet-50) !important;
+}
+.text-violet-900 {
+  color: var(--theme-text-violet-700) !important;
+}
+
+.bg-pink-50\/60 {
+  background-color: var(--theme-bg-rose-50) !important;
+}
+.text-pink-900 {
+  color: var(--theme-text-rose-700) !important;
+}
+
+/* ── 800-Grade Accent Text Overrides (Adaptive) ── */
+.text-emerald-800 {
+  color: var(--theme-text-emerald-700) !important;
+}
+.text-blue-800 {
+  color: var(--theme-text-blue-700) !important;
+}
+.text-indigo-800 {
+  color: var(--theme-text-indigo-700) !important;
+}
+.text-rose-800 {
+  color: var(--theme-text-rose-700) !important;
+}
+.text-amber-800 {
+  color: var(--theme-text-amber-700) !important;
+}
+.text-sky-800 {
+  color: var(--theme-text-sky-700) !important;
+}
+.text-violet-800 {
+  color: var(--theme-text-violet-700) !important;
+}
+.text-teal-800 {
+  color: var(--theme-text-teal-700) !important;
+}
+
+/* ── Heatmap Cell Styles (High Contrast, Rich Vibrancy) ── */
+.bg-heatmap-excellent {
+  background-color: #d1fae5 !important; /* emerald-100 */
+  color: #065f46 !important; /* emerald-800 */
+}
+.dark .bg-heatmap-excellent {
+  background-color: rgba(16, 185, 129, 0.25) !important; /* emerald-500/25 */
+  color: #34d399 !important; /* emerald-400 */
+}
+
+.bg-heatmap-above {
+  background-color: #ecfdf5 !important; /* emerald-50 */
+  color: #047857 !important; /* emerald-700 */
+}
+.dark .bg-heatmap-above {
+  background-color: rgba(16, 185, 129, 0.12) !important; /* emerald-500/12 */
+  color: #6ee7b7 !important; /* emerald-300 */
+}
+
+.bg-heatmap-below {
+  background-color: #fff5f5 !important; /* red-50 */
+  color: #b91c1c !important; /* red-700 */
+}
+.dark .bg-heatmap-below {
+  background-color: rgba(239, 68, 68, 0.12) !important; /* red-500/12 */
+  color: #fca5a5 !important; /* red-300 */
+}
+
+.bg-heatmap-critical {
+  background-color: #fee2e2 !important; /* red-100 */
+  color: #991b1b !important; /* red-800 */
+}
+.dark .bg-heatmap-critical {
+  background-color: rgba(239, 68, 68, 0.25) !important; /* red-500/25 */
+  color: #f87171 !important; /* red-400 */
+}
+
+
+

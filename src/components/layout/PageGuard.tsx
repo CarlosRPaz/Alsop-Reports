@@ -42,6 +42,16 @@ export function PageGuard({ pageKey, children }: PageGuardProps) {
           .eq("auth_user_id", user.id)
           .single()
 
+        // Heatmap is strictly Admin-only
+        if (pageKey === "heatmap") {
+          if (agent?.role === "admin") {
+            setStatus("allowed")
+          } else {
+            setStatus("denied")
+          }
+          return
+        }
+
         // Admins and Managers always have access
         if (agent?.role === "admin" || agent?.team === "Managers") {
           setStatus("allowed")

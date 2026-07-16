@@ -380,3 +380,58 @@ export async function getAgentMonthlyData(
     return { success: false, error: error.message }
   }
 }
+
+export async function getAgentNotes(agentId: string) {
+  try {
+    noStore()
+    const { data: agent, error } = await supabase
+      .from("agents")
+      .select("system_variants")
+      .eq("id", agentId)
+      .single()
+
+    if (error) throw error
+
+    const variants = (agent?.system_variants as Record<string, any>) || {}
+    return {
+      success: true,
+      notes: variants.manager_notes || "",
+      isAi: !!variants.manager_notes_ai
+    }
+  } catch (error: any) {
+    console.error("Error fetching agent notes:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+export async function saveAgentNotes(agentId: string, notes: string, isAi: boolean) {
+  try {
+    noStore()
+    const { data: agent, error: fetchError } = await supabase
+      .from("agents")
+      .select("system_variants")
+      .eq("id", agentId)
+      .single()
+
+    if (fetchError) throw fetchError
+
+    const variants = (agent?.system_variants as Record<string, any>) || {}
+    variants.manager_notes = notes
+    variants.manager_notes_ai = isAi
+
+    const { error: updateError } = await supabase
+      .from("agents")
+      .update({
+        system_variants: variants,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", agentId)
+
+    if (updateError) throw updateError
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error saving agent notes:", error)
+    return { success: false, error: error.message }
+  }
+}

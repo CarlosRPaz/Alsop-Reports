@@ -2,6 +2,7 @@
 
 import { supabase } from "@/lib/supabaseClient";
 import { unstable_noStore as noStore } from "next/cache";
+import { requireAdmin } from "@/lib/auth";
 
 const SOURCE_FIELD_MAP: Record<string, string[]> = {
   rc: ["calls", "inbound", "outbound", "talk_time_seconds"],
@@ -19,6 +20,7 @@ const SOURCE_FIELD_MAP: Record<string, string[]> = {
 
 export async function getUploadHistory(page: number, pageSize: number = 10) {
   noStore();
+  await requireAdmin();
 
   try {
     const from = (page - 1) * pageSize;
@@ -85,6 +87,7 @@ export async function getUploadHistory(page: number, pageSize: number = 10) {
 
 export async function reassignFileDate(fileId: string, newDate: string) {
   try {
+    await requireAdmin();
     // 1. Fetch the file record
     const { data: file, error: fileError } = await supabase
       .from("upload_history_files")
@@ -244,6 +247,7 @@ export async function reassignFileDate(fileId: string, newDate: string) {
 
 export async function reassignUploadDate(uploadId: string, newDate: string) {
   try {
+    await requireAdmin();
     // 1. Fetch all files for this upload
     const { data: files, error: filesError } = await supabase
       .from("upload_history_files")
@@ -319,6 +323,7 @@ export async function reassignUploadDate(uploadId: string, newDate: string) {
 
 export async function deleteUploadData(uploadId: string) {
   try {
+    await requireAdmin();
     // 1. Fetch the upload record
     const { data: upload, error: uploadError } = await supabase
       .from("upload_history")
