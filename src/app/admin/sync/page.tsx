@@ -688,13 +688,13 @@ export default function DataSyncPage() {
         <div className="space-y-3">
           <div>
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                 <CheckCircle2 className="w-4 h-4" />
               </div>
-              <h2 className="text-sm font-bold text-slate-900">Source Checklist</h2>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Source Checklist</h2>
             </div>
-            <p className="text-xs text-slate-400 mt-1 ml-[38px]">
-              Showing coverage for <span className="font-semibold text-slate-600">{new Date(date + "T12:00:00").toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}</span>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 ml-[38px]">
+              Showing coverage for <span className="font-semibold text-slate-600 dark:text-slate-300">{new Date(date + "T12:00:00").toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}</span>
             </p>
           </div>
           <div className="grid grid-cols-1 gap-2.5">
@@ -730,11 +730,11 @@ export default function DataSyncPage() {
         {/* Right: Sync Calendar */}
         <div className="space-y-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
               <CalendarDays className="w-4 h-4" />
             </div>
-            <h2 className="text-sm font-bold text-slate-900">Sync Calendar</h2>
-            <span className="text-xs text-slate-400">— click a date to fill gaps</span>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Sync Calendar</h2>
+            <span className="text-xs text-slate-400 dark:text-slate-500">— click a date to fill gaps</span>
           </div>
           <SyncCalendar
             selectedDate={date}
@@ -747,17 +747,17 @@ export default function DataSyncPage() {
 
       {/* ═══ Sticky Upload Action Bar ═══ */}
       {stagedFiles.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-t border-slate-200 shadow-lg">
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-t border-slate-200 dark:border-slate-800 shadow-lg">
           <div className="max-w-7xl mx-auto px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
-                <Upload className="w-4 h-4 text-indigo-600" />
-                <span className="text-sm font-semibold text-slate-900">
+                <Upload className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {stagedFiles.length} file{stagedFiles.length !== 1 ? "s" : ""} staged
                 </span>
               </div>
               {stagedFiles.filter(f => f.type === "unknown").length > 0 && (
-                <span className="text-xs text-amber-600 font-medium">
+                <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
                   ({stagedFiles.filter(f => f.type === "unknown").length} unrecognized — won&apos;t process)
                 </span>
               )}
@@ -788,20 +788,20 @@ export default function DataSyncPage() {
       <UploadHistory refreshTrigger={refreshTrigger} />
 
       {/* ═══ Data Dictionary (collapsible) ═══ */}
-      <div className="border border-blue-200 rounded-xl bg-white shadow-sm overflow-hidden">
+      <div className="border border-blue-200 dark:border-blue-900/50 rounded-xl bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
         <button
           onClick={() => setDictionaryOpen(!dictionaryOpen)}
-          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-blue-50/50 transition-colors"
+          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 transition-colors"
         >
           <div className="flex items-center gap-2.5">
             <Info className="w-4.5 h-4.5 text-blue-500" />
-            <span className="text-sm font-semibold text-blue-700">Data Sources Dictionary</span>
-            <span className="text-xs text-slate-400">— where every number comes from</span>
+            <span className="text-sm font-semibold text-blue-700 dark:text-blue-400">Data Sources Dictionary</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500">— where every number comes from</span>
           </div>
           <ChevronDown className={`w-4 h-4 text-blue-400 transition-transform duration-200 ${dictionaryOpen ? "rotate-180" : ""}`} />
         </button>
         {dictionaryOpen && (
-          <div className="px-5 pb-5 border-t border-blue-100 pt-4 space-y-3 max-h-[700px] overflow-auto">
+          <div className="px-5 pb-5 border-t border-blue-100 dark:border-blue-900/40 pt-4 space-y-3 max-h-[700px] overflow-auto">
             <DictionaryItem
               metric="Agent Roster"
               source="Daily Standup Report.xlsx"
@@ -916,15 +916,15 @@ function SourceCard({
     ? "border-l-4 border-l-emerald-400"
     : coverageLoaded
       ? "border-l-4 border-l-red-400"
-      : "border-l-4 border-l-slate-200"
+      : "border-l-4 border-l-slate-200 dark:border-l-slate-700"
 
   return (
     <div
-      className={`rounded-lg border ${!isPresent && coverageLoaded ? 'border-red-200' : colors.border} shadow-sm overflow-hidden transition-all duration-300 ${borderAccent} ${
-        !isPresent && coverageLoaded ? "ring-1 ring-red-200/60 bg-red-50/40" : "bg-white"
+      className={`rounded-lg border ${!isPresent && coverageLoaded ? 'border-red-200 dark:border-red-900/40' : colors.border} shadow-sm overflow-hidden transition-all duration-300 ${borderAccent} ${
+        !isPresent && coverageLoaded ? "ring-1 ring-red-200/60 dark:ring-red-900/30 bg-red-50/40 dark:bg-red-950/20" : "bg-white dark:bg-slate-900"
       }`}
     >
-      <div className={`flex items-center gap-2.5 px-3 py-2 ${isPresent ? "bg-gradient-to-r from-emerald-50/40 to-white" : !isPresent && coverageLoaded ? "bg-red-50/30" : ""}`}>
+      <div className={`flex items-center gap-2.5 px-3 py-2 ${isPresent ? "bg-gradient-to-r from-emerald-50/40 to-transparent dark:from-emerald-950/40 dark:to-transparent" : !isPresent && coverageLoaded ? "bg-red-50/30 dark:bg-red-950/30" : ""}`}>
         {/* Icon */}
         <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${colors.bg} ${colors.text}`}>
           <Icon className="w-3.5 h-3.5" />
@@ -933,14 +933,14 @@ function SourceCard({
         {/* Label + badge + subtitle */}
         <div className="flex-grow min-w-0">
           <div className="flex items-center gap-1.5">
-            <h3 className="text-xs font-bold text-slate-900">{source.label}</h3>
+            <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100">{source.label}</h3>
             <Badge variant="outline" className={`text-[9px] px-1 py-0 shrink-0 ${colors.bg} ${colors.text} ${colors.border}`}>
               {source.system}
             </Badge>
           </div>
           {/* How-to-get hint — only show when missing */}
           {!isPresent && coverageLoaded && (
-            <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{source.howToGet}</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">{source.howToGet}</p>
           )}
           {/* Sub-source indicators for calls */}
           {source.uploadTypes.length > 1 && coverageLoaded && subSources && (
@@ -952,8 +952,8 @@ function SourceCard({
                     key={fp.type}
                     className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
                       uploaded
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : "bg-red-50 text-red-600 border-red-200"
+                        ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                        : "bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800"
                     }`}
                   >
                     {uploaded ? "✓" : "✗"} {fp.label}
@@ -967,7 +967,7 @@ function SourceCard({
         {/* Action buttons (inline) */}
         {source.isManualEntry && (
           <Link href={`/reports/daily?date=${date}`} className="shrink-0">
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-600 hover:text-rose-500 transition-colors whitespace-nowrap">
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-500 transition-colors whitespace-nowrap">
               <ExternalLink className="w-3 h-3" /> Daily Report
             </span>
           </Link>
@@ -976,7 +976,7 @@ function SourceCard({
         {source.isAutomatic && (
           <div className="flex items-center gap-1.5 shrink-0">
             {onManualLeads && (
-              <Button onClick={onManualLeads} size="sm" variant="outline" className="h-6 text-[10px] px-2 border-orange-200 text-orange-700 hover:bg-orange-50">
+              <Button onClick={onManualLeads} size="sm" variant="outline" className="h-6 text-[10px] px-2 border-orange-200 dark:border-orange-900/60 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/40">
                 <Pencil className="w-2.5 h-2.5 mr-1" /> Manual
               </Button>
             )}
@@ -998,16 +998,16 @@ function SourceCard({
         {/* Status indicator */}
         <div className="shrink-0 ml-auto pl-2">
           {isProcessing ? (
-            <span className="flex items-center gap-1 text-[10px] font-medium text-blue-600 whitespace-nowrap">
+            <span className="flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400 whitespace-nowrap">
               <Loader2 className="w-3 h-3 animate-spin" /> Processing
             </span>
           ) : isPresent ? (
-            <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 whitespace-nowrap">
+            <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
               <CheckCircle2 className="w-3 h-3" />
               {source.key !== "eagent" ? `${agentsWithData}` : "✓"}
             </span>
           ) : coverageLoaded ? (
-            <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 whitespace-nowrap">
+            <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 whitespace-nowrap">
               <AlertCircle className="w-3 h-3" /> Missing
             </span>
           ) : (
@@ -1018,7 +1018,7 @@ function SourceCard({
 
       {/* Localhost warning — only for Lead Pipeline, collapsed to a thin bar */}
       {source.isAutomatic && (
-        <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 border-t border-amber-100 text-[10px] text-amber-600">
+        <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-950/40 border-t border-amber-100 dark:border-amber-900/50 text-[10px] text-amber-700 dark:text-amber-300">
           <Monitor className="w-3 h-3 shrink-0" />
           <span><span className="font-semibold">Localhost only</span> — Charlie&apos;s computer</span>
         </div>

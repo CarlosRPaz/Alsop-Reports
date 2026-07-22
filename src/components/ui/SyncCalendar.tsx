@@ -23,13 +23,13 @@ async function fetchAllRows(
 }
 
 const SOURCE_META = [
-  { key: 'calls', label: 'Calls', color: 'bg-sky-400', emptyColor: 'bg-slate-200' },
-  { key: 'texts', label: 'Texts', color: 'bg-purple-400', emptyColor: 'bg-slate-200' },
-  { key: 'quotes', label: 'Quotes', color: 'bg-amber-400', emptyColor: 'bg-slate-200' },
-  { key: 'items', label: 'Items', color: 'bg-violet-400', emptyColor: 'bg-slate-200' },
-  { key: 'premium', label: 'Premium', color: 'bg-emerald-400', emptyColor: 'bg-slate-200' },
-  { key: 'eagent', label: 'eAgent', color: 'bg-rose-400', emptyColor: 'bg-slate-200' },
-  { key: 'leads', label: 'Leads', color: 'bg-orange-400', emptyColor: 'bg-slate-200' },
+  { key: 'calls', label: 'Calls', color: 'bg-sky-400', emptyColor: 'bg-slate-200 dark:bg-slate-700' },
+  { key: 'texts', label: 'Texts', color: 'bg-purple-400', emptyColor: 'bg-slate-200 dark:bg-slate-700' },
+  { key: 'quotes', label: 'Quotes', color: 'bg-amber-400', emptyColor: 'bg-slate-200 dark:bg-slate-700' },
+  { key: 'items', label: 'Items', color: 'bg-violet-400', emptyColor: 'bg-slate-200 dark:bg-slate-700' },
+  { key: 'premium', label: 'Premium', color: 'bg-emerald-400', emptyColor: 'bg-slate-200 dark:bg-slate-700' },
+  { key: 'eagent', label: 'eAgent', color: 'bg-rose-400', emptyColor: 'bg-slate-200 dark:bg-slate-700' },
+  { key: 'leads', label: 'Leads', color: 'bg-orange-400', emptyColor: 'bg-slate-200 dark:bg-slate-700' },
 ] as const
 
 type SourceKey = typeof SOURCE_META[number]['key']
@@ -325,23 +325,23 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
     
     // Future days should not have any status coloring
     if (isFuture) {
-      base += "bg-white text-slate-600 border-slate-100 hover:bg-slate-50"
+      base += "bg-white dark:bg-slate-900/60 text-slate-400 dark:text-slate-600 border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40"
     } else {
-      // Core status colors (now including weekends)
+      // Core status colors
       if (allPresent) {
-        base += "bg-emerald-50 text-emerald-800 border-emerald-200/60 hover:bg-emerald-100"
+        base += "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200/60 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
       } else if (partial) {
-        base += "bg-amber-50/70 text-amber-800 border-amber-200/60 hover:bg-amber-100"
+        base += "bg-amber-50/70 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200/60 dark:border-amber-800/60 hover:bg-amber-100 dark:hover:bg-amber-900/50"
       } else if (noData) {
-        base += "bg-rose-50/70 text-rose-800 border-rose-200/60 hover:bg-rose-100"
+        base += "bg-rose-50/70 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border-rose-200/60 dark:border-rose-800/60 hover:bg-rose-100 dark:hover:bg-rose-900/50"
       } else {
-        base += "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+        base += "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
       }
     }
 
-    // Today (current day) - styled soft blue as requested
+    // Today (current day) - styled soft blue
     if (isToday) {
-      base = "border bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100"
+      base = "border bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/60"
     }
 
     // Selected day - bold outline ring styling
@@ -385,32 +385,32 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
   }, [sourceFilter])
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden relative">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden relative">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800">
         <button
           onClick={prevMonth}
-          className="p-1.5 rounded-md hover:bg-slate-50 text-slate-500 hover:text-slate-900 transition-colors"
+          className="p-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <h3 className="text-sm font-semibold text-slate-900">{monthName}</h3>
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{monthName}</h3>
         <button
           onClick={nextMonth}
-          className="p-1.5 rounded-md hover:bg-slate-50 text-slate-500 hover:text-slate-900 transition-colors"
+          className="p-1.5 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
 
       {/* Source filter pills */}
-      <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 border-b border-slate-100">
+      <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 border-b border-slate-100 dark:border-slate-800">
         <button
           onClick={() => setSourceFilter(null)}
           className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all duration-150 ${
             sourceFilter === null
-              ? "bg-slate-800 text-white shadow-sm"
-              : "bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700"
+              ? "bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 shadow-sm"
+              : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200"
           }`}
         >
           All
@@ -426,9 +426,9 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
             pillClass += 'text-white shadow-sm'
             if (isPerfect) pillClass += ' ring-2 ring-emerald-400/60 ring-offset-1'
           } else if (isPerfect) {
-            pillClass += 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100/80'
+            pillClass += 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/80 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/80'
           } else {
-            pillClass += 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'
+            pillClass += 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
           }
 
           // Tooltip
@@ -449,27 +449,21 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
                   src.key === 'quotes' ? '#fbbf24' :
                   src.key === 'items' ? '#8b5cf6' :
                   src.key === 'premium' ? '#34d399' :
-                  src.key === 'eagent' ? '#fb7185' :
-                  '#fb923c',
+                  src.key === 'eagent' ? '#fb7185' : '#fb923c'
               } : undefined}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white/70' : isPerfect ? 'bg-emerald-400' : src.color}`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : src.color}`} />
               {src.label}
-              {isPerfect && !isSelected && (
-                <span className="text-[9px] ml-0.5">✨</span>
-              )}
-              {!isPerfect && stats && stats.total > 0 && (
-                <span className="opacity-60 font-normal ml-0.5 text-[9px]">({stats.present}/{stats.total})</span>
-              )}
+              <span className="opacity-75 font-mono text-[9px] ml-0.5">({stats?.present ?? 0}/{stats?.total ?? 0})</span>
             </button>
           )
         })}
       </div>
 
       {/* Day headers */}
-      <div className="grid grid-cols-7 border-b border-slate-100">
+      <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-800">
         {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
-          <div key={d} className="text-center text-[10px] font-medium text-slate-500 py-1.5">
+          <div key={d} className="text-center text-[10px] font-medium text-slate-500 dark:text-slate-400 py-1.5">
             {d}
           </div>
         ))}
@@ -487,7 +481,7 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
               py-1.5 px-0.5 min-h-[48px]
               text-xs font-medium transition-all duration-150
               ${cell.day ? getDateStyle(cell.sources, cell.isToday, cell.isWeekend, cell.isSelected, cell.isFuture) : ""}
-              ${cell.day ? "cursor-pointer hover:bg-slate-50/80" : "cursor-default"}
+              ${cell.day ? "cursor-pointer" : "cursor-default"}
             `}
             title={cell.day ? getTooltip(cell.dateStr, cell.sources) : undefined}
           >
@@ -525,8 +519,8 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
       </div>
 
       {/* Gap summary */}
-      <div className="px-4 py-2 border-t border-slate-100 text-center">
-        <span className={`text-xs font-medium ${gapCount > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+      <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-center">
+        <span className={`text-xs font-medium ${gapCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
           {gapCount > 0
             ? `${gapCount} business day${gapCount !== 1 ? "s" : ""} with ${sourceFilter !== null ? (activeFilterMeta?.label ?? '') + ' ' : ''}gaps this month`
             : `All business days ${sourceFilter !== null ? (activeFilterMeta?.label ?? '') + ' ' : ''}fully covered ✓`
@@ -535,47 +529,47 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 px-4 py-2.5 border-t border-slate-100 text-[10px] text-slate-500">
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-500 dark:text-slate-400">
         {sourceFilter === null ? (
           <>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded border border-emerald-200 bg-emerald-50" />
+              <span className="w-2.5 h-2.5 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60" />
               Synced
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded border border-amber-200 bg-amber-50/70" />
+              <span className="w-2.5 h-2.5 rounded border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/60" />
               Partial
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded border border-rose-200 bg-rose-50/70" />
+              <span className="w-2.5 h-2.5 rounded border border-rose-200 dark:border-rose-800 bg-rose-50/70 dark:bg-rose-950/60" />
               Missing
             </span>
           </>
         ) : (
           <>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded border border-emerald-200 bg-emerald-50" />
+              <span className="w-2.5 h-2.5 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60" />
               {activeFilterMeta?.label} Uploaded
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded border border-rose-200 bg-rose-50/70" />
+              <span className="w-2.5 h-2.5 rounded border border-rose-200 dark:border-rose-800 bg-rose-50/70 dark:bg-rose-950/60" />
               {activeFilterMeta?.label} Missing
             </span>
           </>
         )}
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded border border-blue-200 bg-blue-50" />
+          <span className="w-2.5 h-2.5 rounded border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/60" />
           Today
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded border border-slate-300 ring-1 ring-indigo-500 bg-white" />
+          <span className="w-2.5 h-2.5 rounded border border-slate-300 dark:border-slate-700 ring-1 ring-indigo-500 bg-white dark:bg-slate-900" />
           Selected
         </span>
       </div>
 
       {loading && (
-        <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex items-center justify-center">
-          <div className="animate-spin h-5 w-5 border-2 border-emerald-200 border-t-emerald-500 rounded-full" />
+        <div className="absolute inset-0 bg-white/50 dark:bg-slate-900/50 backdrop-blur-[1px] flex items-center justify-center">
+          <div className="animate-spin h-5 w-5 border-2 border-emerald-200 dark:border-emerald-800 border-t-emerald-500 rounded-full" />
         </div>
       )}
     </div>

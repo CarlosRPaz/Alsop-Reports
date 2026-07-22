@@ -445,3 +445,27 @@ aside a:hover {
 .dark table tbody tr.font-extrabold {
   background-color: #242832 !important;
 }
+
+/* ── Calendar & Status Card Dark Overrides ── */
+.dark .bg-emerald-50\/40,
+.dark .bg-emerald-50\/30,
+.dark .bg-emerald-50\/70 {
+  background-color: rgba(6, 78, 59, 0.3) !important;
+}
+
+.dark .bg-amber-50\/40,
+.dark .bg-amber-50\/30,
+.dark .bg-amber-50\/70 {
+  background-color: rgba(120, 53, 15, 0.3) !important;
+}
+
+.dark .bg-rose-50\/40,
+.dark .bg-rose-50\/30,
+.dark .bg-rose-50\/70 {
+  background-color: rgba(136, 19, 55, 0.3) !important;
+}
+
+.dark .bg-red-50\/40,
+.dark .bg-red-50\/30 {
+  background-color: rgba(153, 27, 27, 0.25) !important;
+}
