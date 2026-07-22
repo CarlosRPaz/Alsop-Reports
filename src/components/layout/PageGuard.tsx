@@ -92,7 +92,7 @@ export function PageGuard({ pageKey, children }: PageGuardProps) {
       <div className="h-[60vh] w-full flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-7 h-7 animate-spin text-blue-600" />
-          <p className="text-sm text-slate-500 font-medium">Checking access...</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Checking access...</p>
         </div>
       </div>
     )
@@ -101,12 +101,12 @@ export function PageGuard({ pageKey, children }: PageGuardProps) {
   if (status === "denied") {
     return (
       <div className="h-[60vh] w-full flex items-center justify-center p-4">
-        <div className="max-w-sm w-full bg-white rounded-2xl border border-slate-200 shadow-xl p-8 text-center">
+        <div className="max-w-sm w-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl p-8 text-center">
           <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center mx-auto mb-6">
             <ShieldAlert className="w-8 h-8 text-amber-600" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Access Restricted</h2>
-          <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Access Restricted</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
             Your team does not have access to this page. Contact your administrator if you believe this is an error.
           </p>
           <button

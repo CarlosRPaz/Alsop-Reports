@@ -274,9 +274,9 @@ export default function AgentManagement() {
   // ── Row styling helpers ─────────────────────────────────────────────────────
 
   const getRowClasses = (agent: Agent): string => {
-    if (!agent.active) return "bg-slate-50/60 text-slate-400"
-    if (!agent.report_visible) return "bg-white text-slate-500"
-    return "bg-white text-slate-900"
+    if (!agent.active) return "bg-slate-50/60 text-slate-400 dark:bg-slate-800/40 dark:text-slate-500"
+    if (!agent.report_visible) return "bg-white text-slate-500 dark:bg-slate-900 dark:text-slate-400"
+    return "bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100"
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -286,7 +286,7 @@ export default function AgentManagement() {
       {/* ── Header ───────────────────────────────────────────────────────── */}
       <header className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900">Agent Management</h1>
+          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">Agent Management</h1>
           <p className="text-slate-500 mt-1">
             Manage names, offices, teams, system name variants, and report visibility.
           </p>
@@ -312,12 +312,12 @@ export default function AgentManagement() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               {/* Name */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wider">
                   Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                   placeholder="Agent name"
                   value={newAgent.name}
                   onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })}
@@ -325,11 +325,11 @@ export default function AgentManagement() {
               </div>
               {/* Office */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wider">
                   Office
                 </label>
                 <select
-                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                   value={newAgent.office}
                   onChange={(e) => setNewAgent({ ...newAgent, office: e.target.value })}
                 >
@@ -341,11 +341,11 @@ export default function AgentManagement() {
               </div>
               {/* Team */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wider">
                   Team
                 </label>
                 <select
-                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                   value={newAgent.team}
                   onChange={(e) => setNewAgent({ ...newAgent, team: e.target.value })}
                 >
@@ -357,11 +357,11 @@ export default function AgentManagement() {
               </div>
               {/* Meeting Time */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1 uppercase tracking-wider">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wider">
                   Meeting Time
                 </label>
                 <select
-                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                   value={newAgent.meeting_time}
                   onChange={(e) => setNewAgent({ ...newAgent, meeting_time: e.target.value })}
                 >
@@ -434,14 +434,14 @@ export default function AgentManagement() {
           <input
             type="text"
             placeholder="Search agents..."
-            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
         {/* Status Filter Tabs */}
-        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
           {([
             { key: "all",      label: "All" },
             { key: "active",   label: "Active" },
@@ -453,8 +453,8 @@ export default function AgentManagement() {
               onClick={() => setStatusFilter(tab.key)}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                 statusFilter === tab.key
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
+                  ? "bg-white text-slate-900 dark:bg-slate-700 dark:text-slate-100 shadow-sm"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700"
               }`}
             >
               {tab.label}
@@ -480,7 +480,7 @@ export default function AgentManagement() {
         <CardContent>
           {loading ? (
             <div className="flex justify-center p-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500" />
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 dark:border-blue-400" />
             </div>
           ) : filteredAgents.length === 0 ? (
             <div className="text-center py-12 text-slate-400">
@@ -491,19 +491,19 @@ export default function AgentManagement() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 w-8" />
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500">Name</th>
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500">Office</th>
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500">Team</th>
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500">Meeting</th>
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 text-center">Variants</th>
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 text-center">Visible</th>
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500">Status</th>
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 text-right">Actions</th>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 w-8" />
+                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Name</th>
+                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Office</th>
+                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Team</th>
+                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Meeting</th>
+                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 text-center">Variants</th>
+                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 text-center">Visible</th>
+                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Status</th>
+                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                   {filteredAgents.map((agent) => {
                     const isEditing = editingId === agent.id
                     const isExpanded = expandedId === agent.id
@@ -573,14 +573,14 @@ function AgentRow({
   onToggleArchive, onToggleVisibility,
   onEditFormChange, onVariantDraftChange, onSaveVariants,
 }: AgentRowProps) {
-  const inputClasses = "w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm text-slate-900 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+  const inputClasses = "w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
   const selectClasses = inputClasses
 
   return (
     <>
       {/* ── Main Row ──────────────────────────────────────────────────────── */}
       <tr
-        className={`${rowClasses} hover:bg-slate-50 transition-colors cursor-pointer group`}
+        className={`${rowClasses} hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer group`}
         onClick={(e) => {
           // Don't toggle expand when clicking buttons or inputs
           const target = e.target as HTMLElement
@@ -652,7 +652,7 @@ function AgentRow({
           ) : agent.team ? (
             <Badge
               variant={agent.active ? "outline" : "default"}
-              className={!agent.active ? "bg-slate-100 text-slate-400 border-none" : ""}
+              className={!agent.active ? "bg-slate-100 text-slate-400 border-none dark:bg-slate-700 dark:text-slate-500" : ""}
             >
               {agent.team}
             </Badge>
@@ -688,7 +688,7 @@ function AgentRow({
             variant={vCount > 0 ? "outline" : "default"}
             className={
               vCount > 0
-                ? "bg-blue-50 text-blue-600 border-blue-200"
+                ? "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800"
                 : "bg-slate-50 text-slate-400"
             }
           >
@@ -706,8 +706,8 @@ function AgentRow({
             disabled={togglingVisibility === agent.id}
             className={`inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all ${
               agent.report_visible
-                ? "text-emerald-600 hover:bg-emerald-50"
-                : "text-slate-300 hover:bg-slate-100 hover:text-slate-500"
+                ? "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                : "text-slate-300 hover:bg-slate-100 hover:text-slate-500 dark:hover:bg-slate-800"
             }`}
             title={agent.report_visible ? "Visible in reports" : "Hidden from reports"}
           >
@@ -730,7 +730,7 @@ function AgentRow({
               <Badge variant="success">Active</Badge>
             )
           ) : (
-            <Badge variant="default" className="bg-slate-100 text-slate-500 border border-slate-200">
+            <Badge variant="default" className="bg-slate-100 text-slate-500 border border-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600">
               Archived
             </Badge>
           )}
@@ -744,7 +744,7 @@ function AgentRow({
                 variant="outline"
                 size="sm"
                 onClick={(e) => { e.stopPropagation(); onSaveEdit() }}
-                className="text-emerald-600 border-emerald-300 hover:bg-emerald-50"
+                className="text-emerald-600 border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
               >
                 <Check className="w-3.5 h-3.5 mr-1" /> Save
               </Button>
@@ -763,7 +763,7 @@ function AgentRow({
                 variant="ghost"
                 size="sm"
                 onClick={(e) => { e.stopPropagation(); onStartEdit() }}
-                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40"
                 title="Edit agent"
               >
                 <Edit2 className="w-3.5 h-3.5" />
@@ -774,8 +774,8 @@ function AgentRow({
                 onClick={(e) => { e.stopPropagation(); onToggleArchive() }}
                 className={
                   agent.active
-                    ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                    : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                    ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                    : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
                 }
                 title={agent.active ? "Archive agent" : "Restore agent"}
               >
@@ -789,11 +789,11 @@ function AgentRow({
       {/* ── Expanded Variant Editor ────────────────────────────────────────── */}
       {isExpanded && (
         <tr>
-          <td colSpan={9} className="bg-slate-50/80 border-b border-slate-200">
+          <td colSpan={9} className="bg-slate-50/80 border-b border-slate-200 dark:bg-slate-800/60 dark:border-slate-700">
             <div className="px-6 py-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-700">
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                     System Name Variants
                   </h4>
                   <p className="text-xs text-slate-400 mt-0.5">
@@ -823,7 +823,7 @@ function AgentRow({
                     </label>
                     <input
                       type="text"
-                      className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 shadow-sm focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none transition placeholder:text-slate-300"
+                      className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 shadow-sm focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none transition placeholder:text-slate-300 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100"
                       placeholder={`Enter ${vf.label.toLowerCase()} name`}
                       value={variantDraft[vf.key] || ""}
                       onChange={(e) =>

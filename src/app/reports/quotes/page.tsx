@@ -39,13 +39,13 @@ function fmtNum(val: number, decimals = 1): string {
 }
 
 function crColorClass(cr: number): string {
-  if (cr >= 0.15) return "text-emerald-700 bg-emerald-50"
-  return "text-amber-700 bg-amber-50"
+  if (cr >= 0.15) return "text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/30"
+  return "text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/30"
 }
 
 function cardCrColorClass(cr: number): string {
-  if (cr >= 0.15) return "text-emerald-700 bg-emerald-50 border-emerald-200"
-  return "text-amber-700 bg-amber-50 border-amber-200"
+  if (cr >= 0.15) return "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800"
+  return "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-950/30 dark:border-amber-800"
 }
 
 type SortField = "name" | "nb" | "items" | "quotes" | "cr" | "monthly" | "dailyGoal" | "benchmark" | "dailyActual"
@@ -70,8 +70,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     const cr = payload.find((p: any) => p.dataKey === "closeRate")?.value
 
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-lg text-xs min-w-[170px] z-50">
-        <div className="font-bold text-slate-700 mb-2 border-b border-slate-100 pb-1">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 shadow-lg text-xs min-w-[170px] z-50">
+        <div className="font-bold text-slate-700 dark:text-slate-300 mb-2 border-b border-slate-100 dark:border-slate-700 pb-1">
           {label}
         </div>
         <div className="space-y-1.5 font-medium">
@@ -81,7 +81,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                 <span className="w-2 h-2 rounded-full bg-blue-500" />
                 Quotes:
               </span>
-              <span className="text-slate-800 font-semibold">{quotes.toLocaleString()}</span>
+              <span className="text-slate-800 dark:text-slate-200 font-semibold">{quotes.toLocaleString()}</span>
             </div>
           )}
           {nb !== undefined && (
@@ -90,7 +90,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 NB Policies:
               </span>
-              <span className="text-slate-800 font-semibold">{nb.toLocaleString()}</span>
+              <span className="text-slate-800 dark:text-slate-200 font-semibold">{nb.toLocaleString()}</span>
             </div>
           )}
           {items !== undefined && (
@@ -99,7 +99,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                 <span className="w-2 h-2 rounded-full bg-violet-500" />
                 Auto Items:
               </span>
-              <span className="text-slate-800 font-semibold">{items.toLocaleString()}</span>
+              <span className="text-slate-800 dark:text-slate-200 font-semibold">{items.toLocaleString()}</span>
             </div>
           )}
           {cumulativeItems !== undefined && (
@@ -108,16 +108,16 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                 <span className="w-2 h-2 rounded-full bg-pink-500" />
                 Cum. Items:
               </span>
-              <span className="text-slate-800 font-semibold">{cumulativeItems.toLocaleString()}</span>
+              <span className="text-slate-800 dark:text-slate-200 font-semibold">{cumulativeItems.toLocaleString()}</span>
             </div>
           )}
           {cr !== undefined && (
-            <div className="flex items-center justify-between gap-4 pt-1.5 mt-1 border-t border-slate-100 font-semibold">
-              <span className="flex items-center gap-1.5 text-slate-600">
+            <div className="flex items-center justify-between gap-4 pt-1.5 mt-1 border-t border-slate-100 dark:border-slate-700 font-semibold">
+              <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
                 <span className="w-2 h-2 rounded-full bg-amber-500" />
                 Close Rate:
               </span>
-              <span className={`px-1.5 py-0.5 rounded text-[10px] ${cr >= 15 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+              <span className={`px-1.5 py-0.5 rounded text-[10px] ${cr >= 15 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300'}`}>
                 {Number(cr).toFixed(1)}%
               </span>
             </div>
@@ -803,7 +803,7 @@ export default function QuotesPage() {
             }
             setDupeLoading(false)
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl border border-slate-200 transition-all shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 transition-all shadow-sm"
         >
           <Copy className="w-4 h-4" />
           View Dupes {data && `(${data.rawQuotesTotal - data.agencyTotals.totalQuotes} flagged)`}
@@ -812,13 +812,13 @@ export default function QuotesPage() {
 
       {/* ── Period Selector (YTD vs Monthly) ── */}
       <div className="flex items-center gap-4 mb-6 flex-wrap">
-        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
+        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-inner">
           <button
             onClick={() => setMode("monthly")}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
               mode === "monthly"
-                ? "bg-white text-slate-800 shadow-md border border-slate-200"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-md border border-slate-200 dark:border-slate-600"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
             }`}
           >
             Monthly View
@@ -827,8 +827,8 @@ export default function QuotesPage() {
             onClick={() => setMode("ytd")}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
               mode === "ytd"
-                ? "bg-white text-slate-800 shadow-md border border-slate-200"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-md border border-slate-200 dark:border-slate-600"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
             }`}
           >
             YTD View
@@ -842,7 +842,7 @@ export default function QuotesPage() {
               <select
                 value={selectedMonth}
                 onChange={e => setSelectedMonth(Number(e.target.value))}
-                className="appearance-none bg-white border border-slate-300 rounded-lg px-4 py-1.5 pr-8 text-sm font-medium text-slate-700 cursor-pointer hover:border-blue-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                className="appearance-none bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-1.5 pr-8 text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer hover:border-blue-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
               >
                 {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
                   <option key={m} value={m}>{MONTH_NAMES[m - 1]}</option>
@@ -855,7 +855,7 @@ export default function QuotesPage() {
               <select
                 value={selectedYear}
                 onChange={e => setSelectedYear(Number(e.target.value))}
-                className="appearance-none bg-white border border-slate-300 rounded-lg px-4 py-1.5 pr-8 text-sm font-medium text-slate-700 cursor-pointer hover:border-blue-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                className="appearance-none bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-1.5 pr-8 text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer hover:border-blue-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
               >
                 {Array.from({ length: new Date().getFullYear() - 2025 + 2 }, (_, i) => new Date().getFullYear() + 1 - i).map(y => (
                   <option key={y} value={y}>{y}</option>
@@ -876,13 +876,13 @@ export default function QuotesPage() {
                 setSelectedMonth(m)
                 setSelectedYear(y)
               }}
-              className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-all"
+              className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
             >
               ← View Previous Month
             </button>
             <button
               onClick={() => setMode("ytd")}
-              className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-all"
+              className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
             >
               View YTD
             </button>
@@ -918,8 +918,8 @@ export default function QuotesPage() {
           {/* Most Recent Data Date */}
           <div className={`rounded-xl border p-4 ${
             isStale
-              ? "bg-amber-50 border-amber-200"
-              : "bg-emerald-50 border-emerald-200"
+              ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
+              : "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
           }`}>
             <div className="flex items-center gap-2 mb-1">
               <CalendarCheck className={`w-4 h-4 ${
@@ -957,14 +957,14 @@ export default function QuotesPage() {
           </div>
 
           {/* Items (Agency + Filtered) */}
-          <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+          <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/30 p-4">
             <div className="flex items-center gap-2 mb-1">
               <Package className="w-4 h-4 text-blue-600" />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 {mode === "ytd" ? "YTD Auto Items" : "MTD Auto Items"}
               </span>
             </div>
-            <span className="text-xl font-bold text-blue-800">
+            <span className="text-xl font-bold text-blue-800 dark:text-blue-300">
               {filteredItemsCount.toLocaleString()}
             </span>
             {(filters.offices.length > 0 || filters.teams.length > 0 || filters.agents.length > 0) && (
@@ -998,7 +998,7 @@ export default function QuotesPage() {
           </div>
 
           {/* NB / Quotes Summary */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
             <div className="flex items-center gap-2 mb-2">
               <BarChart3 className="w-4 h-4 text-slate-500" />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
@@ -1034,15 +1034,15 @@ export default function QuotesPage() {
                 <TrendingUp className="w-4 h-4 text-blue-500" />
                 YTD Trend — {selectedYear}
               </CardTitle>
-              <div className="flex bg-slate-100 rounded-lg p-0.5 border border-slate-200">
+              <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 border border-slate-200 dark:border-slate-700">
                 {(["weekly", "monthly"] as const).map(g => (
                   <button
                     key={g}
                     onClick={() => setYtdGroupBy(g)}
                     className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                       ytdGroupBy === g
-                        ? "bg-white text-blue-700 shadow-sm border border-blue-200"
-                        : "text-slate-500 hover:text-slate-700"
+                        ? "bg-white dark:bg-slate-700 text-blue-700 dark:text-blue-300 shadow-sm border border-blue-200 dark:border-blue-800"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                     }`}
                   >
                     {g === "weekly" ? "Weekly (Thu–Wed)" : "Monthly"}
@@ -1457,13 +1457,13 @@ export default function QuotesPage() {
           {/* Skeleton KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="rounded-xl border border-slate-200 bg-white p-4" style={{ animationDelay: `${i * 80}ms` }}>
+              <div key={i} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4" style={{ animationDelay: `${i * 80}ms` }}>
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="w-4 h-4 rounded bg-slate-200 animate-pulse" />
-                  <div className="h-3 w-24 rounded bg-slate-200 animate-pulse" />
+                  <div className="w-4 h-4 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                  <div className="h-3 w-24 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
                 </div>
-                <div className="h-7 w-16 rounded bg-slate-200 animate-pulse mt-1" />
-                <div className="h-2.5 w-32 rounded bg-slate-100 animate-pulse mt-2" />
+                <div className="h-7 w-16 rounded bg-slate-200 dark:bg-slate-700 animate-pulse mt-1" />
+                <div className="h-2.5 w-32 rounded bg-slate-100 dark:bg-slate-800 animate-pulse mt-2" />
               </div>
             ))}
           </div>
@@ -1481,7 +1481,7 @@ export default function QuotesPage() {
                 {Array.from({ length: 20 }).map((_, i) => (
                   <div
                     key={i}
-                    className="flex-1 rounded-t bg-gradient-to-t from-slate-200 to-slate-100 animate-pulse"
+                    className="flex-1 rounded-t bg-gradient-to-t from-slate-200 dark:from-slate-700 to-slate-100 dark:to-slate-800 animate-pulse"
                     style={{
                       height: `${30 + Math.sin(i * 0.7) * 25 + (i * 17 % 30)}%`,
                       animationDelay: `${i * 50}ms`,
@@ -1505,7 +1505,7 @@ export default function QuotesPage() {
               <div className="overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
+                    <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
                       {["Agent", "Items", "NB Policies", "Quote Count", "Close Rate", "Mo. Quotes", "Daily Goal", "Daily Actual", "@ 15% CR"].map((h) => (
                         <th key={h} className="py-2 px-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                           {h}
@@ -1517,15 +1517,15 @@ export default function QuotesPage() {
                     {Array.from({ length: 15 }).map((_, idx) => (
                       <tr
                         key={idx}
-                        className={`border-b border-slate-100 ${idx % 2 === 0 ? "bg-white" : "bg-slate-200/40"}`}
+                        className={`border-b border-slate-100 dark:border-slate-700 ${idx % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-200/40 dark:bg-slate-800/40"}`}
                         style={{ animationDelay: `${idx * 30}ms` }}
                       >
                         <td className="py-1.5 px-2">
-                          <div className="h-3.5 rounded bg-slate-200 animate-pulse" style={{ width: `${50 + (idx * 13 % 40)}%` }} />
+                          <div className="h-3.5 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" style={{ width: `${50 + (idx * 13 % 40)}%` }} />
                         </td>
                         {Array.from({ length: 8 }).map((_, ci) => (
                           <td key={ci} className="py-1.5 px-2">
-                            <div className="h-3.5 w-8 mx-auto rounded bg-slate-200/70 animate-pulse" style={{ animationDelay: `${(idx * 8 + ci) * 15}ms` }} />
+                            <div className="h-3.5 w-8 mx-auto rounded bg-slate-200/70 dark:bg-slate-700/70 animate-pulse" style={{ animationDelay: `${(idx * 8 + ci) * 15}ms` }} />
                           </td>
                         ))}
                       </tr>
@@ -1543,12 +1543,12 @@ export default function QuotesPage() {
         <Card>
           <CardContent className="py-16">
             <div className="flex flex-col items-center justify-center text-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 flex items-center justify-center">
                 <AlertTriangle className="w-6 h-6 text-amber-500" />
               </div>
-              <h3 className="text-lg font-semibold text-slate-700">No Data Available</h3>
-              <p className="text-sm text-slate-500 max-w-md">
-                No quotes or NB data found for <span className="font-medium text-slate-700">{data.periodLabel}</span>.
+              <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300">No Data Available</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md">
+                No quotes or NB data found for <span className="font-medium text-slate-700 dark:text-slate-300">{data.periodLabel}</span>.
                 Try selecting a previous month from the dropdown, or run a data sync from the admin page.
               </p>
               <div className="flex gap-2 mt-2">
@@ -1558,13 +1558,13 @@ export default function QuotesPage() {
                     setSelectedYear(prev.getFullYear())
                     setSelectedMonth(prev.getMonth() + 1)
                   }}
-                  className="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-all"
+                  className="px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all"
                 >
                   ← View Previous Month
                 </button>
                 <button
                   onClick={() => setMode("ytd")}
-                  className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-all"
+                  className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
                 >
                   View YTD
                 </button>
@@ -1593,7 +1593,7 @@ export default function QuotesPage() {
                 <div className="overflow-x-auto">
                   <table className="text-sm">
                     <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200">
+                      <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
                         <Th field="name" label="Agent" onSort={handleSort} sortField={sortField} sortDir={sortDir} align="left" />
                         <Th field="items" label="Items" onSort={handleSort} sortField={sortField} sortDir={sortDir} />
                         <Th field="nb" label={["NB", "Policies"]} onSort={handleSort} sortField={sortField} sortDir={sortDir} />
@@ -1612,11 +1612,11 @@ export default function QuotesPage() {
                         return (
                           <tr
                             key={row.agent_id}
-                            className={`border-b border-slate-100 hover:bg-blue-50/30 transition-colors ${
-                              idx % 2 === 0 ? "bg-white" : "bg-slate-200"
+                            className={`border-b border-slate-100 dark:border-slate-700 hover:bg-blue-50/30 dark:hover:bg-blue-950/20 transition-colors ${
+                              idx % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-200 dark:bg-slate-800"
                             }`}
                           >
-                            <td className="py-1 px-2 font-bold text-slate-800 whitespace-nowrap">
+                            <td className="py-1 px-2 font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                               {row.name}
                             </td>
                             <td className="py-1 px-2 text-center font-mono text-purple-700 font-bold">
@@ -1625,7 +1625,7 @@ export default function QuotesPage() {
                             <td className="py-1 px-2 text-center font-mono font-bold text-slate-900">
                               {row.nb_policies}
                             </td>
-                            <td className="py-1 px-2 text-center font-mono text-slate-700 font-bold">
+                            <td className="py-1 px-2 text-center font-mono text-slate-700 dark:text-slate-300 font-bold">
                               {row.quote_count}
                             </td>
                             <td className="py-1 px-2 text-center">
@@ -1642,12 +1642,12 @@ export default function QuotesPage() {
                             <td className="py-1 px-2 text-center">
                               {actualVsGoal >= 0.8 ? (
                                 <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
-                                  actualVsGoal >= 1 ? "text-emerald-700 bg-emerald-50" : "text-amber-700 bg-amber-50"
+                                  actualVsGoal >= 1 ? "text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/30" : "text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/30"
                                 }`}>
                                   {fmtNum(row.daily_actual)}
                                 </span>
                               ) : (
-                                <span className="font-mono text-slate-900 font-bold">
+                                <span className="font-mono text-slate-900 dark:text-slate-100 font-bold">
                                   {fmtNum(row.daily_actual)}
                                 </span>
                               )}
@@ -1660,8 +1660,8 @@ export default function QuotesPage() {
                       })}
 
                       {/* Totals Row */}
-                      <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold">
-                        <td className="py-1.5 px-2 text-slate-800">Total</td>
+                      <tr className="bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-600 font-bold">
+                        <td className="py-1.5 px-2 text-slate-800 dark:text-slate-200">Total</td>
                         <td className="py-1.5 px-2 text-center font-mono text-purple-800">{totals.totalItems}</td>
                         <td className="py-1.5 px-2 text-center font-mono text-slate-900">{totals.totalNB}</td>
                         <td className="py-1.5 px-2 text-center font-mono text-slate-900">{totals.totalQuotes}</td>

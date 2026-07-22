@@ -33,7 +33,7 @@ function LetterIcon({ letter, isActive, compact }: { letter: string; isActive: b
         compact ? "w-5 h-5 text-[11px]" : "w-4 h-4 text-[10px]",
         isActive
           ? "bg-blue-600 text-white shadow-sm"
-          : "bg-slate-200/80 text-slate-600 group-hover:bg-slate-300 group-hover:text-slate-800"
+          : "bg-slate-200/80 text-slate-600 group-hover:bg-slate-300 group-hover:text-slate-800 dark:bg-slate-700 dark:text-slate-400 dark:group-hover:bg-slate-600 dark:group-hover:text-slate-200"
       )}
     >
       {letter}
@@ -247,11 +247,11 @@ export function Sidebar() {
       {/* Mobile Drawer Navigation */}
       <aside 
         className={cn(
-          "md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-white flex flex-col shadow-2xl transition-transform duration-300 ease-in-out transform no-print",
+          "md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-slate-900 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out transform no-print",
           isMobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="p-4 flex items-center justify-between border-b border-slate-100">
+        <div className="p-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
           <div>
             <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
               Alsop Reports
@@ -260,7 +260,7 @@ export function Sidebar() {
           </div>
           <button
             onClick={() => setIsMobileOpen(false)}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+            className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 dark:hover:text-slate-300 dark:hover:bg-slate-800 transition-colors"
             title="Close Menu"
           >
             <X className="w-5 h-5" />
@@ -297,8 +297,8 @@ export function Sidebar() {
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
                   isActive 
-                    ? "bg-blue-50 text-blue-700" 
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" 
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 )}
               >
                 {item.letter ? (
@@ -306,7 +306,7 @@ export function Sidebar() {
                 ) : item.icon ? (
                   <item.icon className={cn(
                     "shrink-0 transition-colors w-4 h-4", 
-                    isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700"
+                    isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-300"
                   )} />
                 ) : null}
                 <span className="flex-1">{item.name}</span>
@@ -331,13 +331,13 @@ export function Sidebar() {
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
                   isActive
-                    ? "bg-blue-50 text-blue-700"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 )}
               >
                 <Shield className={cn(
                   "shrink-0 transition-colors w-4 h-4",
-                  isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700"
+                  isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-300"
                 )} />
                 <span>Admin Panel</span>
               </Link>
@@ -347,13 +347,13 @@ export function Sidebar() {
 
         {/* Mobile User Profile Summary */}
         {currentAgent && (
-          <div className="p-3 border-t border-slate-200">
+          <div className="p-3 border-t border-slate-200 dark:border-slate-700">
             <button
               onClick={() => {
                 setIsMobileOpen(false)
                 openStatusModal()
               }}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 transition-all text-left w-full"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800 transition-all text-left w-full"
             >
               <div className="relative shrink-0">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold bg-blue-600 shadow-sm">
@@ -370,7 +370,7 @@ export function Sidebar() {
                 />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 truncate leading-tight">
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate leading-tight">
                   {currentAgent.name}
                 </p>
                 <p className="text-[11px] text-slate-400 truncate mt-0.5">
@@ -381,14 +381,14 @@ export function Sidebar() {
           </div>
         )}
 
-        <div className="p-3 border-t border-slate-200">
+        <div className="p-3 border-t border-slate-200 dark:border-slate-700">
           <button 
             onClick={() => {
               setIsMobileOpen(false)
               handleSignOut()
             }}
             disabled={signingOut}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all w-full text-left"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/30 transition-all w-full text-left"
           >
             <LogOut className="shrink-0 w-4 h-4" />
             <span>{signingOut ? "Signing out..." : "Sign Out"}</span>
@@ -399,7 +399,7 @@ export function Sidebar() {
       {/* Desktop Sidebar (Rendered unchanged, but hidden on mobile) */}
       <aside 
         className={cn(
-          "bg-white border-r border-slate-200 h-screen sticky top-0 hidden md:flex flex-col z-10 transition-all duration-300 shrink-0",
+          "bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 h-screen sticky top-0 hidden md:flex flex-col z-10 transition-all duration-300 shrink-0",
           isExpanded ? "w-64" : "w-16"
         )}
       >
@@ -407,7 +407,7 @@ export function Sidebar() {
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           title={isExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
-          className="absolute -right-3.5 top-8 z-50 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+          className="absolute -right-3.5 top-8 z-50 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 shadow-sm transition-all hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
         >
           {isExpanded ? (
             <ChevronLeft className="h-4 w-4" />
@@ -462,8 +462,8 @@ export function Sidebar() {
                   "flex items-center rounded-lg text-sm font-medium transition-all group overflow-hidden relative",
                   !isExpanded ? "justify-center p-2" : "gap-3 px-3 py-2",
                   isActive 
-                    ? "bg-blue-50 text-blue-700" 
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" 
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 )}
               >
                 {item.letter ? (
@@ -472,7 +472,7 @@ export function Sidebar() {
                   <item.icon className={cn(
                     "shrink-0 transition-colors", 
                     !isExpanded ? "w-5 h-5" : "w-4 h-4",
-                    isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700"
+                    isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-300"
                   )} />
                 ) : null}
                 {isExpanded && <span className="whitespace-nowrap flex-1">{item.name}</span>}
@@ -501,14 +501,14 @@ export function Sidebar() {
                   "flex items-center rounded-lg text-sm font-medium transition-all group overflow-hidden",
                   !isExpanded ? "justify-center p-2" : "gap-3 px-3 py-2",
                   isActive
-                    ? "bg-blue-50 text-blue-700"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                 )}
               >
                 <Shield className={cn(
                   "shrink-0 transition-colors",
                   !isExpanded ? "w-5 h-5" : "w-4 h-4",
-                  isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700"
+                  isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-300"
                 )} />
                 {isExpanded && <span className="whitespace-nowrap">Admin Panel</span>}
               </Link>
@@ -518,12 +518,12 @@ export function Sidebar() {
 
         {/* User Profile Summary Component */}
         {currentAgent && (
-          <div className="p-2 border-t border-slate-200">
+          <div className="p-2 border-t border-slate-200 dark:border-slate-700">
             <button
               onClick={openStatusModal}
               title={!isExpanded ? `${currentAgent.name} (${currentAgent.presence})${currentAgent.status_message ? ` - ${currentAgent.status_message}` : ''}` : undefined}
               className={cn(
-                "flex items-center rounded-lg text-slate-700 hover:bg-slate-50 transition-all text-left w-full",
+                "flex items-center rounded-lg text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800 transition-all text-left w-full",
                 !isExpanded ? "justify-center p-2" : "gap-3 px-3 py-2"
               )}
             >
@@ -550,7 +550,7 @@ export function Sidebar() {
               {/* Details */}
               {isExpanded && (
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-800 truncate leading-tight">
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate leading-tight">
                     {currentAgent.name}
                   </p>
                   <p className="text-[11px] text-slate-400 truncate mt-0.5">
@@ -562,13 +562,13 @@ export function Sidebar() {
           </div>
         )}
 
-        <div className="p-2 border-t border-slate-200">
+        <div className="p-2 border-t border-slate-200 dark:border-slate-700">
           <button 
             onClick={handleSignOut}
             disabled={signingOut}
             title={!isExpanded ? "Sign Out" : undefined}
             className={cn(
-              "flex items-center rounded-lg text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all",
+              "flex items-center rounded-lg text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/30 transition-all",
               !isExpanded ? "justify-center p-2" : "gap-3 px-3 py-2 w-full"
             )}
           >
@@ -591,26 +591,26 @@ export function Sidebar() {
           />
           
           {/* Modal Card */}
-          <div className="relative w-full max-w-sm bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden mx-4 p-5 text-slate-800 flex flex-col gap-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-base font-bold text-slate-900">Set status message</h3>
+          <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden mx-4 p-5 text-slate-800 dark:text-slate-200 flex flex-col gap-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-2">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Set status message</h3>
               <button
                 onClick={() => {
                   setIsStatusModalOpen(false)
                   setShowEmojiPicker(false)
                 }}
-                className="text-slate-400 hover:text-slate-600 rounded-md p-1 hover:bg-slate-50 transition-colors"
+                className="text-slate-400 hover:text-slate-600 rounded-md p-1 hover:bg-slate-50 dark:hover:text-slate-300 dark:hover:bg-slate-800 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             
             {/* Status input group with emoji picker */}
-            <div className="relative flex items-center gap-2 border border-slate-200 rounded-lg p-1 bg-slate-50 focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400 transition-all">
+            <div className="relative flex items-center gap-2 border border-slate-200 dark:border-slate-700 rounded-lg p-1 bg-slate-50 dark:bg-slate-800 focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900 focus-within:border-blue-400 dark:focus-within:border-blue-600 transition-all">
               {/* Emoji Button */}
               <button
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-slate-200 text-lg transition-colors bg-white border border-slate-150 shadow-sm shrink-0"
+                className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-lg transition-colors bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-600 shadow-sm shrink-0"
                 title="Select emoji"
               >
                 {modalEmoji}
@@ -623,7 +623,7 @@ export function Sidebar() {
                 value={modalStatusMsg}
                 onChange={(e) => setModalStatusMsg(e.target.value)}
                 maxLength={100}
-                className="flex-1 px-1 py-1 text-sm bg-transparent border-0 outline-none focus:ring-0 text-slate-800 placeholder:text-slate-400"
+                className="flex-1 px-1 py-1 text-sm bg-transparent border-0 outline-none focus:ring-0 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 autoFocus
               />
 
@@ -631,7 +631,7 @@ export function Sidebar() {
               {modalStatusMsg && (
                 <button
                   onClick={() => setModalStatusMsg('')}
-                  className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 shrink-0 transition-colors mr-1"
+                  className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 shrink-0 transition-colors mr-1"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -639,7 +639,7 @@ export function Sidebar() {
 
               {/* Emoji Picker Popover */}
               {showEmojiPicker && (
-                <div className="absolute top-full left-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-lg p-2.5 grid grid-cols-6 gap-1.5 z-[110] min-w-[210px] ring-1 ring-black/5 animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="absolute top-full left-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg p-2.5 grid grid-cols-6 gap-1.5 z-[110] min-w-[210px] ring-1 ring-black/5 animate-in fade-in slide-in-from-top-1 duration-150">
                   {['💻', '🚗', '💬', '🛌', '📅', '🍏', '🏠', '📞', '☕', '🧠', '✈️', '🎉', '💼', '💪', '🚨', '🧐', '💡', '🔥'].map((emoji) => (
                     <button
                       key={emoji}
@@ -648,7 +648,7 @@ export function Sidebar() {
                         setShowEmojiPicker(false)
                       }}
                       className={cn(
-                        'w-8 h-8 flex items-center justify-center rounded hover:bg-slate-100 transition-colors text-lg',
+                        'w-8 h-8 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-lg',
                         modalEmoji === emoji && 'bg-blue-50 ring-1 ring-blue-200'
                       )}
                     >
@@ -673,7 +673,7 @@ export function Sidebar() {
                         setModalEmoji(item.emoji)
                         setModalStatusMsg(item.text)
                       }}
-                      className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 text-slate-700 text-sm text-left transition-colors group"
+                      className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-sm text-left transition-colors group"
                     >
                       <span className="text-base leading-none shrink-0 group-hover:scale-110 transition-transform">{item.emoji}</span>
                       <span className="truncate">{item.text}</span>
@@ -701,7 +701,7 @@ export function Sidebar() {
                       setModalEmoji(item.emoji)
                       setModalStatusMsg(item.text)
                     }}
-                    className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 text-slate-700 text-sm text-left transition-colors group"
+                    className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-sm text-left transition-colors group"
                   >
                     <span className="text-base leading-none shrink-0 group-hover:scale-110 transition-transform">{item.emoji}</span>
                     <span className="truncate">{item.text}</span>
@@ -710,7 +710,7 @@ export function Sidebar() {
               </div>
             </div>
 
-            <hr className="border-slate-100" />
+            <hr className="border-slate-100 dark:border-slate-700" />
 
             {/* Presence selector */}
             <div className="space-y-2">
@@ -728,8 +728,8 @@ export function Sidebar() {
                     className={cn(
                       "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border text-left transition-all",
                       modalPresence === opt.value
-                        ? "border-blue-600 bg-blue-50/50 text-blue-700 font-semibold shadow-sm"
-                        : "border-slate-200 hover:bg-slate-50 text-slate-700"
+                        ? "border-blue-600 bg-blue-50/50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-semibold shadow-sm"
+                        : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
                     )}
                   >
                     <span className="text-xs">{opt.emoji}</span>
@@ -740,13 +740,13 @@ export function Sidebar() {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-2 justify-end pt-2 border-t border-slate-100 mt-1">
+            <div className="flex gap-2 justify-end pt-2 border-t border-slate-100 dark:border-slate-700 mt-1">
               <button
                 onClick={() => {
                   setIsStatusModalOpen(false)
                   setShowEmojiPicker(false)
                 }}
-                className="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                className="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 Cancel
               </button>

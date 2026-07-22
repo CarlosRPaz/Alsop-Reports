@@ -26,7 +26,7 @@ export function Breadcrumbs() {
   const segments = pathname.split("/").filter(Boolean)
   
   return (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 px-8 pt-4 pb-0 text-xs text-slate-500 font-medium no-print">
+    <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 px-8 pt-4 pb-0 text-xs text-slate-500 dark:text-slate-400 font-medium no-print">
       <Link 
         href="/" 
         className="flex items-center gap-1 hover:text-blue-600 transition-colors text-slate-400"
@@ -49,7 +49,7 @@ export function Breadcrumbs() {
           <div key={url} className="flex items-center gap-1.5">
             <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />
             {isLast ? (
-              <span className="text-slate-800 font-semibold truncate max-w-[150px]">
+              <span className="text-slate-800 dark:text-slate-200 font-semibold truncate max-w-[150px]">
                 {name}
               </span>
             ) : (

@@ -17,21 +17,21 @@ const teamIcons: Record<string, any> = {
 }
 
 const teamColors: Record<string, { bg: string; text: string; border: string; badge: string }> = {
-  Sales: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", badge: "bg-blue-100 text-blue-700" },
-  CSR: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", badge: "bg-emerald-100 text-emerald-700" },
-  EA: { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200", badge: "bg-purple-100 text-purple-700" },
+  Sales: { bg: "bg-blue-50 dark:bg-blue-950/30", text: "text-blue-700 dark:text-blue-300", border: "border-blue-200 dark:border-blue-800", badge: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" },
+  CSR: { bg: "bg-emerald-50 dark:bg-emerald-950/30", text: "text-emerald-700 dark:text-emerald-400", border: "border-emerald-200 dark:border-emerald-800", badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" },
+  EA: { bg: "bg-purple-50 dark:bg-purple-950/30", text: "text-purple-700 dark:text-purple-300", border: "border-purple-200 dark:border-purple-800", badge: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" },
 }
 
 const officeColors: Record<string, string> = {
-  Montclair: "bg-sky-100 text-sky-700",
-  MCM: "bg-sky-100 text-sky-700",
-  Montebello: "bg-amber-100 text-amber-700",
-  MB: "bg-amber-100 text-amber-700",
-  "Rancho Cucamonga": "bg-rose-100 text-rose-700",
-  RC: "bg-rose-100 text-rose-700",
-  Chino: "bg-violet-100 text-violet-700",
-  CH: "bg-violet-100 text-violet-700",
-  Claremont: "bg-violet-100 text-violet-700",
+  Montclair: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+  MCM: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+  Montebello: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  MB: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  "Rancho Cucamonga": "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+  RC: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+  Chino: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+  CH: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+  Claremont: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
 }
 
 export default function AgentPortalPage() {
@@ -80,11 +80,11 @@ export default function AgentPortalPage() {
     <div className="p-6 max-w-[1400px] mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <UserCircle className="w-6 h-6 text-blue-600" />
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <UserCircle className="w-6 h-6 text-blue-600 dark:text-blue-400" />
           Agent Portal
         </h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
           Select an agent to view their personal performance dashboard
         </p>
       </div>
@@ -98,7 +98,7 @@ export default function AgentPortalPage() {
             placeholder="Search agents..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
+            className="w-full pl-9 pr-4 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 dark:focus:border-blue-600 transition-colors"
           />
         </div>
 
@@ -110,13 +110,13 @@ export default function AgentPortalPage() {
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
               !filterTeam
                 ? "bg-slate-800 text-white shadow-sm"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
             }`}
           >
             All
           </button>
           {teams.map(t => {
-            const colors = teamColors[t] || { badge: "bg-slate-100 text-slate-700" }
+            const colors = teamColors[t] || { badge: "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300" }
             return (
               <button
                 key={t}
@@ -124,7 +124,7 @@ export default function AgentPortalPage() {
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                   filterTeam === t
                     ? `${colors.badge} ring-1 ring-offset-1 ring-current shadow-sm`
-                    : `bg-slate-100 text-slate-600 hover:bg-slate-200`
+                    : `bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600`
                 }`}
               >
                 {t}
@@ -141,7 +141,7 @@ export default function AgentPortalPage() {
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
               !filterOffice
                 ? "bg-slate-800 text-white shadow-sm"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
             }`}
           >
             All
@@ -152,8 +152,8 @@ export default function AgentPortalPage() {
               onClick={() => setFilterOffice(filterOffice === o ? null : o)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 filterOffice === o
-                  ? `${officeColors[o] || "bg-slate-200 text-slate-700"} ring-1 ring-offset-1 ring-current shadow-sm`
-                  : `bg-slate-100 text-slate-600 hover:bg-slate-200`
+                  ? `${officeColors[o] || "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300"} ring-1 ring-offset-1 ring-current shadow-sm`
+                  : `bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600`
               }`}
             >
               {o}
@@ -174,7 +174,7 @@ export default function AgentPortalPage() {
 
       {/* Agent Cards grouped by team */}
       {!loading && grouped.map(([team, members]) => {
-        const colors = teamColors[team] || { bg: "bg-slate-50", text: "text-slate-700", border: "border-slate-200", badge: "bg-slate-100 text-slate-700" }
+        const colors = teamColors[team] || { bg: "bg-slate-50 dark:bg-slate-800", text: "text-slate-700 dark:text-slate-300", border: "border-slate-200 dark:border-slate-700", badge: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" }
         const TeamIcon = teamIcons[team] || Users
 
         return (
@@ -201,7 +201,7 @@ export default function AgentPortalPage() {
                       {agent.name.split(" ").map(n => n[0]).join("").substring(0, 2)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-slate-800 truncate group-hover:text-blue-700 transition-colors">
+                      <h3 className="font-semibold text-slate-800 dark:text-slate-200 truncate group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors">
                         {agent.name}
                       </h3>
                       <div className="flex items-center gap-1.5 mt-0.5">
@@ -209,13 +209,13 @@ export default function AgentPortalPage() {
                           {agent.team}
                         </span>
                         {agent.office && (
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${officeColors[agent.office] || "bg-slate-100 text-slate-600"}`}>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${officeColors[agent.office] || "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"}`}>
                             {agent.office}
                           </span>
                         )}
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
+                    <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
                   </div>
                 </Link>
               ))}
@@ -229,8 +229,8 @@ export default function AgentPortalPage() {
         <Card>
           <CardContent className="py-12">
             <div className="flex flex-col items-center justify-center text-center gap-2">
-              <Search className="w-8 h-8 text-slate-300" />
-              <p className="text-sm text-slate-500">No agents found matching your filters</p>
+              <Search className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+              <p className="text-sm text-slate-500 dark:text-slate-400">No agents found matching your filters</p>
               <button
                 onClick={() => { setSearch(""); setFilterTeam(null); setFilterOffice(null) }}
                 className="text-sm text-blue-600 hover:underline mt-1"
