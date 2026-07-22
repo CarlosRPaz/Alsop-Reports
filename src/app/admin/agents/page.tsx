@@ -143,7 +143,7 @@ export default function AgentManagement() {
 
   const variantCount = (agent: Agent): number => {
     if (!agent.system_variants) return 0
-    return Object.values(agent.system_variants).filter((v) => v && v.trim() !== "").length
+    return Object.values(agent.system_variants).filter((v) => v && String(v).trim() !== "").length
   }
 
   // ── Actions ─────────────────────────────────────────────────────────────────
