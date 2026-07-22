@@ -19,7 +19,7 @@ interface CreateConversationModalProps {
   currentAgent: Agent
   isOpen: boolean
   onClose: () => void
-  onCreateDM: (agentId: string) => void
+  onCreateDM: (agentId: string) => Promise<void>
   onCreateGroup: (name: string, memberIds: string[]) => void
   onCreateChannel: (name: string, description: string, icon: string, teams: string[]) => void
   defaultTab?: 'dm' | 'group' | 'channel'
@@ -79,6 +79,10 @@ export default function CreateConversationModal({
   const [channelTeams, setChannelTeams] = useState<Set<string>>(new Set())
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
 
+  // DM creation state
+  const [dmLoadingId, setDmLoadingId] = useState<string | null>(null)
+  const [dmError, setDmError] = useState<string | null>(null)
+
   const isAdmin = currentAgent.role === 'admin'
 
   // Fetch agents
@@ -113,6 +117,8 @@ export default function CreateConversationModal({
       setChannelIcon('💬')
       setChannelTeams(new Set())
       setActiveTab(defaultTab)
+      setDmLoadingId(null)
+      setDmError(null)
     }
   }, [isOpen, defaultTab])
 
@@ -282,18 +288,30 @@ export default function CreateConversationModal({
                   {filteredAgents.map((agent) => (
                     <button
                       key={agent.id}
-                      onClick={() => {
+                      onClick={async () => {
                         if (activeTab === 'dm') {
-                          onCreateDM(agent.id)
+                          setDmLoadingId(agent.id)
+                          setDmError(null)
+                          try {
+                            await onCreateDM(agent.id)
+                          } catch (err: any) {
+                            console.error('[CreateConversationModal] DM creation failed:', err)
+                            setDmError(err?.message || 'Failed to create direct message. Please try again.')
+                          } finally {
+                            setDmLoadingId(null)
+                          }
                         } else {
                           toggleAgent(agent.id)
                         }
                       }}
+                      disabled={dmLoadingId !== null}
                       className={cn(
                         'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200',
                         activeTab === 'group' && selectedIds.has(agent.id)
                           ? 'bg-blue-50 ring-1 ring-blue-200'
-                          : 'hover:bg-slate-50'
+                          : 'hover:bg-slate-50',
+                        dmLoadingId === agent.id && 'bg-blue-50/50 ring-1 ring-blue-200',
+                        dmLoadingId !== null && dmLoadingId !== agent.id && 'opacity-50 cursor-not-allowed'
                       )}
                     >
                       {/* Checkbox (Group) */}
@@ -336,10 +354,22 @@ export default function CreateConversationModal({
                           {agent.team} · {agent.office}
                         </p>
                       </div>
+
+                      {/* Loading indicator for DM creation */}
+                      {dmLoadingId === agent.id && (
+                        <div className="shrink-0 w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                      )}
                     </button>
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* DM Error Message */}
+          {dmError && activeTab === 'dm' && (
+            <div className="mx-4 mb-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+              {dmError}
             </div>
           )}
 

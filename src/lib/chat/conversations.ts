@@ -61,7 +61,29 @@ export async function fetchConversationsForAgent(
     memberships.map((m) => [m.conversation_id, m]),
   )
 
-  // 3. For each conversation, fetch last message + compute unread count
+  // 3. Batch-load members for DM conversations so sidebar can resolve names
+  const dmConvIds = conversations
+    .filter((c) => c.type === 'direct_dm' || c.type === 'group_dm')
+    .map((c) => c.id)
+
+  const membersMap = new Map<string, ConversationMember[]>()
+
+  if (dmConvIds.length > 0) {
+    const { data: allMembers } = await supabase
+      .from('chat_conversation_members')
+      .select('conversation_id, agent_id, role, last_read_at, joined_at, left_at, is_muted:muted, is_pinned:pinned, agent:agents(id, name, avatar_url, role, team, presence, status_message)')
+      .in('conversation_id', dmConvIds)
+
+    if (allMembers) {
+      for (const m of allMembers) {
+        const existing = membersMap.get(m.conversation_id) ?? []
+        existing.push(m as unknown as ConversationMember)
+        membersMap.set(m.conversation_id, existing)
+      }
+    }
+  }
+
+  // 4. For each conversation, fetch last message + compute unread count
   const enriched = await Promise.all(
     conversations.map(async (conv) => {
       const membership = membershipMap.get(conv.id)
@@ -103,11 +125,12 @@ export async function fetchConversationsForAgent(
         last_message: lastMessage,
         unread_count: count ?? 0,
         is_pinned: isPinned,
+        members: membersMap.get(conv.id) ?? undefined,
       } as Conversation
     }),
   )
 
-  // 4. Sort: pinned first, then by last message time
+  // 5. Sort: pinned first, then by last message time
   enriched.sort((a, b) => {
     if (a.is_pinned && !b.is_pinned) return -1
     if (!a.is_pinned && b.is_pinned) return 1
@@ -161,11 +184,34 @@ export async function createConversation(
     dbType = 'private_channel' as any
   }
 
+  // The DB requires a non-null name. For DMs, generate a placeholder name
+  // from member names (the sidebar computes the display name from members anyway).
+  let convName = data.name ?? null
+  if (!convName && (data.type === 'direct_dm' || data.type === 'group_dm')) {
+    // Look up agent names for the DM name
+    const allIds = [data.created_by, ...data.member_ids]
+    const { data: agents } = await supabase
+      .from('agents')
+      .select('id, name')
+      .in('id', allIds)
+
+    if (agents && agents.length > 0) {
+      convName = agents.map((a) => a.name.split(' ')[0]).join(' & ')
+    } else {
+      convName = 'Direct Message'
+    }
+  }
+
+  // Fallback for channels that somehow have no name
+  if (!convName) {
+    convName = 'Unnamed Conversation'
+  }
+
   const { data: conv, error } = await supabase
     .from('chat_conversations')
     .insert({
       type: dbType,
-      name: data.name ?? null,
+      name: convName,
       description: data.description ?? null,
       created_by: data.created_by,
     })
@@ -230,14 +276,16 @@ export async function getOrCreateDirectDM(
 
     if (matches && matches.length > 0) {
       const match = matches[0] as any
+      // Strip the nested join data before returning
+      const { chat_conversation_members: _, ...cleanMatch } = match
       return {
-        ...match,
+        ...cleanMatch,
         is_private: true,
-      } as unknown as Conversation
+      } as Conversation
     }
   }
 
-  // No existing DM — create one
+  // No existing DM — create one (createConversation will look up names)
   return createConversation({
     type: 'direct_dm',
     created_by: agentId1,

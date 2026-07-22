@@ -558,11 +558,16 @@ export default function CommunicationHub() {
         defaultTab={createModalDefaultTab}
         onClose={() => setShowCreateModal(false)}
         onCreateDM={async (agentId: string) => {
-          const convo = await getOrCreateDirectDM(currentAgent.id, agentId)
-          if (convo) {
-            setShowCreateModal(false)
-            await loadConversations()
-            setSelectedId(convo.id)
+          try {
+            const convo = await getOrCreateDirectDM(currentAgent.id, agentId)
+            if (convo) {
+              setShowCreateModal(false)
+              await loadConversations()
+              setSelectedId(convo.id)
+            }
+          } catch (err) {
+            console.error('[CommunicationHub] Failed to create DM:', err)
+            throw err // Re-throw so the modal can display the error
           }
         }}
         onCreateGroup={async (name: string, memberIds: string[]) => {

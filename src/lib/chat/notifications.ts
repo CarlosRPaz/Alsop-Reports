@@ -88,7 +88,7 @@ export async function createNotification(
   data: CreateNotificationInput,
 ): Promise<void> {
   const { error } = await supabase.from('chat_notifications').insert({
-    agent_id: data.agent_id,
+    recipient_id: data.agent_id,
     type: data.type,
     title: data.title,
     body: data.body,
@@ -114,7 +114,7 @@ export async function getNotifications(
   let query = supabase
     .from('chat_notifications')
     .select('*')
-    .eq('agent_id', agentId)
+    .eq('recipient_id', agentId)
     .order('created_at', { ascending: false })
     .limit(100)
 
@@ -158,7 +158,7 @@ export async function markAllNotificationsRead(
   const { error } = await supabase
     .from('chat_notifications')
     .update({ is_read: true })
-    .eq('agent_id', agentId)
+    .eq('recipient_id', agentId)
     .eq('is_read', false)
 
   if (error) {
