@@ -36,11 +36,11 @@ export function formatValue(
 
   // Orange highlight for manual-input cells that haven't been submitted yet
   if (highlightColor === "orange" && isZero) {
-    return <span className="bg-orange-100 text-orange-400 italic rounded px-1.5 -mx-1 font-normal">–</span>;
+    return <span className="bg-orange-100 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 italic rounded px-1.5 -mx-1 font-normal">–</span>;
   }
 
   if (isZero) {
-    return <span className="text-slate-300 font-normal">{displayVal}</span>;
+    return <span className="text-slate-300 dark:text-slate-600 font-normal">{displayVal}</span>;
   }
 
   // Goal highlighting (green for daily, gold for monthly)
@@ -49,8 +49,8 @@ export function formatValue(
     const numericVal = typeof value === "number" ? value : parseFloat(String(value));
     if (!isNaN(numericVal) && numericVal >= goal.target_value) {
       const colorClass = effectiveColor === "gold"
-        ? "bg-amber-500 text-black italic rounded px-1.5 -mx-1"
-        : "bg-emerald-200 text-emerald-900 rounded px-1.5 -mx-1";
+        ? "bg-amber-500 text-black dark:bg-amber-500 dark:text-slate-950 italic rounded px-1.5 -mx-1"
+        : "bg-emerald-200 text-emerald-900 dark:bg-emerald-900/60 dark:text-emerald-200 rounded px-1.5 -mx-1";
       return <span className={colorClass}>{displayVal}</span>;
     }
   }

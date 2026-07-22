@@ -428,5 +428,20 @@ aside a:hover {
   color: #f87171 !important; /* red-400 */
 }
 
+/* ── Table Alternate Row Styling (Light & Dark Mode) ── */
+.dark table tbody tr:nth-child(even),
+.dark table tbody tr.even\:bg-slate-100 {
+  background-color: rgba(30, 41, 59, 0.45) !important;
+}
 
+.dark table tbody tr:nth-child(odd) {
+  background-color: #17181c !important;
+}
 
+.dark table tbody tr:hover {
+  background-color: rgba(51, 65, 85, 0.55) !important;
+}
+
+.dark table tbody tr.font-extrabold {
+  background-color: #242832 !important;
+}

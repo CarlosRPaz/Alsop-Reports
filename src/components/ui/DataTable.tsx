@@ -225,7 +225,7 @@ export function DataTable({
             </tr>
             )}
             {/* Column headers — data columns use fixed narrow widths */}
-            <tr className="border-b border-slate-200 bg-white">
+            <tr className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
               {normalizedColumns.map((col, idx) => {
                 const sortState = getSortState(col.key);
                 const isSortable = !!col.sortAccessor;
@@ -250,8 +250,8 @@ export function DataTable({
                         <span 
                           className={cn(
                             "absolute whitespace-nowrap text-[10px] uppercase tracking-wider font-semibold",
-                            sortState.direction ? "text-blue-600" : "text-blue-400",
-                            isSortable && "hover:text-blue-600"
+                            sortState.direction ? "text-blue-600 dark:text-blue-400" : "text-blue-500 dark:text-blue-400",
+                            isSortable && "hover:text-blue-600 dark:hover:text-blue-300"
                           )}
                           style={{ 
                             transform: "rotate(-55deg)", 
@@ -270,8 +270,8 @@ export function DataTable({
                       /* Normal horizontal header for agent info columns */
                       <div className={cn(
                         "flex items-center gap-1 text-[10px] uppercase tracking-wider font-semibold",
-                        sortState.direction ? "text-blue-600" : "text-blue-400",
-                        isSortable && "hover:text-blue-600"
+                        sortState.direction ? "text-blue-600 dark:text-blue-400" : "text-blue-500 dark:text-blue-400",
+                        isSortable && "hover:text-blue-600 dark:hover:text-blue-300"
                       )}>
                         {col.label}
                         {isSortable && (
@@ -291,21 +291,21 @@ export function DataTable({
               })}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 bg-white">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white dark:bg-slate-900">
             {totals && sortedData.length > 0 && (
-              <tr className="bg-slate-100 font-extrabold border-y border-slate-300 text-slate-900">
+              <tr className="bg-slate-100 dark:bg-slate-800/90 font-extrabold border-y border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white">
                 {renderRow({ ...totals, isTotal: true })}
               </tr>
             )}
             {sortedData.length === 0 ? (
               <tr>
-                <td colSpan={normalizedColumns.length} className="py-8 text-center text-slate-500">
+                <td colSpan={normalizedColumns.length} className="py-8 text-center text-slate-500 dark:text-slate-400">
                   No data available
                 </td>
               </tr>
             ) : (
               sortedData.map((item) => (
-                <tr key={keyExtractor(item)} className="hover:bg-slate-200 even:bg-slate-100 transition-colors">
+                <tr key={keyExtractor(item)} className="hover:bg-slate-200/80 dark:hover:bg-slate-700/60 even:bg-slate-100/70 dark:even:bg-slate-800/50 transition-colors">
                   {renderRow(item)}
                 </tr>
               ))
