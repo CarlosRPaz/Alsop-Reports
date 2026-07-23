@@ -160,7 +160,7 @@ export function DataTable({
           {sorts.map((s, i) => {
             const col = normalizedColumns.find(c => c.key === s.key);
             return (
-              <span key={s.key} className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+              <span key={s.key} className="bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-full flex items-center gap-1">
                 {i > 0 && <span className="text-slate-400 mr-1">then</span>}
                 {col?.label}
                 {s.direction === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
@@ -204,7 +204,7 @@ export function DataTable({
           if (prev) prev.scrollLeft = e.currentTarget.scrollLeft;
         }}
       >
-        <table className="w-full text-left border-collapse whitespace-nowrap">
+        <table className="dsr-data-table w-full text-left border-collapse whitespace-nowrap">
           {/* Super-header row with group labels */}
           <thead>
             {normalizedColumns.some(c => c.group) && (
@@ -291,9 +291,9 @@ export function DataTable({
               })}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white dark:bg-slate-900">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
             {totals && sortedData.length > 0 && (
-              <tr className="bg-slate-100 dark:bg-slate-800/90 font-extrabold border-y border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white">
+              <tr className="dsr-totals-row font-extrabold border-y border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white">
                 {renderRow({ ...totals, isTotal: true })}
               </tr>
             )}
@@ -305,7 +305,7 @@ export function DataTable({
               </tr>
             ) : (
               sortedData.map((item) => (
-                <tr key={keyExtractor(item)} className="hover:bg-slate-200/80 dark:hover:bg-slate-700/60 even:bg-slate-100/70 dark:even:bg-slate-800/50 transition-colors">
+                <tr key={keyExtractor(item)} className="transition-colors">
                   {renderRow(item)}
                 </tr>
               ))

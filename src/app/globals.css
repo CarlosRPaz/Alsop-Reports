@@ -428,22 +428,37 @@ aside a:hover {
   color: #f87171 !important; /* red-400 */
 }
 
-/* ── Table Alternate Row Styling (Light & Dark Mode) ── */
-.dark table tbody tr:nth-child(even),
-.dark table tbody tr.even\:bg-slate-100 {
-  background-color: rgba(30, 41, 59, 0.45) !important;
+/* ── DataTable Alternate Row Styling (Light & Dark Mode) ── */
+/* Scoped to .dsr-data-table to avoid affecting other tables across the site */
+
+/* Light mode */
+.dsr-data-table tbody tr:nth-child(odd) {
+  background-color: #ffffff;
+}
+.dsr-data-table tbody tr:nth-child(even) {
+  background-color: #f1f5f9; /* slate-100 */
+}
+.dsr-data-table tbody tr:hover {
+  background-color: #e2e8f0; /* slate-200 */
 }
 
-.dark table tbody tr:nth-child(odd) {
-  background-color: #17181c !important;
+/* Dark mode */
+.dark .dsr-data-table tbody tr:nth-child(odd) {
+  background-color: #0f172a; /* slate-900 */
+}
+.dark .dsr-data-table tbody tr:nth-child(even) {
+  background-color: #1e293b; /* slate-800 */
+}
+.dark .dsr-data-table tbody tr:hover {
+  background-color: rgba(51, 65, 85, 0.65); /* slate-700 with opacity */
 }
 
-.dark table tbody tr:hover {
-  background-color: rgba(51, 65, 85, 0.55) !important;
+/* Totals row override — always takes priority */
+.dsr-data-table tbody tr.dsr-totals-row {
+  background-color: #e2e8f0 !important; /* slate-200 */
 }
-
-.dark table tbody tr.font-extrabold {
-  background-color: #242832 !important;
+.dark .dsr-data-table tbody tr.dsr-totals-row {
+  background-color: #1e293b !important; /* slate-800 */
 }
 
 /* ── Calendar & Status Card Dark Overrides ── */
