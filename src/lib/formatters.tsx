@@ -50,7 +50,7 @@ export function formatValue(
     if (!isNaN(numericVal) && numericVal >= goal.target_value) {
       const colorClass = effectiveColor === "gold"
         ? "bg-amber-500 text-black dark:bg-amber-500 dark:text-slate-950 italic rounded px-1.5 -mx-1"
-        : "bg-emerald-200 text-emerald-900 rounded px-1.5 -mx-1";
+        : "bg-emerald-200 text-emerald-900 dark:bg-emerald-800/50 dark:text-emerald-300 rounded px-1.5 -mx-1";
       return <span className={colorClass}>{displayVal}</span>;
     }
   }

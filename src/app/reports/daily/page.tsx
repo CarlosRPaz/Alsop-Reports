@@ -925,7 +925,7 @@ export default function DailyReport() {
                       const display = formatTime(item.talk_time_seconds);
                       if (!item.talk_time_seconds) return <span className="text-slate-300 dark:text-slate-600 font-normal">0:00</span>;
                       if (talkGoal && talkGoal.target_value > 0 && minutes >= talkGoal.target_value) {
-                        return <span className="bg-emerald-200 text-emerald-900 rounded px-1.5 -mx-1">{display}</span>;
+                        return <span className="bg-emerald-200 text-emerald-900 dark:bg-emerald-800/50 dark:text-emerald-300 rounded px-1.5 -mx-1">{display}</span>;
                       }
                       return display;
                     })()}</td>
