@@ -327,13 +327,15 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
     if (isFuture) {
       base += "bg-white dark:bg-slate-900/60 text-slate-400 dark:text-slate-600 border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40"
     } else {
-      // Core status colors
+      // Core status colors:
+      // Light theme: Clean, soft, bright pastel backgrounds with clear readable dark text
+      // Dark theme: Rich, deep dark backgrounds with light pastel text
       if (allPresent) {
-        base += "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200/60 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/50"
+        base += "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 border-emerald-200 dark:border-emerald-700 hover:bg-emerald-200 dark:hover:bg-emerald-800/60"
       } else if (partial) {
-        base += "bg-amber-50/70 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200/60 dark:border-amber-800/60 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+        base += "bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-700 hover:bg-amber-200 dark:hover:bg-amber-800/60"
       } else if (noData) {
-        base += "bg-rose-50/70 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border-rose-200/60 dark:border-rose-800/60 hover:bg-rose-100 dark:hover:bg-rose-900/50"
+        base += "bg-rose-100 dark:bg-rose-900/50 text-rose-900 dark:text-rose-200 border-rose-200 dark:border-rose-700 hover:bg-rose-200 dark:hover:bg-rose-800/60"
       } else {
         base += "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
       }
@@ -341,7 +343,7 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
 
     // Today (current day) - styled soft blue
     if (isToday) {
-      base = "border bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/60"
+      base = "border bg-blue-100 dark:bg-blue-900/60 text-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700 hover:bg-blue-200 dark:hover:bg-blue-800/70"
     }
 
     // Selected day - bold outline ring styling
@@ -533,32 +535,32 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
         {sourceFilter === null ? (
           <>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60" />
+              <span className="w-2.5 h-2.5 rounded border border-green-400 dark:border-emerald-800 bg-green-200 dark:bg-emerald-950/60" />
               Synced
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/60" />
+              <span className="w-2.5 h-2.5 rounded border border-amber-400 dark:border-amber-800 bg-amber-200 dark:bg-amber-950/60" />
               Partial
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded border border-rose-200 dark:border-rose-800 bg-rose-50/70 dark:bg-rose-950/60" />
+              <span className="w-2.5 h-2.5 rounded border border-red-400 dark:border-rose-800 bg-red-200 dark:bg-rose-950/60" />
               Missing
             </span>
           </>
         ) : (
           <>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60" />
+              <span className="w-2.5 h-2.5 rounded border border-green-400 dark:border-emerald-800 bg-green-200 dark:bg-emerald-950/60" />
               {activeFilterMeta?.label} Uploaded
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded border border-rose-200 dark:border-rose-800 bg-rose-50/70 dark:bg-rose-950/60" />
+              <span className="w-2.5 h-2.5 rounded border border-red-400 dark:border-rose-800 bg-red-200 dark:bg-rose-950/60" />
               {activeFilterMeta?.label} Missing
             </span>
           </>
         )}
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/60" />
+          <span className="w-2.5 h-2.5 rounded border border-blue-400 dark:border-blue-700 bg-blue-200 dark:bg-blue-950/60" />
           Today
         </span>
         <span className="flex items-center gap-1">

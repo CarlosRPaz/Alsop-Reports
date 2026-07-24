@@ -15,8 +15,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const applyTheme = () => {
-      const isDark = localStorage.getItem("dsr_theme") === "dark" || 
-        (!localStorage.getItem("dsr_theme") && window.matchMedia("(prefers-color-scheme: dark)").matches)
+      const isDark = localStorage.getItem("dsr_theme") === "dark"
       if (isDark) {
         document.documentElement.classList.add("dark")
       } else {

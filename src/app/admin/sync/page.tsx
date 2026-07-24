@@ -102,13 +102,13 @@ const DATA_SOURCES: DataSource[] = [
 // ─── Color Palette ────────────────────────────────────────────────────────────
 
 const SOURCE_COLORS: Record<string, { bg: string; border: string; text: string; light: string; missing: string }> = {
-  sky:     { bg: "bg-sky-50",     border: "border-sky-200",     text: "text-sky-700",     light: "bg-sky-100",     missing: "bg-sky-50/50 border-sky-200/50 text-sky-400" },
-  purple:  { bg: "bg-purple-50",  border: "border-purple-200",  text: "text-purple-700",  light: "bg-purple-100",  missing: "bg-purple-50/50 border-purple-200/50 text-purple-400" },
-  amber:   { bg: "bg-amber-50",   border: "border-amber-200",   text: "text-amber-700",   light: "bg-amber-100",   missing: "bg-amber-50/50 border-amber-200/50 text-amber-400" },
-  violet:  { bg: "bg-violet-50",  border: "border-violet-200",  text: "text-violet-700",  light: "bg-violet-100",  missing: "bg-violet-50/50 border-violet-200/50 text-violet-400" },
-  emerald: { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", light: "bg-emerald-100", missing: "bg-emerald-50/50 border-emerald-200/50 text-emerald-400" },
-  rose:    { bg: "bg-rose-50",    border: "border-rose-200",    text: "text-rose-700",    light: "bg-rose-100",    missing: "bg-rose-50/50 border-rose-200/50 text-rose-400" },
-  orange:  { bg: "bg-orange-50",  border: "border-orange-200",  text: "text-orange-700",  light: "bg-orange-100",  missing: "bg-orange-50/50 border-orange-200/50 text-orange-400" },
+  sky:     { bg: "bg-sky-50 dark:bg-sky-950/50",     border: "border-sky-200 dark:border-sky-800",     text: "text-sky-700 dark:text-sky-300",     light: "bg-sky-100 dark:bg-sky-900/40",     missing: "bg-sky-50/50 dark:bg-sky-950/30 border-sky-200/50 dark:border-sky-800/40 text-sky-400 dark:text-sky-600" },
+  purple:  { bg: "bg-purple-50 dark:bg-purple-950/50",  border: "border-purple-200 dark:border-purple-800",  text: "text-purple-700 dark:text-purple-300",  light: "bg-purple-100 dark:bg-purple-900/40",  missing: "bg-purple-50/50 dark:bg-purple-950/30 border-purple-200/50 dark:border-purple-800/40 text-purple-400 dark:text-purple-600" },
+  amber:   { bg: "bg-amber-50 dark:bg-amber-950/50",   border: "border-amber-200 dark:border-amber-800",   text: "text-amber-700 dark:text-amber-300",   light: "bg-amber-100 dark:bg-amber-900/40",   missing: "bg-amber-50/50 dark:bg-amber-950/30 border-amber-200/50 dark:border-amber-800/40 text-amber-400 dark:text-amber-600" },
+  violet:  { bg: "bg-violet-50 dark:bg-violet-950/50",  border: "border-violet-200 dark:border-violet-800",  text: "text-violet-700 dark:text-violet-300",  light: "bg-violet-100 dark:bg-violet-900/40",  missing: "bg-violet-50/50 dark:bg-violet-950/30 border-violet-200/50 dark:border-violet-800/40 text-violet-400 dark:text-violet-600" },
+  emerald: { bg: "bg-emerald-50 dark:bg-emerald-950/50", border: "border-emerald-200 dark:border-emerald-800", text: "text-emerald-700 dark:text-emerald-300", light: "bg-emerald-100 dark:bg-emerald-900/40", missing: "bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-200/50 dark:border-emerald-800/40 text-emerald-400 dark:text-emerald-600" },
+  rose:    { bg: "bg-rose-50 dark:bg-rose-950/50",    border: "border-rose-200 dark:border-rose-800",    text: "text-rose-700 dark:text-rose-300",    light: "bg-rose-100 dark:bg-rose-900/40",    missing: "bg-rose-50/50 dark:bg-rose-950/30 border-rose-200/50 dark:border-rose-800/40 text-rose-400 dark:text-rose-600" },
+  orange:  { bg: "bg-orange-50 dark:bg-orange-950/50",  border: "border-orange-200 dark:border-orange-800",  text: "text-orange-700 dark:text-orange-300",  light: "bg-orange-100 dark:bg-orange-900/40",  missing: "bg-orange-50/50 dark:bg-orange-950/30 border-orange-200/50 dark:border-orange-800/40 text-orange-400 dark:text-orange-600" },
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -490,9 +490,9 @@ export default function DataSyncPage() {
 
           {/* DB Status */}
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-            dbStatus === "connected" ? "bg-emerald-50 border-emerald-200 text-emerald-700" :
-            dbStatus === "error" ? "bg-red-50 border-red-200 text-red-700" :
-            "bg-slate-50 border-slate-200 text-slate-500"
+            dbStatus === "connected" ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300" :
+            dbStatus === "error" ? "bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300" :
+            "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400"
           }`}>
             {dbStatus === "checking" && <RefreshCw className="w-3 h-3 animate-spin" />}
             {dbStatus === "connected" && <CheckCircle2 className="w-3 h-3" />}
@@ -629,9 +629,9 @@ export default function DataSyncPage() {
       {uploadStatus !== "idle" && (
         <div className="space-y-3">
           <div className={`px-4 py-3 rounded-lg flex items-center gap-3 text-sm border ${
-            uploadStatus === "running" ? "bg-blue-50 border-blue-200 text-blue-700" :
-            uploadStatus === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-700" :
-            "bg-red-50 border-red-200 text-red-700"
+            uploadStatus === "running" ? "bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300" :
+            uploadStatus === "success" ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300" :
+            "bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
           }`}>
             {uploadStatus === "running" && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
             {uploadStatus === "success" && <CheckCircle2 className="w-4 h-4 shrink-0" />}
@@ -913,18 +913,18 @@ function SourceCard({
 
   // Left border accent
   const borderAccent = isPresent
-    ? "border-l-4 border-l-emerald-400"
+    ? "border-l-4 border-l-emerald-500 dark:border-l-emerald-400"
     : coverageLoaded
-      ? "border-l-4 border-l-red-400"
+      ? "border-l-4 border-l-red-500 dark:border-l-red-400"
       : "border-l-4 border-l-slate-200 dark:border-l-slate-700"
 
   return (
     <div
-      className={`rounded-lg border ${!isPresent && coverageLoaded ? 'border-red-200 dark:border-red-900/40' : colors.border} shadow-sm overflow-hidden transition-all duration-300 ${borderAccent} ${
-        !isPresent && coverageLoaded ? "ring-1 ring-red-200/60 dark:ring-red-900/30 bg-red-50/40 dark:bg-red-950/20" : "bg-white dark:bg-slate-900"
+      className={`rounded-lg border ${!isPresent && coverageLoaded ? 'border-rose-200 dark:border-red-900/40' : colors.border} shadow-sm overflow-hidden transition-all duration-300 ${borderAccent} ${
+        !isPresent && coverageLoaded ? "ring-1 ring-rose-200/60 dark:ring-red-900/30 bg-rose-50/30 dark:bg-red-950/20" : "bg-white dark:bg-slate-900"
       }`}
     >
-      <div className={`flex items-center gap-2.5 px-3 py-2 ${isPresent ? "bg-gradient-to-r from-emerald-50/40 to-transparent dark:from-emerald-950/40 dark:to-transparent" : !isPresent && coverageLoaded ? "bg-red-50/30 dark:bg-red-950/30" : ""}`}>
+      <div className={`flex items-center gap-2.5 px-3 py-2 ${isPresent ? "bg-gradient-to-r from-emerald-50 to-transparent dark:from-emerald-950/40 dark:to-transparent" : !isPresent && coverageLoaded ? "bg-rose-50/50 dark:bg-red-950/30" : ""}`}>
         {/* Icon */}
         <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${colors.bg} ${colors.text}`}>
           <Icon className="w-3.5 h-3.5" />
@@ -952,8 +952,8 @@ function SourceCard({
                     key={fp.type}
                     className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
                       uploaded
-                        ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
-                        : "bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800"
+                        ? "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/60 dark:text-emerald-200 dark:border-emerald-700"
+                        : "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-900/60 dark:text-rose-200 dark:border-rose-700"
                     }`}
                   >
                     {uploaded ? "✓" : "✗"} {fp.label}
@@ -1002,12 +1002,12 @@ function SourceCard({
               <Loader2 className="w-3 h-3 animate-spin" /> Processing
             </span>
           ) : isPresent ? (
-            <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+            <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
               <CheckCircle2 className="w-3 h-3" />
               {source.key !== "eagent" ? `${agentsWithData}` : "✓"}
             </span>
           ) : coverageLoaded ? (
-            <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 whitespace-nowrap">
+            <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-500 whitespace-nowrap">
               <AlertCircle className="w-3 h-3" /> Missing
             </span>
           ) : (

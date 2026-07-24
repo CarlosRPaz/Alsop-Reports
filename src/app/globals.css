@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
 @theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -64,24 +65,24 @@
   --theme-border-slate-300: #cbd5e1;
   
   /* Accent/Pastel Semantic Utilities */
-  --theme-bg-blue-50: rgba(219, 234, 254, 0.5);
+  --theme-bg-blue-50: #eff6ff;
   --theme-text-blue-700: #1d4ed8;
-  --theme-bg-indigo-50: rgba(224, 231, 255, 0.5);
+  --theme-bg-indigo-50: #e0e7ff;
   --theme-text-indigo-700: #4338ca;
-  --theme-bg-emerald-50: rgba(209, 250, 229, 0.5);
+  --theme-bg-emerald-50: #ecfdf5;
   --theme-text-emerald-700: #047857;
-  --theme-bg-rose-50: rgba(254, 226, 226, 0.5);
+  --theme-bg-rose-50: #fff1f2;
   --theme-text-rose-700: #b91c1c;
-  --theme-bg-amber-50: rgba(254, 243, 199, 0.5);
+  --theme-bg-amber-50: #fffbeb;
   --theme-bg-amber-100: #fef3c7;
   --theme-text-amber-700: #b45309;
-  --theme-bg-sky-50: rgba(224, 242, 254, 0.5);
+  --theme-bg-sky-50: #f0f9ff;
   --theme-text-sky-700: #0369a1;
-  --theme-bg-violet-50: rgba(237, 233, 254, 0.5);
+  --theme-bg-violet-50: #f5f3ff;
   --theme-text-violet-700: #6d28d9;
-  --theme-bg-teal-50: rgba(204, 251, 241, 0.5);
+  --theme-bg-teal-50: #f0fdf4;
   --theme-text-teal-700: #0f766e;
-  --theme-bg-red-50: rgba(254, 226, 226, 0.5);
+  --theme-bg-red-50: #fef2f2;
   --theme-text-red-600: #dc2626;
   
   /* Sidebar custom variables */
@@ -288,107 +289,12 @@ aside a:hover {
   background-color: var(--sidebar-link-hover) !important;
 }
 
-/* Accents mapping overrides */
-.bg-blue-50 { background-color: var(--theme-bg-blue-50) !important; }
-.text-blue-700 { color: var(--theme-text-blue-700) !important; }
-.bg-indigo-50 { background-color: var(--theme-bg-indigo-50) !important; }
-.text-indigo-700 { color: var(--theme-text-indigo-700) !important; }
-.bg-emerald-50 { background-color: var(--theme-bg-emerald-50) !important; }
-.text-emerald-700 { color: var(--theme-text-emerald-700) !important; }
-.bg-rose-50 { background-color: var(--theme-bg-rose-50) !important; }
-.text-rose-700 { color: var(--theme-text-rose-700) !important; }
-.bg-amber-50 { background-color: var(--theme-bg-amber-50) !important; }
-.bg-amber-100 { background-color: var(--theme-bg-amber-100) !important; }
-.text-amber-700 { color: var(--theme-text-amber-700) !important; }
-.bg-sky-50 { background-color: var(--theme-bg-sky-50) !important; }
-.text-sky-700 { color: var(--theme-text-sky-700) !important; }
-.bg-violet-50 { background-color: var(--theme-bg-violet-50) !important; }
-.text-violet-700 { color: var(--theme-text-violet-700) !important; }
-.bg-teal-50 { background-color: var(--theme-bg-teal-50) !important; }
-.text-teal-700 { color: var(--theme-text-teal-700) !important; }
-.bg-red-50 { background-color: var(--theme-bg-red-50) !important; }
-.text-red-600 { color: var(--theme-text-red-600) !important; }
-
 /* Interactive Hover utilities */
-.hover\:bg-blue-100:hover {
-  background-color: var(--theme-bg-blue-50) !important;
-}
-.hover\:bg-indigo-100:hover {
-  background-color: var(--theme-bg-indigo-50) !important;
-}
-.hover\:bg-emerald-100:hover {
-  background-color: var(--theme-bg-emerald-50) !important;
-}
-.hover\:bg-rose-100:hover {
-  background-color: var(--theme-bg-rose-50) !important;
-}
 .hover\:bg-slate-100:hover {
   background-color: var(--theme-bg-slate-100) !important;
 }
 .hover\:bg-slate-50:hover {
   background-color: var(--theme-bg-slate-100) !important;
-}
-
-/* ── Leaderboard Card Header Legibility Overrides (Adaptive) ── */
-.bg-emerald-50\/60 {
-  background-color: var(--theme-bg-emerald-50) !important;
-}
-.text-emerald-900 {
-  color: var(--theme-text-emerald-700) !important;
-}
-
-.bg-blue-50\/60 {
-  background-color: var(--theme-bg-blue-50) !important;
-}
-.text-blue-900 {
-  color: var(--theme-text-blue-700) !important;
-}
-
-.bg-amber-50\/60 {
-  background-color: var(--theme-bg-amber-50) !important;
-}
-.text-amber-900 {
-  color: var(--theme-text-amber-700) !important;
-}
-
-.bg-violet-50\/60 {
-  background-color: var(--theme-bg-violet-50) !important;
-}
-.text-violet-900 {
-  color: var(--theme-text-violet-700) !important;
-}
-
-.bg-pink-50\/60 {
-  background-color: var(--theme-bg-rose-50) !important;
-}
-.text-pink-900 {
-  color: var(--theme-text-rose-700) !important;
-}
-
-/* ── 800-Grade Accent Text Overrides (Adaptive) ── */
-.text-emerald-800 {
-  color: var(--theme-text-emerald-700) !important;
-}
-.text-blue-800 {
-  color: var(--theme-text-blue-700) !important;
-}
-.text-indigo-800 {
-  color: var(--theme-text-indigo-700) !important;
-}
-.text-rose-800 {
-  color: var(--theme-text-rose-700) !important;
-}
-.text-amber-800 {
-  color: var(--theme-text-amber-700) !important;
-}
-.text-sky-800 {
-  color: var(--theme-text-sky-700) !important;
-}
-.text-violet-800 {
-  color: var(--theme-text-violet-700) !important;
-}
-.text-teal-800 {
-  color: var(--theme-text-teal-700) !important;
 }
 
 /* ── Heatmap Cell Styles (High Contrast, Rich Vibrancy) ── */
@@ -459,28 +365,4 @@ aside a:hover {
 }
 .dark .dsr-data-table tbody tr.dsr-totals-row {
   background-color: #1e293b !important; /* slate-800 */
-}
-
-/* ── Calendar & Status Card Dark Overrides ── */
-.dark .bg-emerald-50\/40,
-.dark .bg-emerald-50\/30,
-.dark .bg-emerald-50\/70 {
-  background-color: rgba(6, 78, 59, 0.3) !important;
-}
-
-.dark .bg-amber-50\/40,
-.dark .bg-amber-50\/30,
-.dark .bg-amber-50\/70 {
-  background-color: rgba(120, 53, 15, 0.3) !important;
-}
-
-.dark .bg-rose-50\/40,
-.dark .bg-rose-50\/30,
-.dark .bg-rose-50\/70 {
-  background-color: rgba(136, 19, 55, 0.3) !important;
-}
-
-.dark .bg-red-50\/40,
-.dark .bg-red-50\/30 {
-  background-color: rgba(153, 27, 27, 0.25) !important;
 }
