@@ -217,13 +217,17 @@ export async function pushToSupabase(
                 // All sources present → merge has the complete picture → write directly
                 metric[field] = newVal
               } else {
-                // NOT all sources present — the existing DB value may include
-                // contributions from a non-uploaded source (e.g. RC data when
-                // only Rico AP is being uploaded). Use the larger value to avoid
-                // a supplementary source overwriting an authoritative source's data.
+                // NOT all sources present — the existing DB value includes
+                // contributions from previously-uploaded sources (e.g. RC data).
+                // The new merge value only contains THIS upload's contribution.
+                // ADD them together so both sources are counted.
+                // (e.g. RC uploaded calls=19, then Rico AP uploads calls=3 → 19+3=22)
+                //
+                // Note: if the SAME source is re-uploaded for the same date,
+                // this will double-count. Re-upload all sources to correct.
                 const ev = Number((existingRow as Record<string, unknown>)[field]) || 0
                 const nv = Number(newVal) || 0
-                metric[field] = Math.max(ev, nv)
+                metric[field] = ev + nv
               }
             } else {
               // Agent was NOT in the uploaded source — preserve existing
