@@ -16,13 +16,20 @@ import type { ParseResult } from "../types";
 import { Spine } from "../spine";
 import { safeReadWorkbook } from "../xlsx-reader";
 
-// ─── Column mapping (original name → internal name) ───
+// ─── Column mapping (normalized lowercase name → internal name) ───
+// Keys are lowercase-trimmed for case-insensitive matching
 const COL_MAP: Record<string, string> = {
-  "Total Calls": "Calls",
-  "# Inbound": "Inbound",
-  "# Outbound": "Outbound",
-  "Total Handle Time": "TalkTime",
+  "total calls": "Calls",
+  "# inbound": "Inbound",
+  "# outbound": "Outbound",
+  "total handle time": "TalkTime",
+  "avg handle time": "_AvgHandleTime",  // Explicitly mapped to a dead key so it never collides
 };
+
+/** Normalize a column header for case-insensitive matching */
+function normalizeHeader(h: string): string {
+  return h.trim().toLowerCase();
+}
 
 /**
  * Parse an RC file buffer (Excel workbook).
@@ -149,11 +156,24 @@ function processRows(
 ): ParseResult {
   const rows: Record<string, unknown>[] = [];
 
+  // ── Diagnostic: log the actual column headers from the raw data ──
+  if (data.length > 0) {
+    const sampleHeaders = Object.keys(data[0]);
+    logs.push(`[rc-parser] Raw column headers: ${JSON.stringify(sampleHeaders)}`);
+    // Log first row values for handle-time related columns
+    for (const h of sampleHeaders) {
+      if (h.toLowerCase().includes("handle") || h.toLowerCase().includes("talk")) {
+        logs.push(`[rc-parser] Column "${h}" sample value: ${JSON.stringify(data[0][h])}`);
+      }
+    }
+  }
+
   for (const raw of data) {
-    // Rename columns via COL_MAP
+    // Rename columns via COL_MAP (case-insensitive, whitespace-trimmed)
     const row: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(raw)) {
-      const mapped = COL_MAP[key] ?? key;
+      const normalized = normalizeHeader(key);
+      const mapped = COL_MAP[normalized] ?? key;
       row[mapped] = value;
     }
 

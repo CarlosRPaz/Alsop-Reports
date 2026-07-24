@@ -208,8 +208,23 @@ export async function pushToSupabase(
             )
 
             if (agentInSource) {
-              // Agent was in the source data — write the new value
-              metric[field] = newVal
+              // Agent was in the uploaded source data.
+              // Check if ALL sources for this field are being uploaded.
+              const allSourcesForFieldPresent = fieldSources.every(
+                s => uploadTypes!.includes(s)
+              )
+              if (allSourcesForFieldPresent) {
+                // All sources present → merge has the complete picture → write directly
+                metric[field] = newVal
+              } else {
+                // NOT all sources present — the existing DB value may include
+                // contributions from a non-uploaded source (e.g. RC data when
+                // only Rico AP is being uploaded). Use the larger value to avoid
+                // a supplementary source overwriting an authoritative source's data.
+                const ev = Number((existingRow as Record<string, unknown>)[field]) || 0
+                const nv = Number(newVal) || 0
+                metric[field] = Math.max(ev, nv)
+              }
             } else {
               // Agent was NOT in the uploaded source — preserve existing
               const ev = (existingRow as Record<string, unknown>)[field]
