@@ -170,19 +170,11 @@ export default function AgencyMTDPacing({
           <div className="relative">
             {/* Goal marker */}
             <div 
-              className={`absolute top-0 bottom-0 border-l-2 z-10 transition-colors duration-500 ${
-                totalItemsMTD >= AGENCY_GOAL 
-                  ? "border-solid border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]" 
-                  : "border-dashed border-slate-400"
-              }`} 
+              className="absolute top-0 bottom-0 border-l-2 border-dashed border-slate-400 z-10" 
               style={{ left: `${(AGENCY_GOAL / scaleMax) * 100}%` }}
             >
-              <div className={`absolute -top-4 -translate-x-1/2 text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest whitespace-nowrap shadow transition-colors duration-500 ${
-                totalItemsMTD >= AGENCY_GOAL 
-                  ? "bg-gradient-to-r from-amber-400 to-amber-500 text-amber-950 border border-amber-300" 
-                  : "bg-slate-700 text-white border border-transparent"
-              }`}>
-                {totalItemsMTD >= AGENCY_GOAL ? "🏆 Goal" : "Goal"}
+              <div className="absolute -top-4 -translate-x-1/2 bg-slate-700 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest whitespace-nowrap shadow">
+                Goal
               </div>
             </div>
 
