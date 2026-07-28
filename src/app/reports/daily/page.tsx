@@ -939,6 +939,12 @@ export default function DailyReport() {
                 // Determine if column is the first of its group for border
                 const bdr = (group: string) => GROUP_CELL_BORDER[group] || "";
 
+                // Helper: render a muted "—" for sources marked unavailable
+                const isNA = (sourceKey: string) => !!(coverage?.[sourceKey]?.unavailable && !coverage?.[sourceKey]?.present)
+                const naCell = (sourceKey: string, extraClass = "") => (
+                  <span className="text-slate-300 dark:text-slate-600 font-normal italic">—</span>
+                )
+
                 return (
                   <>
                     {/* ── Agent Info ── */}
@@ -957,10 +963,10 @@ export default function DailyReport() {
                     </td>
 
                     {/* ── RingCentral (Sky) ── */}
-                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100 ${bdr("calls")}`}>{formatValue(item.calls, "", "", getGoal("calls"))}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{formatValue(item.inbound, "", "", getGoal("inbound"))}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{formatValue(item.outbound, "", "", getGoal("outbound"))}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{(() => {
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100 ${bdr("calls")}`}>{isNA("calls") ? naCell("calls") : formatValue(item.calls, "", "", getGoal("calls"))}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{isNA("calls") ? naCell("calls") : formatValue(item.inbound, "", "", getGoal("inbound"))}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{isNA("calls") ? naCell("calls") : formatValue(item.outbound, "", "", getGoal("outbound"))}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{isNA("calls") ? naCell("calls") : (() => {
                       const talkGoal = getGoal("talk_time_seconds");
                       const minutes = item.talk_time_seconds ? Math.floor(item.talk_time_seconds / 60) : 0;
                       const display = formatTime(item.talk_time_seconds);
@@ -972,16 +978,16 @@ export default function DailyReport() {
                     })()}</td>
 
                     {/* ── Hearsay (Teal) ── */}
-                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100 ${bdr("texts")}`}>{formatValue(item.texts, "", "", getGoal("texts"))}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{formatValue(item.out_texts, "", "", getGoal("out_texts"))}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{formatValue(item.opt_ins, "", "", getGoal("opt_ins"))}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{formatValue(item.opt_outs)}</td>
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100 ${bdr("texts")}`}>{isNA("texts") ? naCell("texts") : formatValue(item.texts, "", "", getGoal("texts"))}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{isNA("texts") ? naCell("texts") : formatValue(item.out_texts, "", "", getGoal("out_texts"))}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{isNA("texts") ? naCell("texts") : formatValue(item.opt_ins, "", "", getGoal("opt_ins"))}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{isNA("texts") ? naCell("texts") : formatValue(item.opt_outs)}</td>
 
                     {/* ── Production (Amber/Gold) ── */}
-                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100 ${bdr("production")}`}>{formatValue(item.quotes, "", "", getGoal("quotes"))}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{formatValue(item.nb_count, "", "", getGoal("nb_count"))}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{item.prem_premium ? formatValue(Number(item.prem_premium), "$", "", getGoal("prem_premium")) : formatValue(0)}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{formatValue(item.items, "", "", getGoal("items"))}</td>
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100 ${bdr("production")}`}>{isNA("quotes") ? naCell("quotes") : formatValue(item.quotes, "", "", getGoal("quotes"))}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{isNA("items") ? naCell("items") : formatValue(item.nb_count, "", "", getGoal("nb_count"))}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{isNA("premium") ? naCell("premium") : (item.prem_premium ? formatValue(Number(item.prem_premium), "$", "", getGoal("prem_premium")) : formatValue(0))}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{isNA("items") ? naCell("items") : formatValue(item.items, "", "", getGoal("items"))}</td>
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{formatValue(item.items_mtd, "", "", getMonthlyGoal("items"), "gold")}</td>
                     {/* Daily Avg & On Pace */}
                     {(() => {
@@ -1005,16 +1011,16 @@ export default function DailyReport() {
                     })()}
 
                     {/* ── Leads Pipeline (Rose/Red) ── */}
-                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100 ${bdr("leads")}`}>{formatValue(item.leads_snapshot?.contact || 0)}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{formatValue(item.leads_snapshot?.quoted || 0)}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{formatValue(item.leads_snapshot?.hot || 0)}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{formatValue(item.leads_snapshot?.xsale || 0)}</td>
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100 ${bdr("leads")}`}>{isNA("leads") ? naCell("leads") : formatValue(item.leads_snapshot?.contact || 0)}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{isNA("leads") ? naCell("leads") : formatValue(item.leads_snapshot?.quoted || 0)}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{isNA("leads") ? naCell("leads") : formatValue(item.leads_snapshot?.hot || 0)}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{isNA("leads") ? naCell("leads") : formatValue(item.leads_snapshot?.xsale || 0)}</td>
 
                     {/* ── eAgent Tasks (Violet) ── */}
                     {(() => {
                       const manualHL = (!eagentSubmitted && !item.isTotal) ? "orange" as const : undefined;
                       return (
-                        <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100 ${bdr("eagent")}`}>{formatValue(item.pivots, "", "", getGoal("pivots"), manualHL)}</td>
+                        <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100 ${bdr("eagent")}`}>{isNA("eagent") ? naCell("eagent") : formatValue(item.pivots, "", "", getGoal("pivots"), manualHL)}</td>
                       );
                     })()}
                   </>
