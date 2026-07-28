@@ -189,7 +189,7 @@ export default function AgencyMTDPacing({
             <div className="w-full h-10 bg-slate-100 rounded-lg overflow-hidden flex ring-1 ring-inset ring-slate-200 shadow-inner relative group">
               {/* Shimmer overlay when goal met */}
               {totalItemsMTD >= AGENCY_GOAL && (
-                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer-sweep pointer-events-none z-30" />
+                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer-sweep pointer-events-none z-20" />
               )}
               
               {offices.map(([office, count], idx) => {
@@ -205,7 +205,7 @@ export default function AgencyMTDPacing({
                     {w > 4 && (
                       <span className="text-white font-bold text-xs drop-shadow-sm select-none">{count}</span>
                     )}
-                    <div className="opacity-0 hover:opacity-100 absolute inset-0 z-20" title={`${office}: ${count}`} />
+                    <div className="opacity-0 hover:opacity-100 absolute inset-0 z-30" title={`${office}: ${count}`} />
                   </div>
                 );
               })}
@@ -214,6 +214,18 @@ export default function AgencyMTDPacing({
                   className="h-full bg-[repeating-linear-gradient(45deg,transparent,transparent_8px,rgba(0,0,0,0.03)_8px,rgba(0,0,0,0.03)_16px)] transition-all duration-1000 z-10"
                   style={{ width: `${(remaining / scaleMax) * 100}%` }}
                 />
+              )}
+
+              {/* Limit Break Overflow Marker */}
+              {totalItemsMTD > AGENCY_GOAL && (
+                <div 
+                  className="absolute top-0 bottom-0 right-0 z-20 pointer-events-none overflow-hidden"
+                  style={{ left: `${(AGENCY_GOAL / scaleMax) * 100}%` }}
+                >
+                  {/* Amber candy stripes for the overflow section */}
+                  <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,rgba(251,191,36,0.3),rgba(251,191,36,0.3)_10px,rgba(251,191,36,0.5)_10px,rgba(251,191,36,0.5)_20px)] mix-blend-overlay" />
+                  <div className="absolute inset-0 bg-amber-400/20 animate-pulse mix-blend-overlay" />
+                </div>
               )}
             </div>
           </div>
@@ -256,12 +268,12 @@ export default function AgencyMTDPacing({
                   <p className="text-[8px] text-slate-400 font-medium mt-0.5">items / day required</p>
                 </div>
               ) : (
-                <div className="text-right flex flex-col justify-center h-full min-w-[90px]">
+                <div className="text-right flex flex-col justify-center h-full min-w-fit pl-2">
                   <p className="text-[8px] uppercase tracking-wider text-emerald-600/80 font-black mb-0.5">Pace:</p>
-                  <p className="text-sm font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-teal-400 leading-none tracking-tight uppercase animate-pulse">
+                  <p className="text-[11px] sm:text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-teal-400 leading-none tracking-tight uppercase animate-pulse">
                     Unstoppable
                   </p>
-                  <p className="text-[8px] text-emerald-600 font-bold mt-1 tracking-wider uppercase">Goal Secured 🏆</p>
+                  <p className="text-[7px] sm:text-[8px] text-emerald-600 font-bold mt-1 tracking-wider uppercase">Goal Secured 🏆</p>
                 </div>
               )}
             </div>
