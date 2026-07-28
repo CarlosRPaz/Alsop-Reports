@@ -727,7 +727,7 @@ export default function DataSyncPage() {
                     if (result.success) {
                       // Refresh coverage
                       const covResult = await getDailyCoverage(date)
-                      if (covResult.success && covResult.data) setCoverage(covResult.data)
+                      if (covResult.success && covResult.data) setCoverage(covResult.data as CoverageData)
                     }
                   }}
                   onAutoScrape={(key) => handleUpload(key)}
@@ -925,6 +925,7 @@ function SourceCard({
   onManualLeads?: () => void
 }) {
   const canUpload = !source.isManualEntry && !source.isAutomatic && source.uploadTypes.length > 0
+  const [toggling, setToggling] = useState(false)
 
   // Left border accent — three states
   const borderAccent = isPresent
@@ -1047,16 +1048,30 @@ function SourceCard({
         {/* Mark Unavailable toggle — show when source is not present and not manual entry */}
         {!isPresent && coverageLoaded && !source.isManualEntry && (
           <button
-            onClick={onToggleUnavailable}
+            onClick={async () => {
+              setToggling(true)
+              try {
+                await onToggleUnavailable()
+              } finally {
+                setToggling(false)
+              }
+            }}
+            disabled={toggling}
             className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-semibold border transition-colors ${
-              isUnavailable
-                ? "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-300 dark:hover:bg-slate-600"
-                : "bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:text-slate-600 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600"
+              toggling
+                ? "bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-wait"
+                : isUnavailable
+                  ? "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-300 dark:hover:bg-slate-600"
+                  : "bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:text-slate-600 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600"
             }`}
             title={isUnavailable ? "Remove unavailable mark" : "Mark this source as unavailable for this date"}
           >
-            <Ban className="w-2.5 h-2.5" />
-            {isUnavailable ? "Unavailable" : "Mark N/A"}
+            {toggling ? (
+              <Loader2 className="w-2.5 h-2.5 animate-spin" />
+            ) : (
+              <Ban className="w-2.5 h-2.5" />
+            )}
+            {toggling ? "Updating..." : isUnavailable ? "Unavailable" : "Mark N/A"}
           </button>
         )}
 
