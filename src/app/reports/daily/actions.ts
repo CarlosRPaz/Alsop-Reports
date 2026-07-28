@@ -269,6 +269,8 @@ export async function getDailyCoverage(dateStr: string) {
       unavailMap[row.source_type] = row.reason || null
     }
 
+    const isUnavail = (key: string) => Object.prototype.hasOwnProperty.call(unavailMap, key)
+
     // A source is "present" if either:
     // 1. It has actual non-zero data in daily_metrics, OR
     // 2. Its file type was uploaded for this date (e.g., quotes=0 on a weekend but file was synced)
@@ -276,13 +278,13 @@ export async function getDailyCoverage(dateStr: string) {
     return {
       success: true,
       data: {
-        calls: { present: callsCount > 0, agentCount: callsCount, subSources: callSubSources, unavailable: !!unavailMap.calls, unavailReason: unavailMap.calls },
-        texts: { present: textsCount > 0 || uploadedTypes.has("hs"), agentCount: textsCount, unavailable: !!unavailMap.texts, unavailReason: unavailMap.texts },
-        quotes: { present: quotesCount > 0 || uploadedTypes.has("quotes"), agentCount: quotesCount, unavailable: !!unavailMap.quotes, unavailReason: unavailMap.quotes },
-        items: { present: itemsCount > 0 || uploadedTypes.has("nb"), agentCount: itemsCount, unavailable: !!unavailMap.items, unavailReason: unavailMap.items },
-        premium: { present: premiumCount > 0 || uploadedTypes.has("premium"), agentCount: premiumCount, unavailable: !!unavailMap.premium, unavailReason: unavailMap.premium },
-        eagent: { present: eagentPresent, agentCount: eagentPresent ? 1 : 0, unavailable: !!unavailMap.eagent, unavailReason: unavailMap.eagent },
-        leads: { present: leadsWithData.length > 0, agentCount: leadsWithData.length, unavailable: !!unavailMap.leads, unavailReason: unavailMap.leads },
+        calls: { present: callsCount > 0, agentCount: callsCount, subSources: callSubSources, unavailable: isUnavail("calls"), unavailReason: unavailMap.calls },
+        texts: { present: textsCount > 0 || uploadedTypes.has("hs"), agentCount: textsCount, unavailable: isUnavail("texts"), unavailReason: unavailMap.texts },
+        quotes: { present: quotesCount > 0 || uploadedTypes.has("quotes"), agentCount: quotesCount, unavailable: isUnavail("quotes"), unavailReason: unavailMap.quotes },
+        items: { present: itemsCount > 0 || uploadedTypes.has("nb"), agentCount: itemsCount, unavailable: isUnavail("items"), unavailReason: unavailMap.items },
+        premium: { present: premiumCount > 0 || uploadedTypes.has("premium"), agentCount: premiumCount, unavailable: isUnavail("premium"), unavailReason: unavailMap.premium },
+        eagent: { present: eagentPresent, agentCount: eagentPresent ? 1 : 0, unavailable: isUnavail("eagent"), unavailReason: unavailMap.eagent },
+        leads: { present: leadsWithData.length > 0, agentCount: leadsWithData.length, unavailable: isUnavail("leads"), unavailReason: unavailMap.leads },
       }
     }
 
