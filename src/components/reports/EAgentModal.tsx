@@ -59,22 +59,19 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
-  // Form state: agent_id -> { dismissed, pastDue, pivots }
-  const [formData, setFormData] = useState<Record<string, { dismissed: number, pastDue: number, pivots: number }>>({})
+  // Form state: agent_id -> { pivots }
+  const [formData, setFormData] = useState<Record<string, { pivots: number }>>({})
 
   // Sorted agents alphabetically
   const sortedAgents = [...agents].sort((a, b) => 
     (a.agents?.name || "").localeCompare(b.agents?.name || "")
   )
 
-  // Initialize form data when opened
   useEffect(() => {
     if (isOpen) {
-      const initial: Record<string, { dismissed: number, pastDue: number, pivots: number }> = {}
+      const initial: Record<string, { pivots: number }> = {}
       agents.forEach(a => {
         initial[a.agent_id] = {
-          dismissed: a.dismissed_todos || 0,
-          pastDue: a.past_due_todos || 0,
           pivots: a.pivots || 0
         }
       })
@@ -83,7 +80,7 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
     }
   }, [isOpen, agents])
 
-  const updateField = useCallback((agentId: string, field: "dismissed" | "pastDue" | "pivots", value: number) => {
+  const updateField = useCallback((agentId: string, field: "pivots", value: number) => {
     setFormData(prev => ({
       ...prev,
       [agentId]: {
@@ -94,9 +91,9 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
   }, [])
 
   const resetAll = useCallback(() => {
-    const reset: Record<string, { dismissed: number, pastDue: number, pivots: number }> = {}
+    const reset: Record<string, { pivots: number }> = {}
     agents.forEach(a => {
-      reset[a.agent_id] = { dismissed: 0, pastDue: 0, pivots: 0 }
+      reset[a.agent_id] = { pivots: 0 }
     })
     setFormData(reset)
   }, [agents])
@@ -109,8 +106,8 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
 
     const updates = Object.keys(formData).map(agentId => ({
       agent_id: agentId,
-      dismissed: formData[agentId].dismissed,
-      pastDue: formData[agentId].pastDue,
+      dismissed: 0,
+      pastDue: 0,
       pivots: formData[agentId].pivots
     }))
 
@@ -126,10 +123,8 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
   }
 
   // Summary stats
-  const totalDismissed = Object.values(formData).reduce((s, v) => s + v.dismissed, 0)
-  const totalPastDue = Object.values(formData).reduce((s, v) => s + v.pastDue, 0)
   const totalPivots = Object.values(formData).reduce((s, v) => s + v.pivots, 0)
-  const agentsWithData = Object.values(formData).filter(v => v.dismissed > 0 || v.pastDue > 0 || v.pivots > 0).length
+  const agentsWithData = Object.values(formData).filter(v => v.pivots > 0).length
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -161,12 +156,6 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
             <span className="text-slate-900 font-semibold">{agentsWithData}</span> agents entered
           </span>
           <span className="text-slate-600">
-            Dismissed: <span className="text-violet-600 font-semibold">{totalDismissed}</span>
-          </span>
-          <span className="text-slate-600">
-            Past Due: <span className="text-orange-600 font-semibold">{totalPastDue}</span>
-          </span>
-          <span className="text-slate-600">
             Pivots: <span className="text-cyan-600 font-semibold">{totalPivots}</span>
           </span>
         </div>
@@ -184,8 +173,6 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
             <thead className="sticky top-0 bg-white z-10">
               <tr className="border-b-2 border-slate-300 bg-slate-50/50">
                 <th className="py-2 px-3 text-[11px] uppercase tracking-wider text-slate-600 font-bold border-r-2 border-slate-300">Agent</th>
-                <th className="py-2 px-1 text-[11px] uppercase tracking-wider text-violet-700 font-bold text-center border-r border-slate-200/80">Dismissed</th>
-                <th className="py-2 px-1 text-[11px] uppercase tracking-wider text-orange-700 font-bold text-center border-r border-slate-200/80">Past Due</th>
                 <th className="py-2 px-1 text-[11px] uppercase tracking-wider text-cyan-700 font-bold text-center">Pivots</th>
               </tr>
             </thead>
@@ -193,7 +180,7 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
               {sortedAgents.map((agent, index) => {
                 const d = formData[agent.agent_id]
                 if (!d) return null
-                const hasData = d.dismissed > 0 || d.pastDue > 0 || d.pivots > 0
+                const hasData = d.pivots > 0
                 const rowBg = index % 2 !== 0 ? "bg-slate-200/40" : "bg-white"
                 return (
                   <tr 
@@ -202,22 +189,6 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
                   >
                     <td className="py-2 px-3 border-r-2 border-slate-300">
                       <span className={`text-sm font-semibold ${hasData ? "text-slate-900" : "text-slate-500"}`}>{agent.agents?.name}</span>
-                    </td>
-                    <td className="py-2 px-1 border-r border-slate-200/80">
-                      <div className="flex justify-center">
-                        <Stepper 
-                          value={d.dismissed}
-                          onChange={(v) => updateField(agent.agent_id, "dismissed", v)}
-                        />
-                      </div>
-                    </td>
-                    <td className="py-2 px-1 border-r border-slate-200/80">
-                      <div className="flex justify-center">
-                        <Stepper 
-                          value={d.pastDue}
-                          onChange={(v) => updateField(agent.agent_id, "pastDue", v)}
-                        />
-                      </div>
                     </td>
                     <td className="py-2 px-1">
                       <div className="flex justify-center">

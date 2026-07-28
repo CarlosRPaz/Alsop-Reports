@@ -54,14 +54,14 @@ const COLUMNS: ColumnDef[] = [
   { key: "premium",  label: "Premium",     group: "production", sortAccessor: (m: any) => Number(m.prem_premium) || 0 },
   { key: "items",    label: "Items",       group: "production", sortAccessor: (m: any) => m.items || 0 },
   { key: "itemsmtd", label: "Items MTD",   group: "production", sortAccessor: (m: any) => m.items_mtd || 0 },
+  { key: "dailyavg", label: "Daily Avg",   group: "production", sortAccessor: (m: any) => m._dailyAvg || 0 },
+  { key: "onpace",   label: "On Pace",     group: "production", sortAccessor: (m: any) => m._onPace || 0 },
   // Leads Pipeline (Red/Orange)
   { key: "contact", label: "Contact",    group: "leads", sortAccessor: (m: any) => m.leads_snapshot?.contact || 0 },
   { key: "quoted",  label: "Quoted",     group: "leads", sortAccessor: (m: any) => m.leads_snapshot?.quoted || 0 },
   { key: "hot",     label: "Hot",        group: "leads", sortAccessor: (m: any) => m.leads_snapshot?.hot || 0 },
   { key: "xdate",   label: "X-Date",    group: "leads", sortAccessor: (m: any) => m.leads_snapshot?.xsale || 0 },
   // eAgent/RICO
-  { key: "dismissed", label: "Dismissed",  group: "eagent", sortAccessor: (m: any) => m.dismissed_todos || 0 },
-  { key: "pastdue",   label: "Past Due",   group: "eagent", sortAccessor: (m: any) => m.past_due_todos || 0 },
   { key: "pivots",    label: "Pivots",     group: "eagent", sortAccessor: (m: any) => m.pivots || 0 },
 ]
 
@@ -285,7 +285,7 @@ export default function DailyReport() {
   const [holidays, setHolidays] = useState<{ holiday_date: string }[]>([])
   const [agencyItemsMTD, setAgencyItemsMTD] = useState(0)
   const [agencyOfficeBreakdown, setAgencyOfficeBreakdown] = useState<Record<string, number>>({})
-  const [coverage, setCoverage] = useState<Record<string, { present: boolean; agentCount: number }> | null>(null)
+  const [coverage, setCoverage] = useState<Record<string, { present: boolean; agentCount: number; unavailable?: boolean; unavailReason?: string | null }> | null>(null)
   const [coverageLoading, setCoverageLoading] = useState(true)
   const [coverageExpanded, setCoverageExpanded] = useState<boolean | null>(null)
   const [streaks, setStreaks] = useState<any[]>([])
@@ -299,17 +299,27 @@ export default function DailyReport() {
     calls: "Calls", texts: "Texts", quotes: "Quotes",
     items: "Items", premium: "Premium", eagent: "eAgent", leads: "Leads",
   }
+  // Missing = not present AND not marked unavailable (requires action)
   const missingSources = useMemo(() => {
     if (!coverage) return []
     return Object.entries(coverage)
-      .filter(([_, v]) => !v.present)
+      .filter(([_, v]) => !v.present && !v.unavailable)
+      .map(([key]) => key)
+  }, [coverage])
+
+  // Unavailable = not present but explicitly marked as unavailable (acknowledged)
+  const unavailableSources = useMemo(() => {
+    if (!coverage) return []
+    return Object.entries(coverage)
+      .filter(([_, v]) => !v.present && v.unavailable)
       .map(([key]) => key)
   }, [coverage])
 
   const hasMissingSources = missingSources.length > 0
   const allSourcesPresent = useMemo(() => {
     if (!coverage) return false
-    return Object.values(coverage).every(s => s.present)
+    // "All present" means every source is either present or marked unavailable
+    return Object.values(coverage).every(s => s.present || s.unavailable)
   }, [coverage])
 
   const handleSync = async () => {
@@ -478,13 +488,29 @@ export default function DailyReport() {
         totals.leads_snapshot.hot += m.leads_snapshot.hot || 0;
         totals.leads_snapshot.xsale += m.leads_snapshot.xsale || 0;
       }
-      totals.dismissed_todos += m.dismissed_todos || 0;
-      totals.past_due_todos += m.past_due_todos || 0;
       totals.pivots += m.pivots || 0;
     });
 
     return totals;
   }, [filteredMetrics]);
+
+  // ── Business days for Daily Avg / On Pace calculations ──
+  const { elapsedBizDays, totalBizDays } = useMemo(() => {
+    const holidaySet = toHolidaySet(holidays)
+    const [y, m] = date.split('-').map(Number)
+    const total = getBusinessDaysInMonth(y, m, holidaySet)
+    const now = new Date()
+    const isCurrentMonth = now.getFullYear() === y && (now.getMonth() + 1) === m
+    let elapsed = total
+    if (isCurrentMonth && now.getDate() > 1) {
+      const yesterday = new Date(now)
+      yesterday.setDate(now.getDate() - 1)
+      elapsed = getElapsedBusinessDays(y, m, holidaySet, yesterday)
+    } else if (isCurrentMonth) {
+      elapsed = 0
+    }
+    return { elapsedBizDays: elapsed, totalBizDays: total }
+  }, [date, holidays])
 
   const handlePrevDay = () => {
     const d = new Date(date + "T12:00:00");
@@ -586,7 +612,7 @@ export default function DailyReport() {
                   ⚠️ Data Incomplete for {formatHeaderDate(date)} — Missing: {missingSources.map(k => SOURCE_LABELS[k] || k).join(", ")}
                 </p>
                 <p className="text-xs text-amber-700 mt-0.5">
-                  {missingSources.length} of {Object.keys(coverage).length} data sources have not been synced for this date.
+                  {missingSources.length} of {Object.keys(coverage).length} data sources have not been synced for this date.{unavailableSources.length > 0 ? ` (${unavailableSources.length} marked unavailable)` : ""}
                 </p>
               </div>
             </div>
@@ -621,7 +647,14 @@ export default function DailyReport() {
         ) : allSourcesPresent ? (
           <div className="flex items-center gap-2 p-2.5 px-4 bg-emerald-50 border border-emerald-200 rounded-lg shadow-sm">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span className="text-sm font-medium text-emerald-700">✅ All data sources present for {formatHeaderDate(date)}</span>
+            <span className="text-sm font-medium text-emerald-700">
+              ✅ All available data synced for {formatHeaderDate(date)}
+              {unavailableSources.length > 0 && (
+                <span className="text-emerald-600/70 ml-1">
+                  ({unavailableSources.map(k => SOURCE_LABELS[k] || k).join(", ")} unavailable)
+                </span>
+              )}
+            </span>
           </div>
         ) : null
       )}
@@ -638,9 +671,9 @@ export default function DailyReport() {
           { key: "leads",   label: "Leads",   icon: Zap,         color: "orange" },
         ] as const
 
-        const hasGaps = coverage ? Object.values(coverage).some(s => !s.present) : false
-        const allPresent = coverage ? Object.values(coverage).every(s => s.present) : false
-        if (allPresent) return null
+        const hasGaps = coverage ? Object.values(coverage).some(s => !s.present && !s.unavailable) : false
+        const allPresent = coverage ? Object.values(coverage).every(s => s.present || s.unavailable) : false
+        if (allPresent && !Object.values(coverage!).some(s => s.unavailable)) return null
         const isExpanded = coverageExpanded ?? hasGaps
 
         const chipBg: Record<string, string> = {
@@ -661,6 +694,7 @@ export default function DailyReport() {
           rose: "bg-rose-50/50 border-rose-200/50 text-rose-400",
           orange: "bg-orange-50/50 border-orange-200/50 text-orange-400",
         }
+        const chipUnavailable = "bg-slate-50 border-slate-200 text-slate-400 line-through decoration-slate-300"
 
         return (
           <div className={`rounded-lg border shadow-sm transition-colors duration-300 ${
@@ -680,11 +714,11 @@ export default function DailyReport() {
                   <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
                 ) : allPresent ? (
                   <span className="text-xs font-medium text-emerald-600 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> All data present
+                    <CheckCircle2 className="w-3 h-3" /> All available data present
                   </span>
                 ) : hasGaps ? (
                   <span className="text-xs font-medium text-amber-600">
-                    {Object.values(coverage!).filter(s => !s.present).length} source{Object.values(coverage!).filter(s => !s.present).length > 1 ? "s" : ""} missing
+                    {Object.values(coverage!).filter(s => !s.present && !s.unavailable).length} source{Object.values(coverage!).filter(s => !s.present && !s.unavailable).length > 1 ? "s" : ""} missing
                   </span>
                 ) : null}
               </div>
@@ -692,24 +726,31 @@ export default function DailyReport() {
             </button>
             {isExpanded && (
               <div className="px-4 pb-3 flex flex-wrap items-center gap-2">
-                {sources.map(({ key, label, icon: Icon, color }) => {
+                {sources.map(({ key, label, icon: SIcon, color }) => {
                   const source = coverage?.[key]
-                  const isPresent = source?.present ?? false
+                  const isSourcePresent = source?.present ?? false
+                  const isSourceUnavailable = source?.unavailable ?? false
                   const count = source?.agentCount ?? 0
                   return (
                     <div
                       key={key}
                       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium transition-all duration-200 ${
-                        isPresent ? chipBg[color] : `${chipMissing[color]} animate-pulse`
+                        isSourcePresent
+                          ? chipBg[color]
+                          : isSourceUnavailable
+                            ? chipUnavailable
+                            : `${chipMissing[color]} animate-pulse`
                       }`}
                     >
-                      <Icon className="w-3.5 h-3.5" />
+                      <SIcon className="w-3.5 h-3.5" />
                       <span>{label}</span>
-                      {isPresent ? (
+                      {isSourcePresent ? (
                         <span className="flex items-center gap-0.5">
                           <span className="text-emerald-500">✓</span>
                           <span className="font-mono text-[11px]">{count}</span>
                         </span>
+                      ) : isSourceUnavailable ? (
+                        <span className="text-slate-400 text-[10px]">N/A</span>
                       ) : (
                         <span className="text-red-400">✗</span>
                       )}
@@ -942,6 +983,26 @@ export default function DailyReport() {
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{item.prem_premium ? formatValue(Number(item.prem_premium), "$", "", getGoal("prem_premium")) : formatValue(0)}</td>
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{formatValue(item.items, "", "", getGoal("items"))}</td>
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{formatValue(item.items_mtd, "", "", getMonthlyGoal("items"), "gold")}</td>
+                    {/* Daily Avg & On Pace */}
+                    {(() => {
+                      const mtd = item.items_mtd || 0;
+                      const dailyAvg = elapsedBizDays > 0 ? mtd / elapsedBizDays : 0;
+                      const onPace = elapsedBizDays > 0 ? Math.round(dailyAvg * totalBizDays) : 0;
+                      return (
+                        <>
+                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">
+                            {mtd === 0 ? <span className="text-slate-300 dark:text-slate-600 font-normal">0.0</span> : dailyAvg.toFixed(1)}
+                          </td>
+                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">
+                            {onPace === 0
+                              ? <span className="text-slate-300 dark:text-slate-600 font-normal">0</span>
+                              : onPace >= 40
+                                ? <span className="bg-emerald-200 text-emerald-900 dark:bg-emerald-500/30 dark:text-emerald-100 rounded px-1.5 -mx-1">{onPace}</span>
+                                : onPace}
+                          </td>
+                        </>
+                      );
+                    })()}
 
                     {/* ── Leads Pipeline (Rose/Red) ── */}
                     <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100 ${bdr("leads")}`}>{formatValue(item.leads_snapshot?.contact || 0)}</td>
@@ -953,11 +1014,7 @@ export default function DailyReport() {
                     {(() => {
                       const manualHL = (!eagentSubmitted && !item.isTotal) ? "orange" as const : undefined;
                       return (
-                        <>
-                          <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100 ${bdr("eagent")}`}>{formatValue(item.dismissed_todos, "", "", getGoal("dismissed_todos"), manualHL)}</td>
-                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{formatValue(item.past_due_todos, "", "", getGoal("past_due_todos"), manualHL)}</td>
-                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100">{formatValue(item.pivots, "", "", getGoal("pivots"), manualHL)}</td>
-                        </>
+                        <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 dark:text-slate-100 ${bdr("eagent")}`}>{formatValue(item.pivots, "", "", getGoal("pivots"), manualHL)}</td>
                       );
                     })()}
                   </>

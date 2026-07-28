@@ -258,6 +258,17 @@ export async function getDailyCoverage(dateStr: string) {
       rico_ap: uploadedTypes.has("rico_ap"),
     }
 
+    // Fetch any sources marked as unavailable for this date
+    const { data: unavailRows } = await supabase
+      .from("source_unavailability")
+      .select("source_type, reason")
+      .eq("report_date", dateStr)
+
+    const unavailMap: Record<string, string | null> = {}
+    for (const row of (unavailRows || [])) {
+      unavailMap[row.source_type] = row.reason || null
+    }
+
     // A source is "present" if either:
     // 1. It has actual non-zero data in daily_metrics, OR
     // 2. Its file type was uploaded for this date (e.g., quotes=0 on a weekend but file was synced)
@@ -265,13 +276,13 @@ export async function getDailyCoverage(dateStr: string) {
     return {
       success: true,
       data: {
-        calls: { present: callsCount > 0, agentCount: callsCount, subSources: callSubSources },
-        texts: { present: textsCount > 0 || uploadedTypes.has("hs"), agentCount: textsCount },
-        quotes: { present: quotesCount > 0 || uploadedTypes.has("quotes"), agentCount: quotesCount },
-        items: { present: itemsCount > 0 || uploadedTypes.has("nb"), agentCount: itemsCount },
-        premium: { present: premiumCount > 0 || uploadedTypes.has("premium"), agentCount: premiumCount },
-        eagent: { present: eagentPresent, agentCount: eagentPresent ? 1 : 0 },
-        leads: { present: leadsWithData.length > 0, agentCount: leadsWithData.length },
+        calls: { present: callsCount > 0, agentCount: callsCount, subSources: callSubSources, unavailable: !!unavailMap.calls, unavailReason: unavailMap.calls },
+        texts: { present: textsCount > 0 || uploadedTypes.has("hs"), agentCount: textsCount, unavailable: !!unavailMap.texts, unavailReason: unavailMap.texts },
+        quotes: { present: quotesCount > 0 || uploadedTypes.has("quotes"), agentCount: quotesCount, unavailable: !!unavailMap.quotes, unavailReason: unavailMap.quotes },
+        items: { present: itemsCount > 0 || uploadedTypes.has("nb"), agentCount: itemsCount, unavailable: !!unavailMap.items, unavailReason: unavailMap.items },
+        premium: { present: premiumCount > 0 || uploadedTypes.has("premium"), agentCount: premiumCount, unavailable: !!unavailMap.premium, unavailReason: unavailMap.premium },
+        eagent: { present: eagentPresent, agentCount: eagentPresent ? 1 : 0, unavailable: !!unavailMap.eagent, unavailReason: unavailMap.eagent },
+        leads: { present: leadsWithData.length > 0, agentCount: leadsWithData.length, unavailable: !!unavailMap.leads, unavailReason: unavailMap.leads },
       }
     }
 
@@ -536,6 +547,53 @@ export async function saveDailyNotes(dateStr: string, notes: string) {
     return { success: true }
   } catch (error: any) {
     console.error("Error saving daily standup notes:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
+ * Toggle a data source as unavailable for a given date.
+ * If already marked unavailable, removes the mark.
+ */
+export async function toggleSourceUnavailable(
+  dateStr: string,
+  sourceType: string,
+  reason?: string
+) {
+  noStore()
+  try {
+    // Check if already marked
+    const { data: existing } = await supabase
+      .from("source_unavailability")
+      .select("id")
+      .eq("report_date", dateStr)
+      .eq("source_type", sourceType)
+      .maybeSingle()
+
+    if (existing) {
+      // Remove the unavailable mark
+      const { error } = await supabase
+        .from("source_unavailability")
+        .delete()
+        .eq("id", existing.id)
+
+      if (error) throw error
+      return { success: true, unavailable: false }
+    } else {
+      // Mark as unavailable
+      const { error } = await supabase
+        .from("source_unavailability")
+        .insert({
+          report_date: dateStr,
+          source_type: sourceType,
+          reason: reason || null,
+        })
+
+      if (error) throw error
+      return { success: true, unavailable: true }
+    }
+  } catch (error: any) {
+    console.error("Error toggling source unavailability:", error)
     return { success: false, error: error.message }
   }
 }

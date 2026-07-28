@@ -277,7 +277,7 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
         rico_hot_pipeline: manual.rico_hot_pipeline || 0,
         pivot: a.pivots || manual.pivot || 0,
         saved: manual.saved || 0,
-        w_dismissed_todos: a.dismissed_todos || manual.dismissed_todos || 0,
+        w_dismissed_todos: manual.dismissed_todos || a.dismissed_todos || 0,
         w_past_due_todos: manual.past_due_todos || 0,
         rico_past_due_tasks: manual.rico_past_due_tasks || 0,
         // Points = Items × 10 (from NB, not AgencyZoom)

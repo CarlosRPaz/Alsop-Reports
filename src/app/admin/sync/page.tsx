@@ -8,12 +8,12 @@ import {
   Database, AlertCircle, CheckCircle2, Terminal, RefreshCw, CalendarDays,
   Upload, X, FileSpreadsheet, Phone, MessageSquare, FileText, Package,
   DollarSign, Zap, Loader2, ChevronDown, Info, ShieldCheck, ExternalLink, Monitor, Pencil,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Ban,
 } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
 import SyncCalendar from "@/components/ui/SyncCalendar"
 import UploadHistory from "@/components/ui/UploadHistory"
-import { getDailyCoverage } from "@/app/reports/daily/actions"
+import { getDailyCoverage, toggleSourceUnavailable } from "@/app/reports/daily/actions"
 import Link from "next/link"
 import { processUploadedFiles, type UploadFile } from "@/lib/pipeline"
 import { LeadsModal } from "@/components/reports/LeadsModal"
@@ -117,6 +117,8 @@ interface CoverageItem {
   present: boolean
   agentCount: number
   subSources?: Record<string, boolean>
+  unavailable?: boolean
+  unavailReason?: string | null
 }
 
 type CoverageData = Record<string, CoverageItem>
@@ -719,6 +721,15 @@ export default function DataSyncPage() {
                   coverageLoaded={!!coverage}
                   date={date}
                   subSources={cov?.subSources}
+                  isUnavailable={cov?.unavailable ?? false}
+                  onToggleUnavailable={async () => {
+                    const result = await toggleSourceUnavailable(date, source.key)
+                    if (result.success) {
+                      // Refresh coverage
+                      const covResult = await getDailyCoverage(date)
+                      if (covResult.success && covResult.data) setCoverage(covResult.data)
+                    }
+                  }}
                   onAutoScrape={(key) => handleUpload(key)}
                   onManualLeads={source.key === "leads" ? () => setLeadsModalOpen(true) : undefined}
                 />
@@ -894,6 +905,8 @@ function SourceCard({
   coverageLoaded,
   date,
   subSources,
+  isUnavailable,
+  onToggleUnavailable,
   onAutoScrape,
   onManualLeads,
 }: {
@@ -906,40 +919,76 @@ function SourceCard({
   coverageLoaded: boolean
   date: string
   subSources?: Record<string, boolean>
+  isUnavailable: boolean
+  onToggleUnavailable: () => void
   onAutoScrape?: (key: string) => void
   onManualLeads?: () => void
 }) {
   const canUpload = !source.isManualEntry && !source.isAutomatic && source.uploadTypes.length > 0
 
-  // Left border accent
+  // Left border accent — three states
   const borderAccent = isPresent
     ? "border-l-4 border-l-emerald-500 dark:border-l-emerald-400"
-    : coverageLoaded
-      ? "border-l-4 border-l-red-500 dark:border-l-red-400"
-      : "border-l-4 border-l-slate-200 dark:border-l-slate-700"
+    : isUnavailable && coverageLoaded
+      ? "border-l-4 border-l-slate-400 dark:border-l-slate-500"
+      : coverageLoaded
+        ? "border-l-4 border-l-red-500 dark:border-l-red-400"
+        : "border-l-4 border-l-slate-200 dark:border-l-slate-700"
+
+  // Container styling — three states
+  const containerClass = isPresent
+    ? "bg-white dark:bg-slate-900"
+    : isUnavailable && coverageLoaded
+      ? "ring-1 ring-slate-200/60 dark:ring-slate-700/30 bg-slate-50/50 dark:bg-slate-800/30"
+      : !isPresent && coverageLoaded
+        ? "ring-1 ring-rose-200/60 dark:ring-red-900/30 bg-rose-50/30 dark:bg-red-950/20"
+        : "bg-white dark:bg-slate-900"
+
+  const borderClass = isPresent
+    ? colors.border
+    : isUnavailable && coverageLoaded
+      ? "border-slate-200 dark:border-slate-700"
+      : !isPresent && coverageLoaded
+        ? "border-rose-200 dark:border-red-900/40"
+        : colors.border
+
+  // Header background
+  const headerBg = isPresent
+    ? "bg-gradient-to-r from-emerald-50 to-transparent dark:from-emerald-950/40 dark:to-transparent"
+    : isUnavailable && coverageLoaded
+      ? "bg-slate-50/50 dark:bg-slate-800/30"
+      : !isPresent && coverageLoaded
+        ? "bg-rose-50/50 dark:bg-red-950/30"
+        : ""
 
   return (
     <div
-      className={`rounded-lg border ${!isPresent && coverageLoaded ? 'border-rose-200 dark:border-red-900/40' : colors.border} shadow-sm overflow-hidden transition-all duration-300 ${borderAccent} ${
-        !isPresent && coverageLoaded ? "ring-1 ring-rose-200/60 dark:ring-red-900/30 bg-rose-50/30 dark:bg-red-950/20" : "bg-white dark:bg-slate-900"
-      }`}
+      className={`rounded-lg border ${borderClass} shadow-sm overflow-hidden transition-all duration-300 ${borderAccent} ${containerClass}`}
     >
-      <div className={`flex items-center gap-2.5 px-3 py-2 ${isPresent ? "bg-gradient-to-r from-emerald-50 to-transparent dark:from-emerald-950/40 dark:to-transparent" : !isPresent && coverageLoaded ? "bg-rose-50/50 dark:bg-red-950/30" : ""}`}>
+      <div className={`flex items-center gap-2.5 px-3 py-2 ${headerBg}`}>
         {/* Icon */}
-        <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${colors.bg} ${colors.text}`}>
+        <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${
+          isUnavailable && !isPresent && coverageLoaded
+            ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500"
+            : `${colors.bg} ${colors.text}`
+        }`}>
           <Icon className="w-3.5 h-3.5" />
         </div>
 
         {/* Label + badge + subtitle */}
         <div className="flex-grow min-w-0">
           <div className="flex items-center gap-1.5">
-            <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100">{source.label}</h3>
+            <h3 className={`text-xs font-bold ${
+              isUnavailable && !isPresent && coverageLoaded
+                ? "text-slate-400 dark:text-slate-500"
+                : "text-slate-900 dark:text-slate-100"
+            }`}>{source.label}</h3>
             <Badge variant="outline" className={`text-[9px] px-1 py-0 shrink-0 ${colors.bg} ${colors.text} ${colors.border}`}>
               {source.system}
             </Badge>
           </div>
-          {/* How-to-get hint — only show when missing */}
-          {!isPresent && coverageLoaded && (
+          {/* How-to-get hint — only show when missing (not unavailable) */}
+          {!isPresent && coverageLoaded && !isUnavailable && (
             <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">{source.howToGet}</p>
           )}
           {/* Sub-source indicators for calls */}
@@ -995,6 +1044,22 @@ function SourceCard({
           </div>
         )}
 
+        {/* Mark Unavailable toggle — show when source is not present and not manual entry */}
+        {!isPresent && coverageLoaded && !source.isManualEntry && (
+          <button
+            onClick={onToggleUnavailable}
+            className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-semibold border transition-colors ${
+              isUnavailable
+                ? "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-300 dark:hover:bg-slate-600"
+                : "bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:text-slate-600 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600"
+            }`}
+            title={isUnavailable ? "Remove unavailable mark" : "Mark this source as unavailable for this date"}
+          >
+            <Ban className="w-2.5 h-2.5" />
+            {isUnavailable ? "Unavailable" : "Mark N/A"}
+          </button>
+        )}
+
         {/* Status indicator */}
         <div className="shrink-0 ml-auto pl-2">
           {isProcessing ? (
@@ -1005,6 +1070,10 @@ function SourceCard({
             <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
               <CheckCircle2 className="w-3 h-3" />
               {source.key !== "eagent" ? `${agentsWithData}` : "✓"}
+            </span>
+          ) : isUnavailable && coverageLoaded ? (
+            <span className="flex items-center gap-1 text-[10px] font-semibold text-slate-400 dark:text-slate-500 whitespace-nowrap">
+              <Ban className="w-3 h-3" /> N/A
             </span>
           ) : coverageLoaded ? (
             <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-500 whitespace-nowrap">
