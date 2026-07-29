@@ -42,7 +42,7 @@ type StatusFilter = "all" | "active" | "on_leave" | "archived"
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
-const MEETING_TIMES = ["9:00 AM", "9:10 AM", "9:20 AM", "9:30 AM", "9:40 AM", "9:50 AM"]
+const MEETING_TIMES = ["8:50 AM", "9:00 AM", "9:10 AM", "9:20 AM", "9:30 AM", "9:40 AM", "9:50 AM"]
 const OFFICES = ["MCM", "MB", "RC", "CH"]
 const TEAMS = ["Sales", "CSR", "EA"]
 
