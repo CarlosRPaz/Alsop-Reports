@@ -69,7 +69,9 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
     (a.agents?.name || "").localeCompare(b.agents?.name || "")
   )
 
-  const filteredAgents = sortedAgents.filter(a => showSales || a.agents?.team !== "Sales")
+  const filteredAgents = sortedAgents.filter(a => 
+    showSales || (a.agents?.team !== "Sales" && a.agents?.team !== "EA")
+  )
 
   useEffect(() => {
     if (isOpen) {
