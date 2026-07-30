@@ -168,25 +168,36 @@ export default function AgencyMTDPacing({
 
           {/* Stacked Bar — THICK */}
           <div className="relative">
-            {/* Goal marker with gap */}
+            {/* Goal marker */}
             <div 
               className="absolute top-0 bottom-0 z-40 flex flex-col items-center pointer-events-none" 
               style={{ left: `${(AGENCY_GOAL / scaleMax) * 100}%` }}
             >
-              {/* Pill */}
-              <div className="absolute -top-6 -translate-x-1/2 flex items-center gap-1.5 bg-slate-800 border border-slate-700 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm uppercase tracking-wider whitespace-nowrap">
-                <span>Goal</span>
-                {totalItemsMTD > AGENCY_GOAL && (
-                  <span className="text-emerald-400 bg-white/10 px-1 rounded-sm leading-tight">
-                    +{totalItemsMTD - AGENCY_GOAL}
-                  </span>
-                )}
-              </div>
-              
-              {/* Whitespace gap & dashed line */}
-              <div className="absolute top-0 bottom-0 w-2 bg-white -translate-x-1/2 flex items-center justify-center">
-                <div className="h-full border-l-2 border-dashed border-slate-400" />
-              </div>
+              {totalItemsMTD >= AGENCY_GOAL ? (
+                // Goal Met State (Gold & Fun)
+                <>
+                  <div className="absolute -top-7 -translate-x-1/2 flex items-center gap-2 bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-amber-950 text-[10px] font-black px-3 py-1 rounded-full shadow-lg shadow-amber-500/20 uppercase tracking-widest whitespace-nowrap border border-amber-200">
+                    <span>Goal</span>
+                    <span className="bg-amber-950 text-yellow-400 px-1.5 py-0.5 rounded-full text-[9px] leading-none font-bold">
+                      +{totalItemsMTD - AGENCY_GOAL}
+                    </span>
+                  </div>
+                  {/* Clean white gap with glowing gold line */}
+                  <div className="absolute top-0 bottom-0 w-1.5 bg-white -translate-x-1/2 flex items-center justify-center">
+                    <div className="h-full border-l-[2px] border-dashed border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
+                  </div>
+                </>
+              ) : (
+                // Goal Not Met State (Clean & Subtle)
+                <>
+                  <div className="absolute -top-6 -translate-x-1/2 flex items-center gap-1.5 bg-white border border-slate-200 text-slate-500 text-[9px] font-bold px-2.5 py-0.5 rounded-full shadow-sm uppercase tracking-widest whitespace-nowrap">
+                    <span>Goal</span>
+                  </div>
+                  <div className="absolute top-0 bottom-0 w-1.5 bg-white -translate-x-1/2 flex items-center justify-center">
+                    <div className="h-full border-l-2 border-dashed border-slate-300" />
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="w-full h-10 bg-slate-100 rounded-lg overflow-hidden flex ring-1 ring-inset ring-slate-200 shadow-inner relative group">
