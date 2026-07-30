@@ -168,13 +168,24 @@ export default function AgencyMTDPacing({
 
           {/* Stacked Bar — THICK */}
           <div className="relative">
-            {/* Goal marker */}
+            {/* Goal marker with gap */}
             <div 
-              className="absolute top-0 bottom-0 border-l-2 border-dashed border-slate-400 z-10" 
+              className="absolute top-0 bottom-0 z-40 flex flex-col items-center pointer-events-none" 
               style={{ left: `${(AGENCY_GOAL / scaleMax) * 100}%` }}
             >
-              <div className="absolute -top-4 -translate-x-1/2 bg-slate-700 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest whitespace-nowrap shadow">
-                Goal
+              {/* Pill */}
+              <div className="absolute -top-6 -translate-x-1/2 flex items-center gap-1.5 bg-slate-800 border border-slate-700 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm uppercase tracking-wider whitespace-nowrap">
+                <span>Goal</span>
+                {totalItemsMTD > AGENCY_GOAL && (
+                  <span className="text-emerald-400 bg-white/10 px-1 rounded-sm leading-tight">
+                    +{totalItemsMTD - AGENCY_GOAL}
+                  </span>
+                )}
+              </div>
+              
+              {/* Whitespace gap & dashed line */}
+              <div className="absolute top-0 bottom-0 w-2 bg-white -translate-x-1/2 flex items-center justify-center">
+                <div className="h-full border-l-2 border-dashed border-slate-400" />
               </div>
             </div>
 
@@ -208,17 +219,6 @@ export default function AgencyMTDPacing({
                 />
               )}
 
-              {/* Limit Break Overflow Marker */}
-              {totalItemsMTD > AGENCY_GOAL && (
-                <div 
-                  className="absolute top-0 bottom-0 right-0 z-20 pointer-events-none overflow-hidden"
-                  style={{ left: `${(AGENCY_GOAL / scaleMax) * 100}%` }}
-                >
-                  {/* Amber candy stripes for the overflow section */}
-                  <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,rgba(251,191,36,0.3),rgba(251,191,36,0.3)_10px,rgba(251,191,36,0.5)_10px,rgba(251,191,36,0.5)_20px)] mix-blend-overlay" />
-                  <div className="absolute inset-0 bg-amber-400/20 animate-pulse mix-blend-overlay" />
-                </div>
-              )}
             </div>
           </div>
 
