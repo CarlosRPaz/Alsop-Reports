@@ -176,9 +176,9 @@ export default function AgencyMTDPacing({
               {totalItemsMTD >= AGENCY_GOAL ? (
                 // Goal Met State (Gold & Fun)
                 <>
-                  <div className="absolute -top-7 -translate-x-1/2 flex items-center gap-2 bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-amber-950 text-[10px] font-black px-3 py-1 rounded-full shadow-lg shadow-amber-500/20 uppercase tracking-widest whitespace-nowrap border border-amber-200">
-                    <span>Goal</span>
-                    <span className="bg-amber-950 text-yellow-400 px-1.5 py-0.5 rounded-full text-[9px] leading-none font-bold">
+                  <div className="absolute -top-7 -translate-x-1/2 flex items-baseline gap-1.5 bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-amber-950 px-3 py-1 rounded-full shadow-lg shadow-amber-500/20 whitespace-nowrap border border-amber-200">
+                    <span className="text-[10px] font-black uppercase tracking-widest">Goal</span>
+                    <span className="text-sm font-black drop-shadow-sm">
                       +{totalItemsMTD - AGENCY_GOAL}
                     </span>
                   </div>
