@@ -62,10 +62,14 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
   // Form state: agent_id -> { pivots }
   const [formData, setFormData] = useState<Record<string, { pivots: number }>>({})
 
+  const [showSales, setShowSales] = useState(false)
+
   // Sorted agents alphabetically
   const sortedAgents = [...agents].sort((a, b) => 
     (a.agents?.name || "").localeCompare(b.agents?.name || "")
   )
+
+  const filteredAgents = sortedAgents.filter(a => showSales || a.agents?.team !== "Sales")
 
   useEffect(() => {
     if (isOpen) {
@@ -77,6 +81,7 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
       })
       setFormData(initial)
       setError(null)
+      setShowSales(false) // Reset to default on open
     }
   }, [isOpen, agents])
 
@@ -151,13 +156,22 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
         </div>
 
         {/* Summary bar */}
-        <div className="flex items-center gap-4 px-4 py-2 bg-slate-50 border-b border-slate-200 text-[11px]">
-          <span className="text-slate-600">
-            <span className="text-slate-900 font-semibold">{agentsWithData}</span> agents entered
-          </span>
-          <span className="text-slate-600">
-            Pivots: <span className="text-cyan-600 font-semibold">{totalPivots}</span>
-          </span>
+        <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200 text-[11px]">
+          <div className="flex items-center gap-4">
+            <span className="text-slate-600">
+              <span className="text-slate-900 font-semibold">{agentsWithData}</span> agents entered
+            </span>
+            <span className="text-slate-600">
+              Pivots: <span className="text-cyan-600 font-semibold">{totalPivots}</span>
+            </span>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <span className="text-slate-600 font-medium group-hover:text-slate-900 transition-colors">Show Sales Agents</span>
+            <div className="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" className="sr-only peer" checked={showSales} onChange={(e) => setShowSales(e.target.checked)} />
+              <div className="w-7 h-4 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+            </div>
+          </label>
         </div>
 
         {/* Error */}
@@ -177,7 +191,7 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
               </tr>
             </thead>
             <tbody>
-              {sortedAgents.map((agent, index) => {
+              {filteredAgents.map((agent, index) => {
                 const d = formData[agent.agent_id]
                 if (!d) return null
                 const hasData = d.pivots > 0
