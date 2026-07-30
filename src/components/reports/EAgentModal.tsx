@@ -128,7 +128,7 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
         
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
