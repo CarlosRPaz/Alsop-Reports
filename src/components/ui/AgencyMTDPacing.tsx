@@ -167,7 +167,7 @@ export default function AgencyMTDPacing({
           </div>
 
           {/* Stacked Bar — THICK */}
-          <div className="relative">
+          <div className="relative mt-8">
             {/* Goal marker */}
             <div 
               className="absolute top-0 bottom-0 z-40 flex flex-col items-center pointer-events-none" 
@@ -176,8 +176,8 @@ export default function AgencyMTDPacing({
               {totalItemsMTD >= AGENCY_GOAL ? (
                 // Goal Met State (Gold & Fun)
                 <>
-                  <div className="absolute -top-7 -translate-x-1/2 flex items-baseline gap-1.5 bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-amber-950 px-3 py-1 rounded-full shadow-lg shadow-amber-500/20 whitespace-nowrap border border-amber-200">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Goal</span>
+                  <div className="absolute bottom-full mb-2 -translate-x-1/2 flex items-baseline gap-1.5 bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-amber-950 px-3 py-1 rounded-full shadow-lg shadow-amber-500/20 whitespace-nowrap border border-amber-200">
+                    <span className="text-sm font-black uppercase tracking-widest drop-shadow-sm">Goal</span>
                     <span className="text-sm font-black drop-shadow-sm">
                       +{totalItemsMTD - AGENCY_GOAL}
                     </span>
@@ -190,8 +190,8 @@ export default function AgencyMTDPacing({
               ) : (
                 // Goal Not Met State (Clean & Subtle)
                 <>
-                  <div className="absolute -top-6 -translate-x-1/2 flex items-center gap-1.5 bg-white border border-slate-200 text-slate-500 text-[9px] font-bold px-2.5 py-0.5 rounded-full shadow-sm uppercase tracking-widest whitespace-nowrap">
-                    <span>Goal</span>
+                  <div className="absolute bottom-full mb-2 -translate-x-1/2 flex items-baseline gap-1.5 bg-white border border-slate-200 text-slate-500 px-3 py-1 rounded-full shadow-sm whitespace-nowrap">
+                    <span className="text-sm font-bold uppercase tracking-widest">Goal</span>
                   </div>
                   <div className="absolute top-0 bottom-0 w-1.5 bg-white -translate-x-1/2 flex items-center justify-center">
                     <div className="h-full border-l-2 border-dashed border-slate-300" />
