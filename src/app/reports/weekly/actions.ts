@@ -273,17 +273,18 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
     // Merge everything
     const merged = Object.values(agentMap).map((a: any) => {
       const manual = manualMap[a.agent_id] || {}
+      const hasManual = !!manualMap[a.agent_id]
       const lead = leadsMap[a.agent_id] || { contact: 0, quoted: 0, hot: 0, xsale: 0 }
       return {
         ...a,
-        // Weekly manual fields
-        unique_leads: manual.unique_leads || 0,
-        rico_hot_pipeline: manual.rico_hot_pipeline || 0,
-        pivot: a.pivots || manual.pivot || 0,
-        saved: manual.saved || 0,
-        w_dismissed_todos: manual.dismissed_todos || a.dismissed_todos || 0,
-        w_past_due_todos: manual.past_due_todos || 0,
-        rico_past_due_tasks: manual.rico_past_due_tasks || 0,
+        // Weekly manual fields — manual entry takes priority when it exists
+        unique_leads: hasManual ? (manual.unique_leads || 0) : 0,
+        rico_hot_pipeline: hasManual ? (manual.rico_hot_pipeline || 0) : 0,
+        pivot: hasManual ? (manual.pivot ?? a.pivots ?? 0) : (a.pivots || 0),
+        saved: hasManual ? (manual.saved || 0) : 0,
+        w_dismissed_todos: hasManual ? (manual.dismissed_todos ?? a.dismissed_todos ?? 0) : (a.dismissed_todos || 0),
+        w_past_due_todos: hasManual ? (manual.past_due_todos || 0) : 0,
+        rico_past_due_tasks: hasManual ? (manual.rico_past_due_tasks || 0) : 0,
         // Points = Items × 10 (from NB, not AgencyZoom)
         prem_points: (a.items || 0) * 10,
         // MTD
