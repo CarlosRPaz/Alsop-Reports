@@ -48,7 +48,7 @@ const COLUMNS: ColumnDef[] = [
   { key: "saved", label: "#SAVED", group: "eagent", sortAccessor: (i) => i.saved },
 
   { key: "auto_quotes", label: "Auto Quotes", group: "production", sortAccessor: (i) => i.quotes },
-  { key: "total_prem_wk", label: "Written Prem Wk", group: "production", sortAccessor: (i) => i.written_premium },
+  { key: "total_prem_wk", label: "Written Prem Wk", group: "production", sortAccessor: (i) => i.prem_premium },
   { key: "mtd_total_prem", label: "MTD Total Prem", group: "production", sortAccessor: (i) => i.premium_mtd },
   { key: "auto_pts_wk", label: "Auto Pts Wk", group: "production", sortAccessor: (i) => i.prem_points },
   { key: "prev_mo_pts", label: "Prev Mo Pts", group: "production", sortAccessor: (i) => i.prev_month_points },
@@ -347,7 +347,7 @@ export default function WeeklyReport() {
   const currentTotals = useMemo(() => {
     let premium = 0, items = 0, quotes = 0, outbound = 0, talk = 0
     metrics.forEach(m => {
-      premium += Number(m.written_premium || 0)
+      premium += Number(m.prem_premium || 0)
       items += Number(m.items || 0)
       quotes += Number(m.quotes || 0)
       outbound += Number(m.outbound || 0)
@@ -359,7 +359,7 @@ export default function WeeklyReport() {
   const priorTotals = useMemo(() => {
     let premium = 0, items = 0, quotes = 0, outbound = 0, talk = 0
     priorMetrics.forEach(m => {
-      premium += Number(m.written_premium || 0)
+      premium += Number(m.prem_premium || 0)
       items += Number(m.items || 0)
       quotes += Number(m.quotes || 0)
       outbound += Number(m.outbound || 0)
