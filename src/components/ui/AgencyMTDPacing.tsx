@@ -105,7 +105,7 @@ export default function AgencyMTDPacing({
           {/* Top Row: Title + Stats */}
           <div className="flex flex-col sm:flex-row justify-between gap-3">
             <div className="flex flex-col justify-center">
-              <div className="flex items-center gap-2.5 mb-0.5">
+              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                 <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5 tracking-tight">
                   <TrendingUp className="w-3.5 h-3.5 text-blue-600" /> Agency MTD Pacing
                 </h2>
@@ -115,15 +115,15 @@ export default function AgencyMTDPacing({
                 <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>
                   {statusIcon} {statusLabel}
                 </span>
-              </div>
-              <p className="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
-                <span>📅 {elapsed} of {totalBizDays} biz days elapsed <span className="text-slate-400">({remainingBizDays} remaining)</span></span>
                 {lastMonthItems != null && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-slate-100/80 px-2 py-0.5 rounded border border-slate-200/80">
-                    <span className="text-slate-400 uppercase tracking-wider font-bold text-[9px]">Last Mo:</span>
-                    <span className="font-bold font-mono text-slate-800">{lastMonthItems}</span>
+                  <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-md border bg-slate-100 text-slate-700 border-slate-200/80 shrink-0 flex items-center gap-1">
+                    <span className="text-slate-400 font-medium text-[10px] uppercase tracking-wider">Last Month:</span>
+                    <span className="font-bold font-mono text-slate-900 text-xs">{lastMonthItems}</span>
                   </span>
                 )}
+              </div>
+              <p className="text-xs text-slate-500">
+                📅 {elapsed} of {totalBizDays} biz days elapsed <span className="text-slate-400">({remainingBizDays} remaining)</span>
               </p>
             </div>
             
