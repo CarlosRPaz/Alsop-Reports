@@ -13,6 +13,8 @@ interface AgencyMTDPacingProps {
   agencyOfficeBreakdown: Record<string, number>
   /** Holiday objects for business day calculations */
   holidays: { holiday_date: string }[]
+  /** Last month's agency-wide NB Auto Item Count */
+  lastMonthItems?: number
   /** Override year/month for pacing (defaults to current month) */
   year?: number
   month?: number
@@ -37,6 +39,7 @@ export default function AgencyMTDPacing({
   agencyItemsMTD,
   agencyOfficeBreakdown,
   holidays,
+  lastMonthItems,
   year,
   month,
   className = "col-span-12 lg:col-span-8 lg:row-span-2 order-3 lg:order-none",
@@ -163,6 +166,18 @@ export default function AgencyMTDPacing({
                   );
                 })()}
               </div>
+
+            {/* Last Month Reference */}
+            {lastMonthItems != null && (
+              <>
+                <div className="h-8 w-[1px] bg-slate-200" />
+                <div className="text-right">
+                  <p className="text-[8px] uppercase tracking-wider text-slate-500 font-bold mb-0.5">Last Month</p>
+                  <p className="text-base font-black font-mono text-slate-900 leading-none">{lastMonthItems}</p>
+                  <p className="text-[8px] text-slate-400 font-medium mt-0.5">NB auto items</p>
+                </div>
+              </>
+            )}
             </div>
           </div>
 

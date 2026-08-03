@@ -239,6 +239,10 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
     const agencyItemsMTD = agencyKPI.totals.nb_auto_items
     const agencyOfficeMap = agencyKPI.officeBreakdown
 
+    // Last month agency-wide NB Auto Item Count
+    const prevKPI = await getAgencyKPITotals(prevFirstOfMonth, prevLastOfMonth)
+    const lastMonthItems = prevKPI.totals.nb_auto_items
+
     // Previous month items (points = items × 10)
     const prevItemsMap: Record<string, number> = {}
     if (prevMonthMetrics) {
@@ -302,6 +306,7 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
         holidays: holidays || [],
         agencyItemsMTD,
         agencyOfficeBreakdown: agencyOfficeMap,
+        lastMonthItems,
       }
     }
 

@@ -259,6 +259,7 @@ export default function MTDReport() {
   const [talkingPointsExpanded, setTalkingPointsExpanded] = useState(true)
   const [agencyItemsMTD, setAgencyItemsMTD] = useState(0)
   const [agencyOfficeBreakdown, setAgencyOfficeBreakdown] = useState<Record<string, number>>({})
+  const [lastMonthItems, setLastMonthItems] = useState<number | undefined>(undefined)
 
   const fetchData = async () => {
     setLoading(true)
@@ -270,6 +271,7 @@ export default function MTDReport() {
       setManualSubmitted(result.data.manualSubmitted)
       setAgencyItemsMTD(result.data.agencyItemsMTD || 0)
       setAgencyOfficeBreakdown(result.data.agencyOfficeBreakdown || {})
+      setLastMonthItems(result.data.lastMonthItems)
     } else {
       setMetrics([])
     }
@@ -449,6 +451,7 @@ export default function MTDReport() {
           agencyItemsMTD={agencyItemsMTD}
           agencyOfficeBreakdown={agencyOfficeBreakdown}
           holidays={holidays}
+          lastMonthItems={lastMonthItems}
           year={selectedYear}
           month={selectedMonth}
         />

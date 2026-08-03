@@ -58,6 +58,14 @@ export async function getMTDData(year: number, month: number) {
     // 1b. Agency-wide KPI totals — centralized paginated helper (no row-limit issues)
     const agencyKPI = await getAgencyKPITotals(startDate, endDate)
 
+    // 1c. Last month's NB Auto Item Count
+    const lastMonth = month === 1 ? 12 : month - 1
+    const lastYear = month === 1 ? year - 1 : year
+    const lastFirstOfMonth = `${lastYear}-${String(lastMonth).padStart(2, '0')}-01`
+    const lastLastOfMonth = `${lastYear}-${String(lastMonth).padStart(2, '0')}-${new Date(lastYear, lastMonth, 0).getDate()}`
+    const prevKPI = await getAgencyKPITotals(lastFirstOfMonth, lastLastOfMonth)
+    const lastMonthItems = prevKPI.totals.nb_auto_items
+
     // 2. Fetch weekly manual metrics for the weeks starting in that month
     const { data: weeklyManual } = await supabase
       .from("weekly_manual_metrics")
@@ -292,6 +300,7 @@ export async function getMTDData(year: number, month: number) {
         manualSubmitted: monthSubmitted,
         agencyItemsMTD,
         agencyOfficeBreakdown: agencyOfficeMap,
+        lastMonthItems,
       }
     }
 

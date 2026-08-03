@@ -277,6 +277,7 @@ export default function WeeklyReport() {
   const [talkingPointsExpanded, setTalkingPointsExpanded] = useState(true)
   const [agencyItemsMTD, setAgencyItemsMTD] = useState(0)
   const [agencyOfficeBreakdown, setAgencyOfficeBreakdown] = useState<Record<string, number>>({})
+  const [lastMonthItems, setLastMonthItems] = useState<number | undefined>(undefined)
 
   // ── Coverage panel state ──
   const [coverage, setCoverage] = useState<any[]>([])
@@ -309,6 +310,7 @@ export default function WeeklyReport() {
       setHolidays(result.data.holidays || [])
       setAgencyItemsMTD(result.data.agencyItemsMTD || 0)
       setAgencyOfficeBreakdown(result.data.agencyOfficeBreakdown || {})
+      setLastMonthItems(result.data.lastMonthItems)
     } else {
       setMetrics([])
     }
@@ -743,6 +745,7 @@ export default function WeeklyReport() {
           agencyItemsMTD={agencyItemsMTD}
           agencyOfficeBreakdown={agencyOfficeBreakdown}
           holidays={holidays}
+          lastMonthItems={lastMonthItems}
           year={weekEnd ? weekEnd.getFullYear() : undefined}
           month={weekEnd ? weekEnd.getMonth() + 1 : undefined}
         />

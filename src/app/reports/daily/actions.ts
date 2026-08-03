@@ -82,6 +82,16 @@ export async function getDailyData(dateStr: string) {
     const agencyItemsMTD = agencyKPI.totals.nb_auto_items
     const agencyOfficeMap = agencyKPI.officeBreakdown
 
+    // Last month's NB Auto Item Count
+    const monthNum = Number(month)
+    const yearNum = Number(year)
+    const prevMonth = monthNum === 1 ? 12 : monthNum - 1
+    const prevYear = monthNum === 1 ? yearNum - 1 : yearNum
+    const prevFirstOfMonth = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`
+    const prevLastOfMonth = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${new Date(prevYear, prevMonth, 0).getDate()}`
+    const prevKPI = await getAgencyKPITotals(prevFirstOfMonth, prevLastOfMonth)
+    const lastMonthItems = prevKPI.totals.nb_auto_items
+
     // Backfill: ensure all active + report-visible agents are represented,
     // even if they have no daily_metrics row for this date yet.
     const { data: allActiveAgents } = await supabase
@@ -128,6 +138,7 @@ export async function getDailyData(dateStr: string) {
         holidays: holidays || [],
         agencyItemsMTD, // Agency-wide total (all agents, Standard Auto only)
         agencyOfficeBreakdown: agencyOfficeMap, // Per-office items (all agents)
+        lastMonthItems, // Last month's NB Auto Item Count (all agents)
       }
     }
 

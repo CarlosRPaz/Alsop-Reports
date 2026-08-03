@@ -285,6 +285,7 @@ export default function DailyReport() {
   const [holidays, setHolidays] = useState<{ holiday_date: string }[]>([])
   const [agencyItemsMTD, setAgencyItemsMTD] = useState(0)
   const [agencyOfficeBreakdown, setAgencyOfficeBreakdown] = useState<Record<string, number>>({})
+  const [lastMonthItems, setLastMonthItems] = useState<number | undefined>(undefined)
   const [coverage, setCoverage] = useState<Record<string, { present: boolean; agentCount: number; unavailable?: boolean; unavailReason?: string | null }> | null>(null)
   const [coverageLoading, setCoverageLoading] = useState(true)
   const [coverageExpanded, setCoverageExpanded] = useState<boolean | null>(null)
@@ -349,6 +350,7 @@ export default function DailyReport() {
       setHolidays(result.data.holidays || [])
       setAgencyItemsMTD(result.data.agencyItemsMTD || 0)
       setAgencyOfficeBreakdown(result.data.agencyOfficeBreakdown || {})
+      setLastMonthItems(result.data.lastMonthItems)
     } else {
       console.error(result.error)
       setMetrics([])
@@ -806,6 +808,7 @@ export default function DailyReport() {
           agencyItemsMTD={agencyItemsMTD}
           agencyOfficeBreakdown={agencyOfficeBreakdown}
           holidays={holidays}
+          lastMonthItems={lastMonthItems}
           year={date ? Number(date.split('-')[0]) : undefined}
           month={date ? Number(date.split('-')[1]) : undefined}
         />
