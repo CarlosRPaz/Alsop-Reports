@@ -495,6 +495,7 @@ export default function CommunicationHub() {
             <>
               <ConversationHeader
                 conversation={selectedConversation}
+                currentAgentId={currentAgent.id}
                 memberCount={memberCount}
                 pinnedCount={pinnedCount}
                 onSearchClick={() => {}}

@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Circle,
   Pin,
+  Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UserPresenceBadge from './UserPresenceBadge'
@@ -49,12 +50,18 @@ function getDmDisplayName(conversation: Conversation, currentAgentId: string): s
     const other = conversation.members.find((m) => m.agent_id !== currentAgentId)
     return other?.agent?.name ?? conversation.name ?? 'Direct Message'
   }
-  if (conversation.type === 'group_dm' && conversation.members) {
-    const others = conversation.members.filter((m) => m.agent_id !== currentAgentId)
-    if (others.length <= 3) {
-      return others.map((o) => o.agent?.name?.split(' ')[0] ?? '?').join(', ')
+  if (conversation.type === 'group_dm') {
+    if (conversation.name && conversation.name.trim()) {
+      return conversation.name
     }
-    return `${others.slice(0, 2).map((o) => o.agent?.name?.split(' ')[0] ?? '?').join(', ')} +${others.length - 2}`
+    if (conversation.members) {
+      const others = conversation.members.filter((m) => m.agent_id !== currentAgentId)
+      if (others.length <= 3) {
+        return others.map((o) => o.agent?.name?.split(' ')[0] ?? '?').join(', ')
+      }
+      return `${others.slice(0, 2).map((o) => o.agent?.name?.split(' ')[0] ?? '?').join(', ')} +${others.length - 2}`
+    }
+    return conversation.name ?? 'Group Chat'
   }
   return conversation.name ?? 'Conversation'
 }
@@ -258,7 +265,11 @@ export default function ConversationSidebar({
                         getAvatarColor(displayName)
                       )}
                     >
-                      {displayName.charAt(0).toUpperCase()}
+                      {conv.type === 'group_dm' ? (
+                        <Users className="w-3.5 h-3.5" />
+                      ) : (
+                        displayName.charAt(0).toUpperCase()
+                      )}
                     </div>
                     {conv.type === 'direct_dm' && (
                       <div className="absolute -bottom-0.5 -right-0.5">

@@ -59,6 +59,7 @@ export {
   requestDesktopPermission,
   sendDesktopNotification,
 } from './notifications'
+export { playNotificationSound } from './sound'
 
 // Realtime
 export {

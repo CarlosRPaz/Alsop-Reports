@@ -17,8 +17,17 @@ import type { ReactNode } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import type { Agent } from './types'
 import { getPermissionsForAgent } from './permissions'
-import { getUnreadCounts } from './notifications'
-import { updatePresence, unsubscribeChannel } from './realtime'
+import {
+  getUnreadCounts,
+  requestDesktopPermission,
+  sendDesktopNotification,
+} from './notifications'
+import { playNotificationSound } from './sound'
+import {
+  updatePresence,
+  unsubscribeChannel,
+  subscribeToAllConversations,
+} from './realtime'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 // ---------------------------------------------------------------------------
@@ -160,6 +169,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       setCurrentAgent(agent as Agent)
 
+      // Request browser desktop notification permissions silently
+      requestDesktopPermission().catch(() => {})
+
       // Load permissions and unread counts in parallel
       const [perms, counts] = await Promise.all([
         getPermissionsForAgent(agentId),
@@ -184,6 +196,91 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setCurrentAgent(null)
     }
   }
+
+  // -----------------------------------------------------------------------
+  // Global Realtime Subscription for incoming messages, sound & desktop alerts
+  // -----------------------------------------------------------------------
+  useEffect(() => {
+    if (!currentAgent) return
+
+    let isSubscribed = true
+
+    async function setupGlobalSubscription() {
+      if (!currentAgent) return
+
+      try {
+        const { data: memberships } = await supabase
+          .from('chat_conversation_members')
+          .select('conversation_id')
+          .eq('agent_id', currentAgent.id)
+
+        if (!memberships || memberships.length === 0 || !isSubscribed) return
+
+        const convIds = memberships.map((m) => m.conversation_id)
+
+        if (globalChannelRef.current) {
+          unsubscribeChannel(globalChannelRef.current)
+        }
+
+        const channel = subscribeToAllConversations(currentAgent.id, convIds, {
+          onNewMessage: async (msg) => {
+            if (msg.sender_id === currentAgent.id) return
+
+            // Play notification sound for all incoming messages from others
+            playNotificationSound()
+
+            // Refresh unread counts
+            try {
+              const counts = await getUnreadCounts(currentAgent.id)
+              if (isSubscribed) setUnreadCounts(counts)
+            } catch {}
+
+            // Fetch sender & conversation details for Desktop Notification
+            let senderName = 'Someone'
+            let convoName = 'New Message'
+
+            try {
+              const [{ data: senderAgent }, { data: convo }] = await Promise.all([
+                supabase.from('agents').select('name').eq('id', msg.sender_id).single(),
+                supabase.from('chat_conversations').select('name, type').eq('id', msg.conversation_id).single(),
+              ])
+
+              if (senderAgent) senderName = senderAgent.name
+              if (convo) convoName = convo.name || (convo.type === 'direct_dm' ? senderName : 'Group Chat')
+            } catch (err) {
+              console.error('Failed to resolve notification metadata:', err)
+            }
+
+            // Trigger native Desktop Notification (works across browser tabs & desktop windows)
+            sendDesktopNotification(
+              convoName,
+              `${senderName}: ${msg.content.substring(0, 100)}`,
+              () => {
+                if (typeof window !== 'undefined') {
+                  window.focus()
+                  window.location.href = `/communication?id=${msg.conversation_id}`
+                }
+              }
+            )
+          },
+        })
+
+        globalChannelRef.current = channel
+      } catch (err) {
+        console.error('[chatContext] Failed to setup global subscription:', err)
+      }
+    }
+
+    setupGlobalSubscription()
+
+    return () => {
+      isSubscribed = false
+      if (globalChannelRef.current) {
+        unsubscribeChannel(globalChannelRef.current)
+        globalChannelRef.current = null
+      }
+    }
+  }, [currentAgent?.id])
 
   // -----------------------------------------------------------------------
   // Sign in

@@ -7,6 +7,7 @@ import type { Conversation } from './types'
 
 interface ConversationHeaderProps {
   conversation: Conversation
+  currentAgentId?: string
   memberCount: number
   pinnedCount: number
   onSearchClick: () => void
@@ -35,6 +36,7 @@ function getAvatarColor(name: string): string {
 
 export default function ConversationHeader({
   conversation,
+  currentAgentId,
   memberCount,
   pinnedCount,
   onSearchClick,
@@ -43,14 +45,17 @@ export default function ConversationHeader({
 }: ConversationHeaderProps) {
   const isChannel = conversation.type === 'channel'
   const isDm = conversation.type === 'direct_dm'
+  const isGroup = conversation.type === 'group_dm'
 
   // For DMs, get the other person's info
   const dmMember =
     isDm && conversation.members?.length
-      ? conversation.members[0]
+      ? (conversation.members.find((m) => m.agent_id !== currentAgentId) || conversation.members[0])
       : null
 
-  const displayName = isDm && dmMember?.agent ? dmMember.agent.name : (conversation.name ?? 'Conversation')
+  const displayName = isDm && dmMember?.agent 
+    ? dmMember.agent.name 
+    : (conversation.name ?? (isGroup ? 'Group Conversation' : 'Conversation'))
 
   return (
     <div className="px-4 py-3 border-b border-slate-100 bg-white flex items-center justify-between gap-4 shrink-0">
@@ -60,6 +65,10 @@ export default function ConversationHeader({
         {isChannel ? (
           <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
             <Hash className="w-4.5 h-4.5 text-slate-500" />
+          </div>
+        ) : isGroup ? (
+          <div className="w-9 h-9 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center shrink-0 text-blue-600">
+            <Users className="w-4.5 h-4.5" />
           </div>
         ) : (
           <div className="relative shrink-0">
