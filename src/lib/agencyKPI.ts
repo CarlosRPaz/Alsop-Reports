@@ -8,7 +8,7 @@ const PAGE_SIZE = 1000
  * Paginated Supabase fetch — loops .range() to get ALL rows, defeating the 1000-row cap.
  * This is a generic helper that any server action can use.
  */
-async function fetchAllRows(
+export async function fetchAllRows(
   buildQuery: (from: number, to: number) => any
 ): Promise<any[]> {
   let allData: any[] = []

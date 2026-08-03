@@ -2,7 +2,7 @@
 
 import { supabase } from "@/lib/supabaseClient"
 import { unstable_noStore as noStore } from "next/cache"
-import { getAgencyKPITotals } from "@/lib/agencyKPI"
+import { getAgencyKPITotals, fetchAllRows } from "@/lib/agencyKPI"
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
@@ -171,11 +171,14 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
     const prevFirstOfMonth = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`
     const prevLastOfMonth = `${prevYear}-${String(prevMonth).padStart(2, "0")}-${new Date(prevYear, prevMonth, 0).getDate()}`
 
-    const { data: prevMonthMetrics } = await supabase
-      .from("daily_metrics")
-      .select("agent_id, nb_auto_items")
-      .gte("report_date", prevFirstOfMonth)
-      .lte("report_date", prevLastOfMonth)
+    const prevMonthMetrics = await fetchAllRows((from, to) =>
+      supabase
+        .from("daily_metrics")
+        .select("agent_id, nb_auto_items")
+        .gte("report_date", prevFirstOfMonth)
+        .lte("report_date", prevLastOfMonth)
+        .range(from, to)
+    )
 
     // ── Aggregate daily rows into per-agent weekly totals ──
     // Pre-populate agentMap with ALL active/visible agents so new agents
