@@ -116,8 +116,14 @@ export default function AgencyMTDPacing({
                   {statusIcon} {statusLabel}
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
-                📅 {elapsed} of {totalBizDays} biz days elapsed <span className="text-slate-400">({remainingBizDays} remaining)</span>
+              <p className="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
+                <span>📅 {elapsed} of {totalBizDays} biz days elapsed <span className="text-slate-400">({remainingBizDays} remaining)</span></span>
+                {lastMonthItems != null && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-slate-100/80 px-2 py-0.5 rounded border border-slate-200/80">
+                    <span className="text-slate-400 uppercase tracking-wider font-bold text-[9px]">Last Mo:</span>
+                    <span className="font-bold font-mono text-slate-800">{lastMonthItems}</span>
+                  </span>
+                )}
               </p>
             </div>
             
@@ -166,18 +172,6 @@ export default function AgencyMTDPacing({
                   );
                 })()}
               </div>
-
-            {/* Last Month Reference */}
-            {lastMonthItems != null && (
-              <>
-                <div className="h-8 w-[1px] bg-slate-200" />
-                <div className="text-right">
-                  <p className="text-[8px] uppercase tracking-wider text-slate-500 font-bold mb-0.5">Last Month</p>
-                  <p className="text-base font-black font-mono text-slate-900 leading-none">{lastMonthItems}</p>
-                  <p className="text-[8px] text-slate-400 font-medium mt-0.5">NB auto items</p>
-                </div>
-              </>
-            )}
             </div>
           </div>
 
