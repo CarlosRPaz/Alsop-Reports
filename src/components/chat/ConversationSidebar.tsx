@@ -95,10 +95,25 @@ export default function ConversationSidebar({
   const [channelsOpen, setChannelsOpen] = useState(true)
   const [dmsOpen, setDmsOpen] = useState(true)
 
-  const channels = useMemo(
-    () => conversations.filter((c) => c.type === 'channel'),
-    [conversations]
-  )
+  const channels = useMemo(() => {
+    const list = conversations.filter((c) => c.type === 'channel')
+    return list.sort((a, b) => {
+      // 1. Pinned channels first
+      if (a.is_pinned && !b.is_pinned) return -1
+      if (!a.is_pinned && b.is_pinned) return 1
+
+      // 2. 'All' channel always comes first among unpinned (or top of pinned if pinned)
+      const isAllA = a.name?.trim().toLowerCase() === 'all'
+      const isAllB = b.name?.trim().toLowerCase() === 'all'
+      if (isAllA && !isAllB) return -1
+      if (!isAllA && isAllB) return 1
+
+      // 3. Otherwise sort by last message / activity time descending
+      const aTime = a.last_message?.created_at ?? a.updated_at
+      const bTime = b.last_message?.created_at ?? b.updated_at
+      return new Date(bTime).getTime() - new Date(aTime).getTime()
+    })
+  }, [conversations])
 
   const directMessages = useMemo(
     () => conversations.filter((c) => c.type === 'direct_dm' || c.type === 'group_dm'),
@@ -250,7 +265,7 @@ export default function ConversationSidebar({
                   key={conv.id}
                   onClick={() => onSelect(conv.id)}
                   className={cn(
-                    'group/item w-full flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm transition-all duration-200',
+                    'group/item w-full flex items-start gap-2.5 px-3 py-2 rounded-md text-sm transition-all duration-200',
                     isSelected
                       ? 'bg-blue-50 text-blue-700 font-semibold ring-1 ring-blue-600/10'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
@@ -258,15 +273,15 @@ export default function ConversationSidebar({
                   )}
                 >
                   {/* Avatar with presence */}
-                  <div className="relative shrink-0">
+                  <div className="relative shrink-0 mt-0.5">
                     <div
                       className={cn(
-                        'w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold',
+                        'w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold',
                         getAvatarColor(displayName)
                       )}
                     >
                       {conv.type === 'group_dm' ? (
-                        <Users className="w-3.5 h-3.5" />
+                        <Users className="w-4 h-4" />
                       ) : (
                         displayName.charAt(0).toUpperCase()
                       )}
@@ -277,25 +292,53 @@ export default function ConversationSidebar({
                       </div>
                     )}
                   </div>
-                  <span className="truncate flex-1 text-left">{displayName}</span>
-                  <span
-                    role="button"
-                    onClick={(e) => { e.stopPropagation(); onTogglePin(conv.id, !!conv.is_pinned) }}
-                    className={cn(
-                      'shrink-0 w-5 h-5 flex items-center justify-center rounded transition-all',
-                      conv.is_pinned
-                        ? 'text-amber-500 hover:text-amber-600'
-                        : 'text-slate-300 opacity-0 group-hover/item:opacity-100 hover:text-amber-500'
-                    )}
-                    title={conv.is_pinned ? 'Unpin' : 'Pin'}
-                  >
-                    <Pin className={cn('w-3 h-3', conv.is_pinned && 'fill-current')} />
-                  </span>
-                  {unread > 0 && (
-                    <span className="ml-auto bg-blue-600 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1 shrink-0">
-                      {unread > 99 ? '99+' : unread}
+
+                  {/* Name + subtitle */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-left leading-tight">{displayName}</span>
+                      {conv.type === 'group_dm' && conv.members && conv.members.length > 0 && (
+                        <span className="shrink-0 text-[10px] font-medium text-slate-400 bg-slate-100 rounded px-1 py-px leading-tight">
+                          {conv.members.length}
+                        </span>
+                      )}
+                    </div>
+                    {/* Subtitle: member names for groups, last message for DMs */}
+                    {conv.type === 'group_dm' && conv.members && conv.members.length > 0 ? (
+                      <p className="text-[11px] text-slate-400 truncate mt-0.5 font-normal leading-tight">
+                        {conv.members
+                          .filter((m) => m.agent_id !== currentAgent.id)
+                          .map((m) => m.agent?.name?.split(' ')[0] ?? '?')
+                          .join(', ')}
+                      </p>
+                    ) : conv.last_message ? (
+                      <p className="text-[11px] text-slate-400 truncate mt-0.5 font-normal leading-tight">
+                        {conv.last_message.content.substring(0, 60)}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  {/* Pin + Unread */}
+                  <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                    <span
+                      role="button"
+                      onClick={(e) => { e.stopPropagation(); onTogglePin(conv.id, !!conv.is_pinned) }}
+                      className={cn(
+                        'w-5 h-5 flex items-center justify-center rounded transition-all',
+                        conv.is_pinned
+                          ? 'text-amber-500 hover:text-amber-600'
+                          : 'text-slate-300 opacity-0 group-hover/item:opacity-100 hover:text-amber-500'
+                      )}
+                      title={conv.is_pinned ? 'Unpin' : 'Pin'}
+                    >
+                      <Pin className={cn('w-3 h-3', conv.is_pinned && 'fill-current')} />
                     </span>
-                  )}
+                    {unread > 0 && (
+                      <span className="bg-blue-600 text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1 shrink-0">
+                        {unread > 99 ? '99+' : unread}
+                      </span>
+                    )}
+                  </div>
                 </button>
               )
             })}

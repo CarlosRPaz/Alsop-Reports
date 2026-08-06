@@ -269,6 +269,18 @@ export interface PagePermission {
 /**
  * Get all page permission rows.
  */
+const DEFAULT_PAGES = [
+  { page_key: "daily", page_label: "Daily Standup", allowed_teams: ["Sales", "CSR", "EA"] },
+  { page_key: "weekly", page_label: "Weekly Report", allowed_teams: ["Sales", "CSR", "EA"] },
+  { page_key: "mtd", page_label: "MTD Performance", allowed_teams: ["Sales", "CSR", "EA"] },
+  { page_key: "quotes", page_label: "Quotes & NB", allowed_teams: ["Sales", "CSR", "EA"] },
+  { page_key: "heatmap", page_label: "Agent Heatmap", allowed_teams: ["Sales", "CSR", "EA"] },
+  { page_key: "agent_portal", page_label: "Agent Portal", allowed_teams: ["Sales", "CSR", "EA"] },
+]
+
+/**
+ * Get all page permission rows.
+ */
 export async function getPagePermissions(): Promise<PagePermission[]> {
   await requireAdmin()
   const supabase = createSupabaseAdmin()
@@ -281,7 +293,27 @@ export async function getPagePermissions(): Promise<PagePermission[]> {
     console.error("Failed to fetch page permissions:", error)
     return []
   }
-  return (data || []) as PagePermission[]
+
+  const existing = (data || []) as PagePermission[]
+  const existingKeys = new Set(existing.map(p => p.page_key))
+
+  // Find missing required pages (e.g. heatmap)
+  const missing = DEFAULT_PAGES.filter(p => !existingKeys.has(p.page_key))
+
+  if (missing.length > 0) {
+    try {
+      await supabase.from("page_permissions").upsert(missing, { onConflict: "page_key" })
+      const { data: updatedData } = await supabase
+        .from("page_permissions")
+        .select("page_key, page_label, allowed_teams")
+        .order("page_key")
+      if (updatedData) return updatedData as PagePermission[]
+    } catch (err) {
+      console.error("Failed to auto-seed missing page permissions:", err)
+    }
+  }
+
+  return existing
 }
 
 /**

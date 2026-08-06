@@ -67,6 +67,7 @@ export {
   subscribeToAllConversations,
   updatePresence,
   unsubscribeChannel,
+  unsubscribeChannels,
 } from './realtime'
 
 // Context

@@ -4,6 +4,12 @@
  * Port of Python's src/supabase_pusher.py.
  * Handles upserting agents, daily metrics (with partial-update support),
  * quote records, quote duplicates, and upload history.
+ *
+ * CALL DATA HANDLING:
+ * Agents can appear on both RingCentral (rc) and Ricochet (rico_ap/rico_ch).
+ * When sources are uploaded separately, call data is ADDED (not overwritten).
+ * A hidden JSONB column `call_source_breakdown` tracks each source's contribution
+ * so re-uploads of the same source correctly replace (not accumulate).
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -31,6 +37,18 @@ interface MergedRow {
   PremPremium: number
   PremItems: number
   PremPoints: number
+  callSourceBreakdown?: Record<string, { calls: number; inbound: number; outbound: number; talk_time_seconds: number }>
+}
+
+/** The four call-related fields that can come from multiple sources */
+const CALL_FIELDS = new Set(["calls", "inbound", "outbound", "talk_time_seconds"])
+
+/** Map from daily_metrics column name → callSourceBreakdown sub-key */
+const CALL_FIELD_TO_BREAKDOWN_KEY: Record<string, string> = {
+  calls: "calls",
+  inbound: "inbound",
+  outbound: "outbound",
+  talk_time_seconds: "talk_time_seconds",
 }
 
 /**
@@ -60,18 +78,6 @@ export async function pushToSupabase(
       for (const f of fields) partialFields.add(f)
     }
     logs.push(`[Supabase] Partial update fields: ${[...partialFields].sort().join(", ")}`)
-  }
-
-  // Build reverse map: field → set of source types that own it.
-  // Fields owned by multiple sources (e.g. talk_time_seconds → rc + rico_ch)
-  // need special handling in partial mode to avoid cross-source overwrites.
-  const fieldToSources = new Map<string, string[]>()
-  for (const [src, fields] of Object.entries(SOURCE_FIELD_MAP)) {
-    for (const f of fields) {
-      const existing = fieldToSources.get(f) || []
-      existing.push(src)
-      fieldToSources.set(f, existing)
-    }
   }
 
   // 1. Upsert Agents
@@ -131,7 +137,7 @@ export async function pushToSupabase(
   } else {
     const { data: existingData } = await supabase
       .from("daily_metrics")
-      .select("agent_id, dismissed_todos, past_due_todos, pivots")
+      .select("agent_id, dismissed_todos, past_due_todos, pivots, call_source_breakdown")
       .eq("report_date", reportDate)
 
     if (existingData) {
@@ -141,6 +147,8 @@ export async function pushToSupabase(
           past_due_todos: row.past_due_todos,
           pivots: row.pivots,
         })
+        // For full mode, also store existing rows so we can read call_source_breakdown
+        existingRows.set(row.agent_id, row)
       }
     }
   }
@@ -153,8 +161,9 @@ export async function pushToSupabase(
     if (!agentId) continue
 
     const existing = existingManualData.get(agentId) || {}
+    const existingRow = existingRows.get(agentId) || {}
 
-    // Build the full field map from pipeline data
+    // Build the full field map from pipeline data (non-call fields)
     const allFields: Record<string, unknown> = {
       calls: row.Calls,
       inbound: row.Inbound,
@@ -179,9 +188,53 @@ export async function pushToSupabase(
       pivots: existing.pivots ?? 0,
     }
 
+    // ---------- CALL SOURCE BREAKDOWN LOGIC ----------
+    // Read existing breakdown from DB (if any)
+    const existingBreakdown: Record<string, Record<string, number>> =
+      (existingRow as Record<string, unknown>).call_source_breakdown as Record<string, Record<string, number>> || {}
+
+    // New breakdown from the current merge
+    const newBreakdown = row.callSourceBreakdown || {}
+
+    // Compute the final merged breakdown:
+    // - Sources in the current upload get REPLACED with new values
+    // - Sources NOT in the current upload keep their existing values
+    const finalBreakdown: Record<string, Record<string, number>> = { ...existingBreakdown }
+
+    if (isPartial) {
+      // Partial upload: merge new source contributions into existing breakdown
+      // Only replace sources that are actually in this upload
+      for (const [src, data] of Object.entries(newBreakdown)) {
+        finalBreakdown[src] = { ...data }
+      }
+    } else {
+      // Full upload: the merge already computed the complete breakdown
+      // Replace the entire breakdown with what merge produced
+      for (const key of Object.keys(finalBreakdown)) {
+        delete finalBreakdown[key]
+      }
+      for (const [src, data] of Object.entries(newBreakdown)) {
+        finalBreakdown[src] = { ...data }
+      }
+    }
+
+    // Recompute call totals from the merged breakdown
+    let totalCalls = 0, totalInbound = 0, totalOutbound = 0, totalTalkTime = 0
+    for (const srcData of Object.values(finalBreakdown)) {
+      totalCalls += srcData.calls || 0
+      totalInbound += srcData.inbound || 0
+      totalOutbound += srcData.outbound || 0
+      totalTalkTime += srcData.talk_time_seconds || 0
+    }
+
+    // Override call fields with the correctly summed totals
+    allFields.calls = totalCalls
+    allFields.inbound = totalInbound
+    allFields.outbound = totalOutbound
+    allFields.talk_time_seconds = totalTalkTime
+
     if (isPartial) {
       // Start from existing row, only overwrite targeted fields
-      const existingRow = existingRows.get(agentId) || {}
       const metric: Record<string, unknown> = {
         agent_id: agentId,
         report_date: reportDate,
@@ -189,62 +242,19 @@ export async function pushToSupabase(
 
       for (const [field, newVal] of Object.entries(allFields)) {
         if (partialFields.has(field)) {
-          // Check if this field is shared between multiple sources
-          // (e.g. talk_time_seconds is owned by both "rc" and "rico_ch").
-          // If so, only write if the agent was actually present in the
-          // uploaded source's data — otherwise preserve the existing value
-          // to avoid cross-source overwrites.
-          const fieldSources = fieldToSources.get(field) || []
-          const isSharedField = fieldSources.length > 1
-
-          if (isSharedField && sourceAgents) {
-            // Which of the currently-uploaded sources own this field?
-            const uploadedSourcesForField = fieldSources.filter(
-              s => uploadTypes!.includes(s)
-            )
-            // Was this agent present in ANY of those sources' raw data?
-            const agentInSource = uploadedSourcesForField.some(
-              s => sourceAgents[s]?.has(row.agent)
-            )
-
-            if (agentInSource) {
-              // Agent was in the uploaded source data.
-              // Check if ALL sources for this field are being uploaded.
-              const allSourcesForFieldPresent = fieldSources.every(
-                s => uploadTypes!.includes(s)
-              )
-              if (allSourcesForFieldPresent) {
-                // All sources present → merge has the complete picture → write directly
-                metric[field] = newVal
-              } else {
-                // NOT all sources present — the existing DB value includes
-                // contributions from previously-uploaded sources (e.g. RC data).
-                // The new merge value only contains THIS upload's contribution.
-                // ADD them together so both sources are counted.
-                // (e.g. RC uploaded calls=19, then Rico AP uploads calls=3 → 19+3=22)
-                //
-                // Note: if the SAME source is re-uploaded for the same date,
-                // this will double-count. Re-upload all sources to correct.
-                const ev = Number((existingRow as Record<string, unknown>)[field]) || 0
-                const nv = Number(newVal) || 0
-                metric[field] = ev + nv
-              }
-            } else {
-              // Agent was NOT in the uploaded source — preserve existing
-              const ev = (existingRow as Record<string, unknown>)[field]
-              metric[field] = (ev !== null && ev !== undefined) ? ev : newVal
-            }
-          } else {
-            // Single-source field or no source tracking — write normally.
-            // The pipeline output is authoritative for these fields.
-            metric[field] = newVal
-          }
+          // For call fields: use the recomputed total from breakdown
+          // For non-call fields: use the value from allFields directly
+          metric[field] = newVal
         } else {
           // Keep existing value, fall back to 0/default if no existing row
           const ev = (existingRow as Record<string, unknown>)[field]
           metric[field] = (ev !== null && ev !== undefined) ? ev : newVal
         }
       }
+
+      // Always write the merged breakdown
+      metric.call_source_breakdown = finalBreakdown
+
       metricsData.push(metric)
     } else {
       // Full mode — write everything
@@ -252,6 +262,7 @@ export async function pushToSupabase(
         agent_id: agentId,
         report_date: reportDate,
         ...allFields,
+        call_source_breakdown: finalBreakdown,
       })
     }
   }

@@ -130,10 +130,16 @@ export async function fetchConversationsForAgent(
     }),
   )
 
-  // 5. Sort: pinned first, then by last message time
+  // 5. Sort: pinned first, then 'All' channel, then by last message time
   enriched.sort((a, b) => {
     if (a.is_pinned && !b.is_pinned) return -1
     if (!a.is_pinned && b.is_pinned) return 1
+    if (a.type === 'channel' && b.type === 'channel') {
+      const isAllA = a.name?.trim().toLowerCase() === 'all'
+      const isAllB = b.name?.trim().toLowerCase() === 'all'
+      if (isAllA && !isAllB) return -1
+      if (!isAllA && isAllB) return 1
+    }
     const aTime = a.last_message?.created_at ?? a.updated_at
     const bTime = b.last_message?.created_at ?? b.updated_at
     return new Date(bTime).getTime() - new Date(aTime).getTime()

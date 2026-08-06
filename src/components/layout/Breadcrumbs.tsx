@@ -19,14 +19,14 @@ const routeMap: Record<string, string> = {
 export function Breadcrumbs() {
   const pathname = usePathname()
   
-  if (pathname === "/login" || pathname === "/") {
+  if (pathname === "/login" || pathname === "/" || pathname.startsWith("/admin/docs")) {
     return null
   }
 
   const segments = pathname.split("/").filter(Boolean)
   
   return (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 px-8 pt-4 pb-0 text-xs text-slate-500 dark:text-slate-400 font-medium no-print">
+    <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 px-4 sm:px-8 pt-4 pb-0 text-xs text-slate-500 dark:text-slate-400 font-medium no-print">
       <Link 
         href="/" 
         className="flex items-center gap-1 hover:text-blue-600 transition-colors text-slate-400"

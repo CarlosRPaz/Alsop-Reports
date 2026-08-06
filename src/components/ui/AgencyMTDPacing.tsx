@@ -1,8 +1,14 @@
 "use client"
 
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/Card"
 import { TrendingUp } from "lucide-react"
 import { calcPacing, toHolidaySet, getBusinessDaysInMonth, getElapsedBusinessDays } from "@/lib/businessDays"
+import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser"
+import {
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis,
+  Tooltip, CartesianGrid, ReferenceLine,
+} from "recharts"
 
 const AGENCY_GOAL = 500
 
@@ -290,8 +296,187 @@ export default function AgencyMTDPacing({
               )}
             </div>
           </div>
+
+          {/* ─── MTD Daily Items Line Chart ─────────────────────────────── */}
+          <MTDDailyChart year={currentYear} month={currentMonth} goal={AGENCY_GOAL} totalBizDays={totalBizDays} />
+
         </CardContent>
       </Card>
     </>
+  )
+}
+
+// ─── Self-contained MTD daily line chart ──────────────────────────────────
+
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+interface ChartPoint {
+  date: string      // raw ISO date
+  label: string     // "Tue, 8/4"
+  items: number     // that day's agency-wide nb_auto_items
+  cumulative: number // running total
+}
+
+function MTDDailyChart({ year, month, goal, totalBizDays }: { year: number; month: number; goal: number; totalBizDays: number }) {
+  const [chartData, setChartData] = useState<ChartPoint[]>([])
+  const [loading, setLoading] = useState(true)
+  const supabase = createSupabaseBrowserClient()
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      const firstDay = `${year}-${String(month).padStart(2, "0")}-01`
+      const lastDay = `${year}-${String(month).padStart(2, "0")}-${new Date(year, month, 0).getDate()}`
+
+      // Fetch all nb_auto_items rows for this month, all agents
+      const PAGE = 1000
+      let allRows: { report_date: string; nb_auto_items: number }[] = []
+      let from = 0
+      while (true) {
+        const { data } = await supabase
+          .from("daily_metrics")
+          .select("report_date, nb_auto_items")
+          .gte("report_date", firstDay)
+          .lte("report_date", lastDay)
+          .range(from, from + PAGE - 1)
+        if (!data || data.length === 0) break
+        allRows = allRows.concat(data)
+        if (data.length < PAGE) break
+        from += PAGE
+      }
+
+      if (cancelled) return
+
+      // Aggregate by date
+      const byDate = new Map<string, number>()
+      for (const row of allRows) {
+        byDate.set(row.report_date, (byDate.get(row.report_date) || 0) + (row.nb_auto_items || 0))
+      }
+
+      // Build sorted points
+      const dates = [...byDate.keys()].sort()
+      let cumulative = 0
+      const points: ChartPoint[] = dates
+        .filter(d => (byDate.get(d) || 0) > 0)
+        .map(d => {
+          const items = byDate.get(d) || 0
+          cumulative += items
+          const dt = new Date(d + "T12:00:00")
+          const dayName = DAY_NAMES[dt.getDay()]
+          const label = `${dayName}, ${dt.getMonth() + 1}/${dt.getDate()}`
+          return { date: d, label, items, cumulative }
+        })
+
+      setChartData(points)
+      setLoading(false)
+    }
+    load()
+    return () => { cancelled = true }
+  }, [year, month, supabase])
+
+  // Daily goal pace line value
+  const dailyPace = totalBizDays > 0 ? Math.round(goal / totalBizDays) : 0
+
+  if (loading) {
+    return (
+      <div className="mt-2 pt-3 border-t border-slate-100">
+        <div className="h-36 bg-slate-50 rounded-lg animate-pulse flex items-center justify-center">
+          <span className="text-xs text-slate-400">Loading daily trend...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (chartData.length === 0) return null
+
+  return (
+    <div className="mt-2 pt-3 border-t border-slate-100">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Daily Items Trend</p>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-0.5 bg-blue-500 rounded-full" />
+            <span className="text-[10px] text-slate-500">Items / Day</span>
+          </div>
+          {dailyPace > 0 && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-0 border-t border-dashed border-slate-400" />
+              <span className="text-[10px] text-slate-400">Pace ({dailyPace}/day)</span>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="h-36">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+          <LineChart data={chartData} margin={{ top: 16, right: 12, bottom: 0, left: -10 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 10, fill: "#94a3b8", fontWeight: 600 }}
+              axisLine={{ stroke: "#e2e8f0" }}
+              tickLine={false}
+              interval={chartData.length > 15 ? 1 : 0}
+              angle={chartData.length > 10 ? -30 : 0}
+              textAnchor={chartData.length > 10 ? "end" : "middle"}
+              height={chartData.length > 10 ? 36 : 24}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: "#94a3b8" }}
+              axisLine={false}
+              tickLine={false}
+              allowDecimals={false}
+            />
+            <Tooltip
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null
+                const d = payload[0].payload as ChartPoint
+                return (
+                  <div className="bg-slate-900 text-white rounded-lg px-3 py-2 text-xs shadow-xl border border-slate-700">
+                    <p className="font-bold mb-1">{d.label}</p>
+                    <p className="text-blue-300">Items: <span className="font-mono font-bold text-white">{d.items}</span></p>
+                    <p className="text-slate-400">MTD Total: <span className="font-mono font-bold text-slate-200">{d.cumulative}</span></p>
+                  </div>
+                )
+              }}
+            />
+            {dailyPace > 0 && (
+              <ReferenceLine
+                y={dailyPace}
+                stroke="#94a3b8"
+                strokeDasharray="4 4"
+                strokeWidth={1}
+              />
+            )}
+            <Line
+              type="monotone"
+              dataKey="items"
+              stroke="#3b82f6"
+              strokeWidth={2}
+              dot={({ cx, cy, payload, index }: any) => {
+                if (cx === undefined || cy === undefined) return <></>
+                return (
+                  <g key={index}>
+                    <circle cx={cx} cy={cy} r={3} fill="#3b82f6" stroke="#fff" strokeWidth={1.5} />
+                    <text
+                      x={cx}
+                      y={cy - 10}
+                      textAnchor="middle"
+                      fill="#334155"
+                      fontSize={9}
+                      fontWeight={700}
+                      fontFamily="ui-monospace, monospace"
+                    >
+                      {payload.items}
+                    </text>
+                  </g>
+                )
+              }}
+              activeDot={{ r: 5, fill: "#2563eb", stroke: "#fff", strokeWidth: 2 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
   )
 }

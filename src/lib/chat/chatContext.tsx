@@ -26,6 +26,7 @@ import { playNotificationSound } from './sound'
 import {
   updatePresence,
   unsubscribeChannel,
+  unsubscribeChannels,
   subscribeToAllConversations,
 } from './realtime'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -74,7 +75,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Keep a ref to the presence heartbeat interval so we can clear it on
   // unmount or sign-out.
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const globalChannelRef = useRef<RealtimeChannel | null>(null)
+  const globalChannelRef = useRef<RealtimeChannel[]>([])
 
   // -----------------------------------------------------------------------
   // Hydrate agent from localStorage on mount
@@ -142,8 +143,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('agent-updated', handleAgentUpdate)
       // Cleanup heartbeat & channel on unmount
       if (heartbeatRef.current) clearInterval(heartbeatRef.current)
-      if (globalChannelRef.current) {
-        unsubscribeChannel(globalChannelRef.current)
+      if (globalChannelRef.current.length > 0) {
+        unsubscribeChannels(globalChannelRef.current)
+        globalChannelRef.current = []
       }
     }
   }, [])
@@ -218,11 +220,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         const convIds = memberships.map((m) => m.conversation_id)
 
-        if (globalChannelRef.current) {
-          unsubscribeChannel(globalChannelRef.current)
+        // IMPORTANT: await cleanup of old channels BEFORE creating new ones.
+        // Without await, the old channel teardown races with the new channel
+        // setup, causing "cannot add postgres_changes callbacks after subscribe()"
+        if (globalChannelRef.current.length > 0) {
+          await unsubscribeChannels(globalChannelRef.current)
+          globalChannelRef.current = []
         }
 
-        const channel = subscribeToAllConversations(currentAgent.id, convIds, {
+        if (!isSubscribed) return
+
+        const channels = subscribeToAllConversations(currentAgent.id, convIds, {
           onNewMessage: async (msg) => {
             if (msg.sender_id === currentAgent.id) return
 
@@ -265,7 +273,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           },
         })
 
-        globalChannelRef.current = channel
+        globalChannelRef.current = channels
       } catch (err) {
         console.error('[chatContext] Failed to setup global subscription:', err)
       }
@@ -275,9 +283,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     return () => {
       isSubscribed = false
-      if (globalChannelRef.current) {
-        unsubscribeChannel(globalChannelRef.current)
-        globalChannelRef.current = null
+      if (globalChannelRef.current.length > 0) {
+        unsubscribeChannels(globalChannelRef.current)
+        globalChannelRef.current = []
       }
     }
   }, [currentAgent?.id])
@@ -310,9 +318,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       clearInterval(heartbeatRef.current)
       heartbeatRef.current = null
     }
-    if (globalChannelRef.current) {
-      unsubscribeChannel(globalChannelRef.current)
-      globalChannelRef.current = null
+    if (globalChannelRef.current.length > 0) {
+      unsubscribeChannels(globalChannelRef.current)
+      globalChannelRef.current = []
     }
 
     setCurrentAgent(null)

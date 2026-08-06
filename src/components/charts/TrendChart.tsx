@@ -70,7 +70,7 @@ export function TrendChart({ title, data, dataKey, xAxisKey = "date", color = "#
       <CardContent className="flex-1 min-h-0 relative">
         {isMounted ? (
           <div className="absolute inset-x-2 top-0 bottom-2">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <LineChart data={data} margin={{ top: 20, right: 15, left: 10, bottom: 50 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis 

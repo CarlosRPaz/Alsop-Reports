@@ -21,9 +21,7 @@ import {
   createMentionRecords,
   resolveMentionTargets,
   createNotification,
-  sendDesktopNotification,
   subscribeToConversation,
-  subscribeToAllConversations,
   unsubscribeChannel,
   getOrCreateDirectDM,
 } from "@/lib/chat"
@@ -57,9 +55,8 @@ export default function CommunicationHub() {
   const [editingMessage, setEditingMessage] = useState<string | null>(null)
   const [showPinnedPanel, setShowPinnedPanel] = useState(false)
 
-  // Realtime channel refs
+  // Realtime channel ref
   const conversationChannelRef = useRef<RealtimeChannel | null>(null)
-  const globalChannelRef = useRef<RealtimeChannel | null>(null)
 
   const selectedConversation = conversations.find(c => c.id === selectedId) || null
 
@@ -236,81 +233,29 @@ export default function CommunicationHub() {
     }
   }, [selectedId, currentAgent, refreshUnreadCounts])
 
-  // Global subscription for unread counts across all conversations
+  // Global refresh: when unreadCounts change (triggered by chatContext's global
+  // subscription), refresh the sidebar conversation list so the latest messages
+  // and ordering stay up-to-date. We avoid a second realtime channel here —
+  // chatContext already runs one for sound + desktop notifications.
+  const prevUnreadRef = useRef(unreadCounts)
   useEffect(() => {
-    if (!currentAgent || conversations.length === 0) return
+    // Skip the initial render
+    if (prevUnreadRef.current === unreadCounts) return
+    prevUnreadRef.current = unreadCounts
 
-    if (globalChannelRef.current) {
-      unsubscribeChannel(globalChannelRef.current)
+    if (!currentAgent) return
+
+    const refreshConversations = async () => {
+      try {
+        const convos = await fetchConversationsForAgent(currentAgent.id)
+        setConversations(convos)
+      } catch (err) {
+        console.error("[CommunicationHub] Failed to refresh conversations:", err)
+      }
     }
 
-    const convIds = conversations.map(c => c.id)
-    const channel = subscribeToAllConversations(currentAgent.id, convIds, {
-      onNewMessage: async (msg: Message) => {
-        // Don't notify for own messages
-        if (msg.sender_id === currentAgent.id) return
-
-        let senderName = "Someone"
-        const enrichedMsg = { ...msg }
-
-        if (!enrichedMsg.sender) {
-          try {
-            const { data: senderAgent } = await supabase
-              .from('agents')
-              .select('id, name')
-              .eq('id', enrichedMsg.sender_id)
-              .single()
-            if (senderAgent) {
-              enrichedMsg.sender = senderAgent as any
-              senderName = senderAgent.name
-            }
-          } catch (err) {
-            console.error('Failed to fetch sender name for global notify:', err)
-          }
-        } else {
-          senderName = enrichedMsg.sender.name
-        }
-
-        // Refresh unread counts
-        refreshUnreadCounts()
-
-        // Update conversation list (move conversation with new message to top)
-        setConversations(prev => {
-          const updated = prev.map(c => {
-            if (c.id === enrichedMsg.conversation_id) {
-              return {
-                ...c,
-                last_message: {
-                  id: enrichedMsg.id,
-                  content: enrichedMsg.content,
-                  sender_name: senderName,
-                  created_at: enrichedMsg.created_at,
-                },
-              }
-            }
-            return c
-          })
-          return updated
-        })
-
-        // Show desktop notification if not viewing this conversation
-        if (enrichedMsg.conversation_id !== selectedId) {
-          const convo = conversations.find(c => c.id === enrichedMsg.conversation_id)
-          sendDesktopNotification(
-            convo?.name || "New Message",
-            `${senderName}: ${enrichedMsg.content.substring(0, 100)}`,
-            () => setSelectedId(enrichedMsg.conversation_id)
-          )
-        }
-      },
-    })
-
-    globalChannelRef.current = channel
-
-    return () => {
-      unsubscribeChannel(channel)
-    }
-  }, [currentAgent, conversations, selectedId, refreshUnreadCounts])
+    refreshConversations()
+  }, [unreadCounts, currentAgent])
 
   // ── Message actions ───────────────────────────────────────────
   const handleSendMessage = useCallback(
@@ -478,6 +423,12 @@ export default function CommunicationHub() {
               updated.sort((a, b) => {
                 if (a.is_pinned && !b.is_pinned) return -1
                 if (!a.is_pinned && b.is_pinned) return 1
+                if (a.type === 'channel' && b.type === 'channel') {
+                  const isAllA = a.name?.trim().toLowerCase() === 'all'
+                  const isAllB = b.name?.trim().toLowerCase() === 'all'
+                  if (isAllA && !isAllB) return -1
+                  if (!isAllA && isAllB) return 1
+                }
                 const aTime = a.last_message?.created_at ?? a.updated_at
                 const bTime = b.last_message?.created_at ?? b.updated_at
                 return new Date(bTime).getTime() - new Date(aTime).getTime()

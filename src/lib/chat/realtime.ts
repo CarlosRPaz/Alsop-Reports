@@ -6,6 +6,9 @@ import { supabase } from '@/lib/supabaseClient'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { ConversationCallbacks, GlobalCallbacks } from './types'
 
+// Monotonic counter to guarantee unique channel names across re-subscriptions.
+let channelSeq = 0
+
 // ---------------------------------------------------------------------------
 // Subscribe to a single conversation
 // ---------------------------------------------------------------------------
@@ -24,8 +27,13 @@ export function subscribeToConversation(
   conversationId: string,
   callbacks: ConversationCallbacks,
 ): RealtimeChannel {
-  const channel = supabase
-    .channel(`conversation:${conversationId}`)
+  const seq = ++channelSeq
+  const channel = supabase.channel(`conversation:${conversationId}:${seq}`)
+
+  // IMPORTANT: All `.on()` calls MUST be chained BEFORE `.subscribe()`.
+  // Calling `.on()` after `.subscribe()` throws:
+  //   "cannot add 'postgres_changes' callbacks after subscribe()"
+  channel
     .on(
       'postgres_changes',
       {
@@ -71,7 +79,13 @@ export function subscribeToConversation(
         callbacks.onNewReaction(payload.new as any)
       },
     )
-    .subscribe()
+
+  // Subscribe AFTER all `.on()` calls are registered
+  channel.subscribe((status) => {
+    if (status === 'CHANNEL_ERROR') {
+      console.error(`[realtime] Channel error for conversation:${conversationId}:${seq}`)
+    }
+  })
 
   return channel
 }
@@ -88,29 +102,50 @@ export function subscribeToConversation(
  * This creates a single channel with multiple filters — one per conversation
  * ID. For agents with very many conversations, consider debouncing or
  * batching.
+ *
+ * Supabase imposes a max of ~100 filters per channel. If the agent belongs
+ * to more than 100 conversations we split into batches.
  */
 export function subscribeToAllConversations(
   agentId: string,
   conversationIds: string[],
   callbacks: GlobalCallbacks,
-): RealtimeChannel {
-  const channel = supabase.channel(`global:${agentId}`)
+): RealtimeChannel[] {
+  if (conversationIds.length === 0) return []
 
-  for (const convId of conversationIds) {
-    channel.on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'chat_messages',
-        filter: `conversation_id=eq.${convId}`,
-      },
-      (payload) => callbacks.onNewMessage(payload.new as any),
-    )
+  const BATCH_SIZE = 50
+  const channels: RealtimeChannel[] = []
+
+  for (let i = 0; i < conversationIds.length; i += BATCH_SIZE) {
+    const batch = conversationIds.slice(i, i + BATCH_SIZE)
+    const seq = ++channelSeq
+    const channel = supabase.channel(`global:${agentId}:${seq}`)
+
+    // Register ALL .on() callbacks BEFORE calling .subscribe()
+    for (const convId of batch) {
+      channel.on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `conversation_id=eq.${convId}`,
+        },
+        (payload) => callbacks.onNewMessage(payload.new as any),
+      )
+    }
+
+    // NOW subscribe — after all callbacks are added
+    channel.subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.error(`[realtime] Channel error for global:${agentId}:${seq}`)
+      }
+    })
+
+    channels.push(channel)
   }
 
-  channel.subscribe()
-  return channel
+  return channels
 }
 
 // ---------------------------------------------------------------------------
@@ -140,12 +175,14 @@ export async function updatePresence(
 }
 
 // ---------------------------------------------------------------------------
-// Cleanup helper
+// Cleanup helpers
 // ---------------------------------------------------------------------------
 
 /**
  * Unsubscribe from a channel and remove it from the Supabase client.
  * Safe to call even if the channel is already removed.
+ * Returns a promise so callers can await full teardown before creating
+ * new channels (prevents the "cannot add callbacks after subscribe()" error).
  */
 export async function unsubscribeChannel(
   channel: RealtimeChannel,
@@ -155,4 +192,14 @@ export async function unsubscribeChannel(
   } catch {
     // Channel may already be removed — swallow the error
   }
+}
+
+/**
+ * Unsubscribe from an array of channels. Used by the global subscription
+ * which may split into multiple channels for large conversation lists.
+ */
+export async function unsubscribeChannels(
+  channels: RealtimeChannel[],
+): Promise<void> {
+  await Promise.all(channels.map(ch => unsubscribeChannel(ch)))
 }

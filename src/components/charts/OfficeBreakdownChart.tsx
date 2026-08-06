@@ -69,7 +69,7 @@ export function OfficeBreakdownChart({ title, data, metricKey, metricName, color
       <CardContent className="flex-1 min-h-0 relative">
         {isMounted ? (
           <div className="absolute inset-x-2 top-0 bottom-6">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <BarChart data={sortedData} margin={{ top: 25, right: 10, left: 10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis 

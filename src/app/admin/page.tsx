@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
-import { Users, Settings, Database, ArrowRight, CalendarDays, ShieldCheck } from "lucide-react"
+import { Users, Settings, Database, ArrowRight, CalendarDays, ShieldCheck, BookOpen } from "lucide-react"
 import Link from "next/link"
 
 export default function AdminHub() {
@@ -108,6 +108,25 @@ export default function AdminHub() {
             <Link href="/admin/sync">
               <button className="w-full inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white border border-slate-200 bg-white text-slate-700 shadow-sm h-10 py-2 px-4 group-hover:text-emerald-600 group-hover:border-emerald-600 hover:bg-emerald-600 hover:text-white hover:border-emerald-600">
                 Manage Data <ArrowRight className="w-4 h-4 ml-2" />
+              </button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* Documentation Card */}
+        <Card className="group hover:border-slate-500/50 transition-colors">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-slate-400" /> Admin Documentation
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-slate-500 text-sm mb-6">
+              Site guide, KPI definitions, upload instructions, and troubleshooting for all admins.
+            </p>
+            <Link href="/admin/docs">
+              <button className="w-full inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white border border-slate-200 bg-white text-slate-700 shadow-sm h-10 py-2 px-4 group-hover:text-slate-800 group-hover:border-slate-800 hover:bg-slate-800 hover:text-white hover:border-slate-800">
+                View Docs <ArrowRight className="w-4 h-4 ml-2" />
               </button>
             </Link>
           </CardContent>

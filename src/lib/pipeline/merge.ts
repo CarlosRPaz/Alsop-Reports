@@ -29,6 +29,8 @@ export interface AgentMetrics {
   PremPremium: number
   PremItems: number
   PremPoints: number
+  /** Per-source call breakdown for partial-upload bookkeeping */
+  callSourceBreakdown: Record<string, { calls: number; inbound: number; outbound: number; talk_time_seconds: number }>
 }
 
 /** Result of merging all sources — includes per-agent source tracking */
@@ -82,6 +84,7 @@ export function mergeAllData(
       NB: 0, Items: 0, WrittenPremium: 0,
       NBAutoCount: 0, NBAutoItems: 0,
       PremPremium: 0, PremItems: 0, PremPoints: 0,
+      callSourceBreakdown: {},
     })
   }
 
@@ -92,22 +95,36 @@ export function mergeAllData(
   //   Rico CH (CH zips)     → talk time only (Sales/EA agents)
   //
   // For agents on both platforms, values are summed.
+  // Per-source breakdown is tracked in callSourceBreakdown for partial-upload support.
 
-  // Combine call frames
-  type CallRow = { Agent: string; Calls: number; Inbound: number; Outbound: number; TalkTimeSeconds: number }
-  const callFrames: CallRow[] = []
+  // Track per-source contributions individually
+  type SourceCallData = { calls: number; inbound: number; outbound: number; talk_time_seconds: number }
+  // Map: agent → source → contribution
+  const perSourceCalls = new Map<string, Map<string, SourceCallData>>()
+
+  function addSourceCall(agent: string, source: string, calls: number, inbound: number, outbound: number, talkTime: number) {
+    if (!agent) return
+    let agentSources = perSourceCalls.get(agent)
+    if (!agentSources) {
+      agentSources = new Map()
+      perSourceCalls.set(agent, agentSources)
+    }
+    const existing = agentSources.get(source)
+    if (existing) {
+      existing.calls += calls
+      existing.inbound += inbound
+      existing.outbound += outbound
+      existing.talk_time_seconds += talkTime
+    } else {
+      agentSources.set(source, { calls, inbound, outbound, talk_time_seconds: talkTime })
+    }
+  }
 
   if (rcData && rcData.length > 0) {
     for (const row of rcData) {
       const agent = String(row.Agent || "")
       if (agent) sourceAgents.rc.add(agent)
-      callFrames.push({
-        Agent: agent,
-        Calls: toInt(row.Calls),
-        Inbound: toInt(row.Inbound),
-        Outbound: toInt(row.Outbound),
-        TalkTimeSeconds: toInt(row.TalkTimeSeconds),
-      })
+      addSourceCall(agent, "rc", toInt(row.Calls), toInt(row.Inbound), toInt(row.Outbound), toInt(row.TalkTimeSeconds))
     }
   }
 
@@ -126,13 +143,18 @@ export function mergeAllData(
     for (const row of ricoAPData) {
       const agent = String(row.Agent || "")
       if (agent) sourceAgents.rico_ap.add(agent)
-      callFrames.push({
-        Agent: agent,
-        Calls: toInt(row.Calls),
-        Inbound: toInt(row.Inbound),
-        Outbound: toInt(row.Outbound),
-        TalkTimeSeconds: chTalkMap.get(agent) || 0,
-      })
+      // Rico AP: call counts go under "rico_ap", talk time (from CH) under "rico_ch"
+      addSourceCall(agent, "rico_ap", toInt(row.Calls), toInt(row.Inbound), toInt(row.Outbound), 0)
+      const chTalk = chTalkMap.get(agent) || 0
+      if (chTalk > 0) {
+        addSourceCall(agent, "rico_ch", 0, 0, 0, chTalk)
+        chTalkMap.delete(agent) // consumed
+      }
+    }
+
+    // Any remaining CH-only agents (not in AP)
+    for (const [agent, talkTime] of chTalkMap) {
+      addSourceCall(agent, "rico_ch", 0, 0, 0, talkTime)
     }
   } else if (ricoCHData && ricoCHData.length > 0) {
     // No AP data — fall back to CH data for both calls + talk time (legacy behavior)
@@ -142,38 +164,33 @@ export function mergeAllData(
         sourceAgents.rico_ch.add(agent)
         sourceAgents.rico_ap.add(agent)  // CH provides both calls + talk in legacy mode
       }
-      callFrames.push({
-        Agent: agent,
-        Calls: toInt(row.Calls),
-        Inbound: toInt(row.Inbound),
-        Outbound: toInt(row.Outbound),
-        TalkTimeSeconds: toInt(row.TalkTimeSeconds),
-      })
+      // In legacy mode, CH provides everything — store calls under rico_ap, talk under rico_ch
+      addSourceCall(agent, "rico_ap", toInt(row.Calls), toInt(row.Inbound), toInt(row.Outbound), 0)
+      addSourceCall(agent, "rico_ch", 0, 0, 0, toInt(row.TalkTimeSeconds))
     }
   }
 
-  // Aggregate call frames per agent and merge
-  const callAgg = new Map<string, CallRow>()
-  for (const row of callFrames) {
-    const existing = callAgg.get(row.Agent)
-    if (existing) {
-      existing.Calls += row.Calls
-      existing.Inbound += row.Inbound
-      existing.Outbound += row.Outbound
-      existing.TalkTimeSeconds += row.TalkTimeSeconds
-    } else {
-      callAgg.set(row.Agent, { ...row })
-    }
-  }
-
-  for (const [agent, calls] of callAgg) {
+  // Build totals and breakdown per agent
+  for (const [agent, sources] of perSourceCalls) {
     const m = agentMap.get(agent)
-    if (m) {
-      m.Calls = calls.Calls
-      m.Inbound = calls.Inbound
-      m.Outbound = calls.Outbound
-      m.TalkTimeSeconds = calls.TalkTimeSeconds
+    if (!m) continue
+
+    let totalCalls = 0, totalInbound = 0, totalOutbound = 0, totalTalkTime = 0
+    const breakdown: Record<string, { calls: number; inbound: number; outbound: number; talk_time_seconds: number }> = {}
+
+    for (const [src, data] of sources) {
+      totalCalls += data.calls
+      totalInbound += data.inbound
+      totalOutbound += data.outbound
+      totalTalkTime += data.talk_time_seconds
+      breakdown[src] = { ...data }
     }
+
+    m.Calls = totalCalls
+    m.Inbound = totalInbound
+    m.Outbound = totalOutbound
+    m.TalkTimeSeconds = totalTalkTime
+    m.callSourceBreakdown = breakdown
   }
 
   // --- Hearsay texts ---
