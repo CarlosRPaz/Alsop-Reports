@@ -18,39 +18,14 @@ function Stepper({ value, onChange }: { value: number; onChange: (v: number) => 
   const set = (v: number) => onChange(Math.max(0, v))
 
   return (
-    <div className="flex items-center gap-[2px]">
-      {/* -5 */}
-      <button
-        onClick={() => set(value - 5)}
-        className="w-7 h-7 rounded-l-md bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-bold transition-colors border border-rose-200 active:scale-95"
-        tabIndex={-1}
-      >-5</button>
-      {/* -1 */}
-      <button
-        onClick={() => set(value - 1)}
-        className="w-6 h-7 bg-white hover:bg-rose-50 text-rose-500 text-xs font-bold transition-colors border-y border-rose-200 active:scale-95"
-        tabIndex={-1}
-      >−</button>
-      {/* Value display / editable */}
+    <div className="flex items-center">
       <input
         type="number"
         min={0}
         value={value}
         onChange={(e) => set(parseInt(e.target.value) || 0)}
-        className="w-10 h-7 bg-white border-y border-x border-slate-200 text-center text-sm font-mono text-slate-900 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        className="w-12 h-5 rounded-md bg-white border border-slate-200 text-center text-sm font-mono text-slate-900 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       />
-      {/* +1 */}
-      <button
-        onClick={() => set(value + 1)}
-        className="w-6 h-7 bg-white hover:bg-emerald-50 text-emerald-500 text-xs font-bold transition-colors border-y border-emerald-200 active:scale-95"
-        tabIndex={-1}
-      >+</button>
-      {/* +5 */}
-      <button
-        onClick={() => set(value + 5)}
-        className="w-7 h-7 rounded-r-md bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[10px] font-bold transition-colors border border-emerald-200 active:scale-95"
-        tabIndex={-1}
-      >+5</button>
     </div>
   )
 }
@@ -135,7 +110,7 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-max max-w-[95vw] flex flex-col max-h-[90vh]">
         
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
@@ -188,8 +163,13 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
           <table className="w-full text-left border-collapse">
             <thead className="sticky top-0 bg-white z-10">
               <tr className="border-b-2 border-slate-300 bg-slate-50/50">
-                <th className="py-2 px-3 text-[11px] uppercase tracking-wider text-slate-600 font-bold border-r-2 border-slate-300">Agent</th>
-                <th className="py-2 px-1 text-[11px] uppercase tracking-wider text-cyan-700 font-bold text-center">Pivots</th>
+                <th className="py-1 px-3 text-[11px] uppercase tracking-wider text-slate-600 font-bold border-r-2 border-slate-300">Agent</th>
+                <th className="py-1 px-1 text-[11px] uppercase tracking-wider text-cyan-700 font-bold text-center">
+                  <div className="flex flex-col items-center">
+                    <span>Pivots</span>
+                    <span className="text-[9px] text-slate-400 font-medium">eAgent</span>
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -203,10 +183,10 @@ export function EAgentModal({ isOpen, onClose, dateStr, agents, onSuccess }: EAg
                     key={agent.agent_id} 
                     className={`border-b border-slate-300 transition-colors ${rowBg} hover:bg-indigo-100/65`}
                   >
-                    <td className="py-2 px-3 border-r-2 border-slate-300">
+                    <td className="py-1 px-3 border-r-2 border-slate-300">
                       <span className={`text-sm font-semibold ${hasData ? "text-slate-900" : "text-slate-500"}`}>{agent.agents?.name}</span>
                     </td>
-                    <td className="py-2 px-1">
+                    <td className="py-1 px-1">
                       <div className="flex justify-center">
                         <Stepper 
                           value={d.pivots}

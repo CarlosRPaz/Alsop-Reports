@@ -23,39 +23,18 @@ const SNAPSHOT_FIELDS: (keyof ManualRow)[] = ["unique_leads", "rico_hot_pipeline
 const MANUAL_ONLY_FIELDS: (keyof ManualRow)[] = ["saved"]
 const AUTO_FIELDS: (keyof ManualRow)[] = ["pivot", "dismissed_todos"]
 
-// ── Compact Stepper Component ──
 function Stepper({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const set = (v: number) => onChange(Math.max(0, v))
 
   return (
-    <div className="flex items-center gap-[2px]">
-      <button
-        onClick={() => set(value - 5)}
-        className="w-6 h-6 rounded-l-md bg-rose-50 hover:bg-rose-100 text-rose-600 text-[9px] font-bold transition-colors border border-rose-200 active:scale-95"
-        tabIndex={-1}
-      >-5</button>
-      <button
-        onClick={() => set(value - 1)}
-        className="w-5 h-6 bg-white hover:bg-rose-50 text-rose-500 text-[10px] font-bold transition-colors border-y border-rose-200 active:scale-95"
-        tabIndex={-1}
-      >−</button>
+    <div className="flex items-center">
       <input
         type="number"
         min={0}
         value={value}
         onChange={(e) => set(parseInt(e.target.value) || 0)}
-        className="w-9 h-6 bg-white border-y border-x border-slate-200 text-center text-xs font-mono text-slate-900 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        className="w-10 h-5 rounded-md bg-white border border-slate-200 text-center text-xs font-mono text-slate-900 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       />
-      <button
-        onClick={() => set(value + 1)}
-        className="w-5 h-6 bg-white hover:bg-emerald-50 text-emerald-500 text-[10px] font-bold transition-colors border-y border-emerald-200 active:scale-95"
-        tabIndex={-1}
-      >+</button>
-      <button
-        onClick={() => set(value + 5)}
-        className="w-6 h-6 rounded-r-md bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[9px] font-bold transition-colors border border-emerald-200 active:scale-95"
-        tabIndex={-1}
-      >+5</button>
     </div>
   )
 }
@@ -81,23 +60,31 @@ const EMPTY_ROW: ManualRow = {
 }
 
 const FIELD_CONFIG = [
-  { key: "unique_leads" as const, label: "Unique Leads", short: "Leads", color: "text-blue-600", auto: false, dividerLeft: false },
-  { key: "rico_hot_pipeline" as const, label: "Rico Hot", short: "Hot", color: "text-orange-600", auto: false, dividerLeft: false },
-  { key: "pivot" as const, label: "#PIVOT", short: "Pivot", color: "text-cyan-600", auto: true, dividerLeft: true },
-  { key: "saved" as const, label: "#SAVED", short: "Saved", color: "text-emerald-600", auto: false, dividerLeft: false },
-  { key: "dismissed_todos" as const, label: "Dismissed", short: "Dism", color: "text-violet-600", auto: true, dividerLeft: true },
-  { key: "past_due_todos" as const, label: "Past Due", short: "PD", color: "text-rose-600", auto: false, dividerLeft: false },
-  { key: "rico_past_due_tasks" as const, label: "Rico PD", short: "RPD", color: "text-amber-600", auto: false, dividerLeft: true },
+  { key: "unique_leads" as const, label: "Unique Leads", short: "Leads", color: "text-blue-600", auto: false, dividerLeft: false, website: "Ricochet" },
+  { key: "rico_hot_pipeline" as const, label: "Rico Hot", short: "Hot", color: "text-orange-600", auto: false, dividerLeft: false, website: "Ricochet" },
+  { key: "rico_past_due_tasks" as const, label: "Rico PD", short: "RPD", color: "text-amber-600", auto: false, dividerLeft: false, website: "Ricochet" },
+  { key: "pivot" as const, label: "#PIVOT", short: "Pivot", color: "text-cyan-600", auto: true, dividerLeft: true, website: "eAgent" },
+  { key: "saved" as const, label: "#SAVED", short: "Saved", color: "text-emerald-600", auto: false, dividerLeft: false, website: "eAgent" },
+  { key: "dismissed_todos" as const, label: "Dismissed", short: "Dism", color: "text-violet-600", auto: true, dividerLeft: false, website: "eAgent" },
+  { key: "past_due_todos" as const, label: "Past Due", short: "PD", color: "text-rose-600", auto: false, dividerLeft: false, website: "eAgent" },
 ]
 
 export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, agents, onSuccess, autoSums, manualSubmitted, eagentComplete = false }: WeeklyManualModalProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState<Record<string, ManualRow>>({})
+  const [showService, setShowService] = useState(false)
+  const [activeColumn, setActiveColumn] = useState<string | null>(null)
 
   const sortedAgents = [...agents].sort((a, b) =>
     (a.agents?.name || "").localeCompare(b.agents?.name || "")
   )
+
+  const filteredAgents = sortedAgents.filter(a => {
+    if (showService) return true;
+    const team = a.agents?.team || "";
+    return team !== "Service" && team !== "CSR";
+  })
 
   // Initialize form data when opened — pre-populate from auto-sums if no manual data exists
   useEffect(() => {
@@ -187,7 +174,7 @@ export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, ag
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-full max-w-6xl flex flex-col max-h-[90vh]">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-2xl w-max max-w-[95vw] flex flex-col max-h-[90vh]">
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
@@ -210,15 +197,24 @@ export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, ag
         </div>
 
         {/* Summary bar */}
-        <div className="flex items-center gap-3 px-4 py-2 bg-slate-50 border-b border-slate-200 text-[10px] flex-wrap">
-          <span className="text-slate-600">
-            <span className="text-slate-900 font-semibold">{agentsWithData}</span> agents entered
-          </span>
-          {totals.map(t => (
-            <span key={t.key} className="text-slate-600">
-              {t.short}: <span className={`${t.color} font-semibold`}>{t.total}</span>
+        <div className="flex items-center justify-between gap-3 px-4 py-2 bg-slate-50 border-b border-slate-200 text-[10px] flex-wrap">
+          <div className="flex items-center gap-3">
+            <span className="text-slate-600">
+              <span className="text-slate-900 font-semibold">{agentsWithData}</span> agents entered
             </span>
-          ))}
+            {totals.map(t => (
+              <span key={t.key} className="text-slate-600">
+                {t.short}: <span className={`${t.color} font-semibold`}>{t.total}</span>
+              </span>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <span className="text-slate-600 font-medium group-hover:text-slate-900 transition-colors">Show Service/CSR</span>
+            <div className="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" className="sr-only peer" checked={showService} onChange={(e) => setShowService(e.target.checked)} />
+              <div className="w-7 h-4 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+            </div>
+          </label>
         </div>
 
         {/* Error */}
@@ -233,10 +229,15 @@ export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, ag
           <table className="w-full text-left border-collapse">
             <thead className="sticky top-0 bg-white z-10">
               <tr className="border-b border-slate-200">
-                <th className="py-1.5 px-2 text-[9px] uppercase tracking-wider text-slate-500 font-semibold whitespace-nowrap">Agent</th>
+                <th className="py-1 px-2 text-[9px] uppercase tracking-wider text-slate-500 font-semibold whitespace-nowrap">Agent</th>
                 {FIELD_CONFIG.map(f => (
-                  <th key={f.key} className={`py-1.5 px-1 text-[9px] uppercase tracking-wider ${f.color} font-semibold text-center whitespace-nowrap${f.dividerLeft ? ' border-l-2 border-slate-400' : ''}`}>
-                    <span className="flex flex-col items-center justify-center gap-0.5">
+                  <th 
+                    key={f.key} 
+                    onClick={() => setActiveColumn(activeColumn === f.key ? null : f.key)}
+                    className={`py-1 px-1 text-[9px] uppercase tracking-wider ${f.color} font-semibold text-center whitespace-nowrap cursor-pointer hover:bg-slate-50 transition-colors${f.dividerLeft ? ' border-l-2 border-slate-400' : ''} ${activeColumn === f.key ? 'bg-blue-100' : ''}`}
+                  >
+                    <span className="flex flex-col items-center justify-center gap-0.5 pointer-events-none">
+                      <span className="text-[8px] text-slate-400 font-medium leading-none mb-0.5">{f.website}</span>
                       <span className="flex items-center justify-center gap-1">
                         {f.label}
                         {f.auto ? (
@@ -266,7 +267,7 @@ export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, ag
               </tr>
             </thead>
             <tbody>
-              {sortedAgents.map((agent, index) => {
+              {filteredAgents.map((agent, index) => {
                 const d = formData[agent.agent_id]
                 if (!d) return null
                 const hasData = Object.values(d).some(n => n > 0)
@@ -276,11 +277,11 @@ export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, ag
                     key={agent.agent_id}
                     className={`border-b border-slate-200 transition-colors ${rowBg} hover:bg-slate-200`}
                   >
-                    <td className="py-1 px-2">
+                    <td className="py-0.5 px-2">
                       <span className="text-xs font-medium text-slate-700 whitespace-nowrap">{agent.agents?.name}</span>
                     </td>
                     {FIELD_CONFIG.map(f => (
-                      <td key={f.key} className={`py-1 px-1${f.dividerLeft ? ' border-l-2 border-slate-400' : ''}`}>
+                      <td key={f.key} className={`py-0.5 px-1${f.dividerLeft ? ' border-l-2 border-slate-400' : ''} ${activeColumn === f.key ? 'bg-blue-100' : ''}`}>
                         <div className="flex justify-center">
                           <Stepper
                             value={d[f.key]}
