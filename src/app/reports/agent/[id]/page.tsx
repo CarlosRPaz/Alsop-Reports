@@ -132,7 +132,7 @@ export default function AgentDashboardPage() {
     const period = data.periodLabel
     
     const items = kpis.items
-    const premium = Math.round(kpis.written_premium)
+    const premium = Math.round(kpis.prem_premium)
     const quotes = kpis.quotes
     const closeRate = (kpis.close_rate * 100).toFixed(1)
     const calls = kpis.calls
@@ -171,7 +171,7 @@ export default function AgentDashboardPage() {
     { key: "quotes",    label: "Quotes",       group: "production", sortAccessor: (m: any) => m.quotes || 0 },
     { key: "nb",        label: "NB",           group: "production", sortAccessor: (m: any) => m.nb_count || 0 },
     { key: "items",     label: "Items",        group: "production", sortAccessor: (m: any) => m.items || 0 },
-    { key: "wp",        label: "Written Prem", group: "production", sortAccessor: (m: any) => m.written_premium || 0 },
+    { key: "wp",        label: "Written Prem", group: "production", sortAccessor: (m: any) => m.prem_premium || 0 },
     { key: "pivots",    label: "Pivots",       group: "eagent",     sortAccessor: (m: any) => m.pivots || 0 },
     { key: "dismissed", label: "Dismissed",    group: "eagent",     sortAccessor: (m: any) => m.dismissed_todos || 0 },
   ]
@@ -341,7 +341,7 @@ export default function AgentDashboardPage() {
                   <p className="text-sm font-medium text-slate-500">Written Premium</p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-2xl font-bold text-slate-900">
-                      ${kpis.written_premium.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      ${kpis.prem_premium.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </span>
                   </div>
                 </div>
@@ -411,7 +411,7 @@ export default function AgentDashboardPage() {
                           <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 border-l-2 border-l-amber-500/50">{formatValue(item.quotes)}</td>
                           <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.nb_count)}</td>
                           <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.items)}</td>
-                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{item.written_premium ? formatValue(Number(item.written_premium), "$") : formatValue(0)}</td>
+                          <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{item.prem_premium ? formatValue(Number(item.prem_premium), "$") : formatValue(0)}</td>
                           <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 border-l-2 border-l-orange-500/50">{formatValue(item.pivots)}</td>
                           <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.dismissed_todos)}</td>
                         </>

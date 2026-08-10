@@ -84,6 +84,7 @@ function parseCSVFormat(
     });
   }
 
+  validatePremiumRows(rows, fileName, logs);
   logs.push(`[premium-parser] Parsed ${rows.length} rows from ${fileName}`);
   return { type: "premium", rows, logs };
 }
@@ -143,8 +144,26 @@ function parseExcelFormat(
     });
   }
 
+  validatePremiumRows(rows, fileName, logs);
   logs.push(`[premium-parser] Parsed ${rows.length} rows from ${fileName}`);
   return { type: "premium", rows, logs };
+}
+
+// ─── Sanity Validation ──────────────────────────────────────────────
+
+function validatePremiumRows(rows: Record<string, unknown>[], fileName: string, logs: string[]) {
+  let totalPrem = 0;
+  for (const r of rows) {
+    const prem = Number(r.PremPremium) || 0;
+    if (prem > 150000) {
+      throw new Error(`Sanity check failed for ${fileName}: Agent "${r.Agent}" has $${prem.toLocaleString()} premium, which exceeds the daily threshold ($150,000). This appears to be a multi-month or Year-to-Date cumulative export. Please export only the single target date range in AgencyZoom.`);
+    }
+    totalPrem += prem;
+  }
+
+  if (totalPrem > 300000) {
+    throw new Error(`Sanity check failed for ${fileName}: Total premium in file is $${totalPrem.toLocaleString()}, which exceeds the daily threshold ($300,000). This appears to be a multi-month or Year-to-Date cumulative export. Please export only the single target date range in AgencyZoom.`);
+  }
 }
 
 // ─── Currency cleaning ──────────────────────────────────────────────
