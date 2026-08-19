@@ -81,9 +81,9 @@ export function subscribeToConversation(
     )
 
   // Subscribe AFTER all `.on()` calls are registered
-  channel.subscribe((status) => {
+  channel.subscribe((status, err) => {
     if (status === 'CHANNEL_ERROR') {
-      console.error(`[realtime] Channel error for conversation:${conversationId}:${seq}`)
+      console.warn(`[realtime] Channel connection notice for conversation:${conversationId}:${seq}`, err?.message || '')
     }
   })
 
@@ -98,13 +98,6 @@ export function subscribeToConversation(
  * Subscribe to new messages across all of an agent's conversations at once.
  * Used by the sidebar / badge to know when any conversation gets a new message
  * without opening a per-conversation channel for each one.
- *
- * This creates a single channel with multiple filters — one per conversation
- * ID. For agents with very many conversations, consider debouncing or
- * batching.
- *
- * Supabase imposes a max of ~100 filters per channel. If the agent belongs
- * to more than 100 conversations we split into batches.
  */
 export function subscribeToAllConversations(
   agentId: string,
@@ -113,39 +106,33 @@ export function subscribeToAllConversations(
 ): RealtimeChannel[] {
   if (conversationIds.length === 0) return []
 
-  const BATCH_SIZE = 50
-  const channels: RealtimeChannel[] = []
+  const convSet = new Set(conversationIds)
+  const seq = ++channelSeq
+  const channel = supabase.channel(`global:${agentId}:${seq}`)
 
-  for (let i = 0; i < conversationIds.length; i += BATCH_SIZE) {
-    const batch = conversationIds.slice(i, i + BATCH_SIZE)
-    const seq = ++channelSeq
-    const channel = supabase.channel(`global:${agentId}:${seq}`)
-
-    // Register ALL .on() callbacks BEFORE calling .subscribe()
-    for (const convId of batch) {
-      channel.on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `conversation_id=eq.${convId}`,
-        },
-        (payload) => callbacks.onNewMessage(payload.new as any),
-      )
-    }
-
-    // NOW subscribe — after all callbacks are added
-    channel.subscribe((status) => {
-      if (status === 'CHANNEL_ERROR') {
-        console.error(`[realtime] Channel error for global:${agentId}:${seq}`)
+  // Single efficient table-level listener filtered in-memory
+  channel.on(
+    'postgres_changes',
+    {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'chat_messages',
+    },
+    (payload) => {
+      const newMsg = payload.new as any
+      if (newMsg && convSet.has(newMsg.conversation_id)) {
+        callbacks.onNewMessage(newMsg)
       }
-    })
+    },
+  )
 
-    channels.push(channel)
-  }
+  channel.subscribe((status, err) => {
+    if (status === 'CHANNEL_ERROR') {
+      console.warn(`[realtime] Global channel notice for agent ${agentId}:`, err?.message || '')
+    }
+  })
 
-  return channels
+  return [channel]
 }
 
 // ---------------------------------------------------------------------------
