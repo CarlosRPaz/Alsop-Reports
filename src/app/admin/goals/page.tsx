@@ -1,514 +1,908 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
-import { Plus, Edit2, Trash2, Check, X, Target, ChevronDown, ChevronRight, Phone, MessageSquare, ShieldCheck, BarChart3, ClipboardList } from "lucide-react"
+import {
+  Target, Check, X, Phone, MessageSquare, BarChart3, ClipboardList,
+  CalendarDays, Zap, RefreshCw, Layers, ShieldCheck, ArrowRight,
+  Info, Sparkles, Filter, CheckCircle2, Loader2, Trash2
+} from "lucide-react"
+import { getBusinessDaysInMonth, toHolidaySet } from "@/lib/businessDays"
 
-// ── KPI Definitions ──
-const KPI_GROUPS = [
+// ─── KPI Definitions ────────────────────────────────────────────────────────────
+
+interface MetricDef {
+  key: string
+  label: string
+  shortLabel: string
+  unit?: "$" | "min"
+  step?: number
+}
+
+interface KPIGroup {
+  label: string
+  shortLabel: string
+  icon: React.ComponentType<{ className?: string }>
+  color: "sky" | "teal" | "amber" | "violet"
+  metrics: MetricDef[]
+}
+
+const KPI_GROUPS: KPIGroup[] = [
   {
-    label: "RC / Ricochet",
-    icon: <Phone className="w-4 h-4" />,
+    label: "Phone (RC / Ricochet)",
+    shortLabel: "Phone",
+    icon: Phone,
     color: "sky",
     metrics: [
-      { key: "calls", label: "Calls" },
-      { key: "inbound", label: "Inbound" },
-      { key: "outbound", label: "Outbound" },
-      { key: "talk_time_seconds", label: "Talk Time", unit: "min" },
+      { key: "calls", label: "Total Calls", shortLabel: "Calls" },
+      { key: "inbound", label: "Inbound Calls", shortLabel: "Inb" },
+      { key: "outbound", label: "Outbound Calls", shortLabel: "Out" },
+      { key: "talk_time_seconds", label: "Talk Time", shortLabel: "Talk", unit: "min" },
     ],
   },
   {
-    label: "Hearsay",
-    icon: <MessageSquare className="w-4 h-4" />,
+    label: "Messaging (Hearsay)",
+    shortLabel: "Texts",
+    icon: MessageSquare,
     color: "teal",
     metrics: [
-      { key: "texts", label: "Texts" },
-      { key: "out_texts", label: "Out Texts" },
-      { key: "opt_ins", label: "Opt-Ins" },
+      { key: "texts", label: "Total Texts", shortLabel: "Texts" },
+      { key: "out_texts", label: "Outbound Texts", shortLabel: "Out Texts" },
+      { key: "opt_ins", label: "Opt-Ins", shortLabel: "Opt-Ins" },
     ],
   },
   {
     label: "Production",
-    icon: <BarChart3 className="w-4 h-4" />,
+    shortLabel: "Production",
+    icon: BarChart3,
     color: "amber",
     metrics: [
-      { key: "quotes", label: "Quotes" },
-      { key: "nb_count", label: "New Business" },
-      { key: "prem_premium", label: "Premium", unit: "$" },
-      { key: "items", label: "Items" },
+      { key: "quotes", label: "Quotes Issued", shortLabel: "Quotes" },
+      { key: "nb_count", label: "New Business", shortLabel: "NB" },
+      { key: "prem_premium", label: "Written Premium", shortLabel: "Prem", unit: "$" },
+      { key: "items", label: "Items Sold", shortLabel: "Items" },
     ],
   },
   {
-    label: "eAgent / RICO",
-    icon: <ClipboardList className="w-4 h-4" />,
+    label: "Operations (eAgent)",
+    shortLabel: "Ops",
+    icon: ClipboardList,
     color: "violet",
     metrics: [
-      { key: "dismissed_todos", label: "Dismissed To-Do's" },
-      { key: "past_due_todos", label: "Past Due To-Do's" },
-      { key: "pivots", label: "Pivots" },
+      { key: "dismissed_todos", label: "Dismissed To-Do's", shortLabel: "Dismiss" },
+      { key: "past_due_todos", label: "Past Due To-Do's", shortLabel: "Past Due" },
+      { key: "pivots", label: "Pivots Logged", shortLabel: "Pivots" },
     ],
   },
 ]
 
-const OFFICES = ["MCM", "MB", "RC", "CH"]
+const ALL_METRICS: MetricDef[] = KPI_GROUPS.flatMap(g => g.metrics)
+
 const TEAMS = ["Sales", "CSR", "EA", "Managers"]
+const OFFICES = ["MCM", "MB", "RC", "CH"]
 
-const COLOR_MAP: Record<string, { bg: string; border: string; text: string; headerBg: string; badge: string }> = {
-  sky:    { bg: "bg-sky-50",    border: "border-sky-200",    text: "text-sky-700",    headerBg: "bg-sky-100/60",    badge: "bg-sky-100 text-sky-700 border-sky-200" },
-  teal:   { bg: "bg-teal-50",   border: "border-teal-200",   text: "text-teal-700",   headerBg: "bg-teal-100/60",   badge: "bg-teal-100 text-teal-700 border-teal-200" },
-  amber:  { bg: "bg-amber-50",  border: "border-amber-200",  text: "text-amber-700",  headerBg: "bg-amber-100/60",  badge: "bg-amber-100 text-amber-700 border-amber-200" },
-  violet: { bg: "bg-violet-50", border: "border-violet-200", text: "text-violet-700", headerBg: "bg-violet-100/60", badge: "bg-violet-100 text-violet-700 border-violet-200" },
-}
-
-interface Goal {
+interface GoalRecord {
   id: string
   metric_name: string
-  timeframe: string
+  timeframe: "daily" | "monthly"
   target_value: number
   office: string | null
   team: string | null
 }
 
+type EntityType = "baseline" | "team" | "office"
+
+interface EntityRow {
+  id: string
+  type: EntityType
+  name: string
+  label: string
+  sublabel: string
+}
+
+const ENTITY_ROWS: EntityRow[] = [
+  { id: "baseline", type: "baseline", name: "Agency Baseline", label: "🌐 Agency Baseline", sublabel: "Default for all agents" },
+  { id: "team-Sales", type: "team", name: "Sales", label: "👥 Sales Team", sublabel: "Team Override" },
+  { id: "team-CSR", type: "team", name: "CSR", label: "👥 CSR Team", sublabel: "Team Override" },
+  { id: "team-EA", type: "team", name: "EA", label: "👥 EA Team", sublabel: "Team Override" },
+  { id: "team-Managers", type: "team", name: "Managers", label: "👥 Managers", sublabel: "Team Override" },
+  { id: "office-MCM", type: "office", name: "MCM", label: "🏢 MCM Office", sublabel: "Office Override" },
+  { id: "office-MB", type: "office", name: "MB", label: "🏢 MB Office", sublabel: "Office Override" },
+  { id: "office-RC", type: "office", name: "RC", label: "🏢 RC Office", sublabel: "Office Override" },
+  { id: "office-CH", type: "office", name: "CH", label: "🏢 CH Office", sublabel: "Office Override" },
+]
+
 export default function GoalManagement() {
-  const [goals, setGoals] = useState<Goal[]>([])
+  const [goals, setGoals] = useState<GoalRecord[]>([])
   const [loading, setLoading] = useState(true)
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
-  const [timeframe, setTimeframe] = useState<"daily" | "monthly">("daily")
+  const [timeframe, setTimeframe] = useState<"daily" | "weekly" | "monthly">("daily")
+  const [entityFilter, setEntityFilter] = useState<"all" | "teams" | "offices">("all")
+  
+  // Realtime save status
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle")
+  
+  // In-cell editing
+  const [activeCell, setActiveCell] = useState<{ entityId: string; metricKey: string } | null>(null)
+  const [inputValue, setInputValue] = useState<string>("")
+  const [timeHours, setTimeHours] = useState<number>(0)
+  const [timeMinutes, setTimeMinutes] = useState<number>(0)
+  
+  // Working days context
+  const [bizDaysInMonth, setBizDaysInMonth] = useState<number>(21)
+  const [currentMonthName, setCurrentMonthName] = useState<string>("")
+  const [autoProrating, setAutoProrating] = useState<boolean>(false)
 
-  // Inline editing state
-  const [editingKey, setEditingKey] = useState<string | null>(null)
-  const [editValue, setEditValue] = useState("")
-  const [timeHours, setTimeHours] = useState(0)
-  const [timeMinutes, setTimeMinutes] = useState(0)
+  // Hover preview inspector
+  const [hoveredCell, setHoveredCell] = useState<{
+    entity: EntityRow
+    metric: MetricDef
+    val: number | null
+    isOverride: boolean
+    baselineVal: number | null
+  } | null>(null)
 
-  // New override state
-  const [addingOverride, setAddingOverride] = useState<string | null>(null) // metric_name
-  const [overrideType, setOverrideType] = useState<"office" | "team">("office")
-  const [overrideTarget, setOverrideTarget] = useState("")
-  const [overrideValue, setOverrideValue] = useState("")
+  // ─── Fetch Goals & Business Days ──────────────────────────────────────────────
 
-  const fetchGoals = async () => {
+  const fetchGoals = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from("kpi_goals").select("*").eq("timeframe", timeframe).order("metric_name")
-    setGoals((data as Goal[]) || [])
-    setLoading(false)
-  }
+    try {
+      const { data, error } = await supabase
+        .from("kpi_goals")
+        .select("*")
+        .eq("timeframe", timeframe)
+      
+      if (error) throw error
+      setGoals((data as GoalRecord[]) || [])
+    } catch (err) {
+      console.error("Error fetching goals:", err)
+    } finally {
+      setLoading(false)
+    }
+  }, [timeframe])
 
-  useEffect(() => { fetchGoals() }, [timeframe])
+  const fetchBusinessDays = useCallback(async () => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = now.getMonth() + 1
+    const monthName = now.toLocaleString("default", { month: "long" })
+    setCurrentMonthName(monthName)
 
-  // Initialize all groups as expanded
-  useEffect(() => {
-    const expanded: Record<string, boolean> = {}
-    KPI_GROUPS.forEach(g => { expanded[g.label] = true })
-    setExpandedGroups(expanded)
+    try {
+      const { data: holidays } = await supabase
+        .from("holidays")
+        .select("holiday_date")
+        .gte("holiday_date", `${year}-01-01`)
+        .lte("holiday_date", `${year}-12-31`)
+
+      const holidaySet = toHolidaySet(holidays || [])
+      const bDays = getBusinessDaysInMonth(year, month, holidaySet)
+      setBizDaysInMonth(bDays || 21)
+    } catch (e) {
+      setBizDaysInMonth(21)
+    }
   }, [])
 
-  const getDefaultGoal = (metricKey: string) => {
-    return goals.find(g => g.metric_name === metricKey && !g.office && !g.team)
+  useEffect(() => {
+    fetchGoals()
+  }, [fetchGoals])
+
+  useEffect(() => {
+    fetchBusinessDays()
+  }, [fetchBusinessDays])
+
+  // ─── Goal Lookup Helpers ──────────────────────────────────────────────────────
+
+  const goalMap = useMemo(() => {
+    const map = new Map<string, GoalRecord>()
+    goals.forEach(g => {
+      let key = ""
+      if (!g.team && !g.office) {
+        key = `baseline:${g.metric_name}`
+      } else if (g.team) {
+        key = `team:${g.team}:${g.metric_name}`
+      } else if (g.office) {
+        key = `office:${g.office}:${g.metric_name}`
+      }
+      if (key) map.set(key, g)
+    })
+    return map
+  }, [goals])
+
+  const getGoalForEntity = (entity: EntityRow, metricKey: string): GoalRecord | undefined => {
+    if (entity.type === "baseline") {
+      return goalMap.get(`baseline:${metricKey}`)
+    } else if (entity.type === "team") {
+      return goalMap.get(`team:${entity.name}:${metricKey}`)
+    } else if (entity.type === "office") {
+      return goalMap.get(`office:${entity.name}:${metricKey}`)
+    }
+    return undefined
   }
 
-  const getOverrides = (metricKey: string) => {
-    return goals.filter(g => g.metric_name === metricKey && (g.office || g.team))
+  const getBaselineGoal = (metricKey: string): GoalRecord | undefined => {
+    return goalMap.get(`baseline:${metricKey}`)
   }
 
-  const saveAgencyGoal = async (metricKey: string, value: number) => {
-    const existing = getDefaultGoal(metricKey)
-    if (existing) {
-      await supabase.from("kpi_goals").update({ target_value: value }).eq("id", existing.id)
+  // ─── Save / Delete Goal Mutations ─────────────────────────────────────────────
+
+  const saveCell = async (entity: EntityRow, metric: MetricDef, rawValue: number) => {
+    setSaveStatus("saving")
+    const existing = getGoalForEntity(entity, metric.key)
+
+    try {
+      if (rawValue <= 0 || isNaN(rawValue)) {
+        // If override cleared or set to 0, delete override
+        if (existing && entity.type !== "baseline") {
+          await supabase.from("kpi_goals").delete().eq("id", existing.id)
+        } else if (existing && entity.type === "baseline") {
+          await supabase.from("kpi_goals").update({ target_value: 0 }).eq("id", existing.id)
+        }
+      } else {
+        if (existing) {
+          await supabase.from("kpi_goals").update({ target_value: rawValue }).eq("id", existing.id)
+        } else {
+          const payload: Partial<GoalRecord> = {
+            metric_name: metric.key,
+            timeframe: timeframe,
+            target_value: rawValue,
+            team: entity.type === "team" ? entity.name : null,
+            office: entity.type === "office" ? entity.name : null,
+          }
+          await supabase.from("kpi_goals").insert([payload])
+        }
+      }
+      setSaveStatus("saved")
+      setTimeout(() => setSaveStatus("idle"), 2500)
+      fetchGoals()
+    } catch (err) {
+      console.error("Save error:", err)
+      setSaveStatus("idle")
+    }
+  }
+
+  const deleteOverride = async (goalId: string) => {
+    setSaveStatus("saving")
+    try {
+      await supabase.from("kpi_goals").delete().eq("id", goalId)
+      setSaveStatus("saved")
+      setTimeout(() => setSaveStatus("idle"), 2000)
+      fetchGoals()
+    } catch (err) {
+      console.error("Delete error:", err)
+      setSaveStatus("idle")
+    }
+  }
+
+  // ─── Cell Interaction Logic ───────────────────────────────────────────────────
+
+  const handleCellClick = (entity: EntityRow, metric: MetricDef) => {
+    const existing = getGoalForEntity(entity, metric.key)
+    const baseline = getBaselineGoal(metric.key)
+    const currentVal = existing ? existing.target_value : (baseline?.target_value ?? 0)
+
+    setActiveCell({ entityId: entity.id, metricKey: metric.key })
+
+    if (metric.unit === "min") {
+      setTimeHours(Math.floor(currentVal / 60))
+      setTimeMinutes(currentVal % 60)
     } else {
-      await supabase.from("kpi_goals").insert([{
-        metric_name: metricKey,
-        timeframe: timeframe,
-        target_value: value,
-        office: null,
-        team: null,
-      }])
+      setInputValue(currentVal > 0 ? String(currentVal) : "")
     }
-    fetchGoals()
   }
 
-  const removeGoal = async (goalId: string) => {
-    await supabase.from("kpi_goals").delete().eq("id", goalId)
-    fetchGoals()
-  }
-
-  const saveOverride = async (metricKey: string) => {
-    if (!overrideTarget) return
-    const targetVal = metricKey === "talk_time_seconds"
-      ? timeHours * 60 + timeMinutes
-      : parseFloat(overrideValue)
-    if (isNaN(targetVal) || targetVal <= 0) return
-    const payload: any = {
-      metric_name: metricKey,
-      timeframe: timeframe,
-      target_value: targetVal,
-      office: overrideType === "office" ? overrideTarget : null,
-      team: overrideType === "team" ? overrideTarget : null,
-    }
-    await supabase.from("kpi_goals").insert([payload])
-    setAddingOverride(null)
-    setOverrideTarget("")
-    setOverrideValue("")
-    setTimeHours(0)
-    setTimeMinutes(0)
-    fetchGoals()
-  }
-
-  const startEdit = (key: string, currentValue: number, isTime = false) => {
-    setEditingKey(key)
-    if (isTime) {
-      setTimeHours(Math.floor(currentValue / 60))
-      setTimeMinutes(currentValue % 60)
+  const handleCommit = (entity: EntityRow, metric: MetricDef) => {
+    let numericVal = 0
+    if (metric.unit === "min") {
+      numericVal = (timeHours * 60) + timeMinutes
     } else {
-      setEditValue(String(currentValue))
+      numericVal = parseFloat(inputValue)
+    }
+
+    saveCell(entity, metric, numericVal)
+    setActiveCell(null)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent, entity: EntityRow, metric: MetricDef) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      handleCommit(entity, metric)
+    } else if (e.key === "Escape") {
+      setActiveCell(null)
     }
   }
 
-  const commitEdit = async (metricKey: string, goalId?: string) => {
-    const val = metricKey === "talk_time_seconds"
-      ? timeHours * 60 + timeMinutes
-      : parseFloat(editValue)
-    if (isNaN(val) || val < 0) { setEditingKey(null); return }
-    
-    if (goalId) {
-      await supabase.from("kpi_goals").update({ target_value: val }).eq("id", goalId)
-    } else {
-      await saveAgencyGoal(metricKey, val)
+  // ─── Smart Auto-Calculate Between Timeframes ─────────────────────────────────
+
+  const handleAutoProrate = async (sourceTimeframe: "daily" | "weekly" | "monthly") => {
+    const confirmMsg = `Auto-calculate ${timeframe.toUpperCase()} Goals from ${sourceTimeframe.toUpperCase()} Goals?`
+
+    if (!window.confirm(confirmMsg)) return
+
+    setAutoProrating(true)
+    setSaveStatus("saving")
+
+    try {
+      const { data: sourceGoals } = await supabase
+        .from("kpi_goals")
+        .select("*")
+        .eq("timeframe", sourceTimeframe)
+
+      if (!sourceGoals || sourceGoals.length === 0) {
+        alert(`No ${sourceTimeframe} goals found to convert from.`)
+        setAutoProrating(false)
+        setSaveStatus("idle")
+        return
+      }
+
+      for (const sg of sourceGoals) {
+        let calculated = 0
+        const val = Number(sg.target_value)
+
+        if (sourceTimeframe === "daily" && timeframe === "weekly") {
+          calculated = Math.round(val * 5)
+        } else if (sourceTimeframe === "daily" && timeframe === "monthly") {
+          calculated = Math.round(val * bizDaysInMonth)
+        } else if (sourceTimeframe === "weekly" && timeframe === "daily") {
+          calculated = Math.round((val / 5) * 10) / 10
+        } else if (sourceTimeframe === "weekly" && timeframe === "monthly") {
+          calculated = Math.round((val / 5) * bizDaysInMonth)
+        } else if (sourceTimeframe === "monthly" && timeframe === "weekly") {
+          calculated = Math.round((val / bizDaysInMonth) * 5)
+        } else if (sourceTimeframe === "monthly" && timeframe === "daily") {
+          calculated = Math.round((val / bizDaysInMonth) * 10) / 10
+        }
+
+        // Upsert into current target timeframe
+        const { data: existing } = await supabase
+          .from("kpi_goals")
+          .select("id")
+          .eq("timeframe", timeframe)
+          .eq("metric_name", sg.metric_name)
+          .is("team", sg.team ? undefined : null)
+          .is("office", sg.office ? undefined : null)
+          .match(sg.team ? { team: sg.team } : sg.office ? { office: sg.office } : {})
+          .maybeSingle()
+
+        if (existing) {
+          await supabase.from("kpi_goals").update({ target_value: calculated }).eq("id", existing.id)
+        } else {
+          await supabase.from("kpi_goals").insert([{
+            metric_name: sg.metric_name,
+            timeframe: timeframe,
+            target_value: calculated,
+            team: sg.team,
+            office: sg.office,
+          }])
+        }
+      }
+
+      await fetchGoals()
+      setSaveStatus("saved")
+      setTimeout(() => setSaveStatus("idle"), 2500)
+    } catch (err) {
+      console.error("Auto-prorate error:", err)
+    } finally {
+      setAutoProrating(false)
     }
-    setEditingKey(null)
-    fetchGoals()
   }
 
-  const toggleGroup = (label: string) => {
-    setExpandedGroups(prev => ({ ...prev, [label]: !prev[label] }))
-  }
+  // ─── Formatters ───────────────────────────────────────────────────────────────
 
-  const formatGoalDisplay = (value: number, unit?: string) => {
-    if (unit === "$") return `$${value.toLocaleString()}`
+  const formatDisplay = (val: number | null | undefined, unit?: "$" | "min") => {
+    if (val === null || val === undefined || val === 0) return "—"
+    if (unit === "$") return `$${val.toLocaleString()}`
     if (unit === "min") {
-      const h = Math.floor(value / 60)
-      const m = value % 60
+      const h = Math.floor(val / 60)
+      const m = val % 60
       if (h > 0 && m > 0) return `${h}h ${m}m`
       if (h > 0) return `${h}h`
       return `${m}m`
     }
-    return value.toString()
+    return val.toLocaleString()
   }
 
-  if (loading) {
-    return (
-      <div className="p-8 max-w-5xl mx-auto">
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500"></div>
-        </div>
-      </div>
-    )
-  }
+  // Filtered rows
+  const visibleEntities = useMemo(() => {
+    if (entityFilter === "teams") {
+      return ENTITY_ROWS.filter(r => r.type === "baseline" || r.type === "team")
+    }
+    if (entityFilter === "offices") {
+      return ENTITY_ROWS.filter(r => r.type === "baseline" || r.type === "office")
+    }
+    return ENTITY_ROWS
+  }, [entityFilter])
 
   return (
-    <div className="p-8 max-w-5xl mx-auto space-y-6">
-      <header>
-        <h1 className="text-2xl font-extrabold text-slate-900 flex items-center gap-3">
-          <Target className="w-7 h-7 text-amber-500" />
-          Goal Settings
-        </h1>
-        <p className="text-slate-500 mt-1 text-sm">
-          Set agency-wide goals for each KPI. Add overrides for specific offices or teams.
-        </p>
+    <div className="p-4 md:p-6 max-w-[1600px] mx-auto space-y-4 min-h-screen">
+      
+      {/* ─── Compact Header Toolbar ────────────────────────────────────────────── */}
+      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shadow-inner">
+            <Target className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-black tracking-tight text-slate-900">
+              KPI Goals & Target Matrix
+            </h1>
+            <p className="text-xs text-slate-500 font-medium">
+              Configure baseline benchmarks & team/office target overrides. Highlighting applies automatically to all reports.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Timeframe 3-Way Toggle */}
+          <div className="inline-flex p-1 bg-slate-100 rounded-lg border border-slate-200 shadow-inner">
+            <button
+              onClick={() => setTimeframe("daily")}
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                timeframe === "daily"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              📅 Daily
+            </button>
+            <button
+              onClick={() => setTimeframe("weekly")}
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                timeframe === "weekly"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              📊 Weekly
+            </button>
+            <button
+              onClick={() => setTimeframe("monthly")}
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                timeframe === "monthly"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              📆 Monthly
+            </button>
+          </div>
+
+          {/* Entity Filter */}
+          <div className="inline-flex p-1 bg-slate-100 rounded-lg border border-slate-200">
+            <button
+              onClick={() => setEntityFilter("all")}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                entityFilter === "all" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+              }`}
+            >
+              All Rows
+            </button>
+            <button
+              onClick={() => setEntityFilter("teams")}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                entityFilter === "teams" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+              }`}
+            >
+              Teams
+            </button>
+            <button
+              onClick={() => setEntityFilter("offices")}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                entityFilter === "offices" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+              }`}
+            >
+              Offices
+            </button>
+          </div>
+
+          {/* Auto-Prorate / Sync Buttons */}
+          {timeframe === "weekly" && (
+            <div className="inline-flex items-center gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleAutoProrate("daily")}
+                disabled={autoProrating}
+                className="h-8 text-xs font-semibold border-amber-300 text-amber-800 bg-amber-50/50 hover:bg-amber-100/80 gap-1.5"
+                title="Multiply daily targets by 5 days"
+              >
+                {autoProrating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-600" />}
+                Sync from Daily (×5d)
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleAutoProrate("monthly")}
+                disabled={autoProrating}
+                className="h-8 text-xs font-semibold border-slate-300 text-slate-700 bg-white hover:bg-slate-50 gap-1.5"
+                title="Divide monthly targets by working weeks"
+              >
+                Prorate from Monthly
+              </Button>
+            </div>
+          )}
+
+          {timeframe === "daily" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleAutoProrate("weekly")}
+              disabled={autoProrating}
+              className="h-8 text-xs font-semibold border-amber-300 text-amber-800 bg-amber-50/50 hover:bg-amber-100/80 gap-1.5"
+              title="Divide weekly targets by 5 days"
+            >
+              {autoProrating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-600" />}
+              Prorate from Weekly (÷5d)
+            </Button>
+          )}
+
+          {timeframe === "monthly" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleAutoProrate("weekly")}
+              disabled={autoProrating}
+              className="h-8 text-xs font-semibold border-amber-300 text-amber-800 bg-amber-50/50 hover:bg-amber-100/80 gap-1.5"
+              title={`Multiply weekly targets by ${Math.round((bizDaysInMonth / 5) * 10) / 10} weeks`}
+            >
+              {autoProrating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-600" />}
+              Sync from Weekly (×{(Math.round((bizDaysInMonth / 5) * 10) / 10)}w)
+            </Button>
+          )}
+
+          {/* Save status badge */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-medium border border-slate-200 bg-slate-50 text-slate-600">
+            {saveStatus === "saving" && (
+              <>
+                <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
+                <span>Saving...</span>
+              </>
+            )}
+            {saveStatus === "saved" && (
+              <>
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <span className="text-emerald-700 font-bold">Saved ✓</span>
+              </>
+            )}
+            {saveStatus === "idle" && (
+              <>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+                <span>Auto-Save Active</span>
+              </>
+            )}
+          </div>
+        </div>
       </header>
 
-      {/* Timeframe Toggle */}
-      <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 w-fit">
-        <button
-          onClick={() => setTimeframe("daily")}
-          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-            timeframe === "daily"
-              ? "bg-white text-slate-900 shadow-sm"
-              : "text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          Daily Goals
-        </button>
-        <button
-          onClick={() => setTimeframe("monthly")}
-          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-            timeframe === "monthly"
-              ? "bg-white text-slate-900 shadow-sm"
-              : "text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          Monthly Goals
-        </button>
-      </div>
+      {/* ─── Compact Legend & Pacing Context Bar ───────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-slate-50/80 border border-slate-200 rounded-lg text-xs text-slate-600">
+        <div className="flex items-center gap-3">
+          <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+            <Info className="w-3.5 h-3.5 text-blue-500" /> Matrix Guide:
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-2.5 h-2.5 rounded bg-emerald-100 border border-emerald-300"></span>
+            <strong>Bold Badge:</strong> Custom Override
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-2.5 h-2.5 rounded bg-slate-100 border border-slate-300 border-dashed"></span>
+            <span className="text-slate-400 italic">(Gray Text):</span> Inherited Agency Baseline
+          </span>
+          <span className="hidden md:inline text-slate-400">|</span>
+          <span className="hidden md:inline text-slate-500">
+            Click any cell to edit • Press <kbd className="px-1 py-0.5 bg-white border border-slate-300 rounded font-mono text-[10px]">Enter</kbd> to save • Clear value to remove override
+          </span>
+        </div>
 
-      {/* Info banner */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800 flex items-start gap-3">
-        <ShieldCheck className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" />
-        <div>
-          <strong>How it works:</strong> Agency-wide goals apply to all agents. Overrides let you set different goals for 
-          specific teams or offices. Agents who meet or exceed their goal will have that cell {timeframe === "daily" 
-            ? <span className="inline-block bg-emerald-100 text-emerald-700 font-semibold px-1.5 py-0.5 rounded text-xs">highlighted green</span>
-            : <span className="inline-block bg-amber-100 text-amber-700 font-semibold px-1.5 py-0.5 rounded text-xs">highlighted gold</span>
-          } in the Daily Report.
+        <div className="text-[11px] font-mono text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
+          Working Days: <strong>{bizDaysInMonth} days</strong> ({currentMonthName})
         </div>
       </div>
 
-      {/* KPI Groups */}
-      {KPI_GROUPS.map(group => {
-        const colors = COLOR_MAP[group.color]
-        const isExpanded = expandedGroups[group.label] !== false
+      {/* ─── Target Matrix Grid ────────────────────────────────────────────────── */}
+      <div className="relative overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        <table className="w-full text-left border-collapse select-none">
+          <thead>
+            {/* Top Row: Group Headers */}
+            <tr className="border-b border-slate-200 divide-x divide-slate-200 text-[11px] font-bold tracking-wider uppercase">
+              <th className="p-2.5 bg-slate-100 text-slate-700 min-w-[200px] sticky left-0 z-20 shadow-[1px_0_0_0_#e2e8f0]">
+                Scope / Entity
+              </th>
+              {KPI_GROUPS.map(group => {
+                const colSpan = group.metrics.length
+                const groupColor = {
+                  sky: "bg-sky-50 text-sky-800 border-sky-200",
+                  teal: "bg-teal-50 text-teal-800 border-teal-200",
+                  amber: "bg-amber-50 text-amber-800 border-amber-200",
+                  violet: "bg-violet-50 text-violet-800 border-violet-200",
+                }[group.color]
 
-        return (
-          <Card key={group.label} className={`${colors.border} overflow-hidden`}>
-            <button
-              onClick={() => toggleGroup(group.label)}
-              className={`w-full flex items-center justify-between px-5 py-3 ${colors.headerBg} hover:opacity-90 transition-opacity`}
-            >
-              <div className="flex items-center gap-2.5">
-                <span className={colors.text}>{group.icon}</span>
-                <span className={`text-sm font-bold ${colors.text} uppercase tracking-wider`}>{group.label}</span>
-                <Badge variant="outline" className={`${colors.badge} text-[10px] ml-1`}>
-                  {group.metrics.filter(m => getDefaultGoal(m.key)).length}/{group.metrics.length} set
-                </Badge>
-              </div>
-              {isExpanded
-                ? <ChevronDown className={`w-4 h-4 ${colors.text}`} />
-                : <ChevronRight className={`w-4 h-4 ${colors.text}`} />
-              }
-            </button>
+                return (
+                  <th
+                    key={group.label}
+                    colSpan={colSpan}
+                    className={`p-2 text-center ${groupColor} border-b-2`}
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      <group.icon className="w-3.5 h-3.5" />
+                      <span>{group.label}</span>
+                    </div>
+                  </th>
+                )
+              })}
+            </tr>
 
-            {isExpanded && (
-              <CardContent className="p-0 divide-y divide-slate-100">
-                {group.metrics.map(metric => {
-                  const defaultGoal = getDefaultGoal(metric.key)
-                  const overrides = getOverrides(metric.key)
-                  const editKey = `default-${metric.key}`
-                  const isEditing = editingKey === editKey
-                  const isAddingHere = addingOverride === metric.key
+            {/* Sub-Row: Individual Metric Columns */}
+            <tr className="border-b border-slate-200 divide-x divide-slate-200 bg-slate-50 text-[10px] font-bold uppercase text-slate-600">
+              <th className="p-2 sticky left-0 z-20 bg-slate-50 shadow-[1px_0_0_0_#e2e8f0]">
+                Entity & Overrides
+              </th>
+              {ALL_METRICS.map(metric => (
+                <th key={metric.key} className="p-2 text-center min-w-[95px]">
+                  <div className="truncate" title={metric.label}>
+                    {metric.shortLabel}
+                    {metric.unit && (
+                      <span className="ml-1 text-[9px] text-slate-400 font-mono font-normal">
+                        ({metric.unit === "$" ? "$" : "min"})
+                      </span>
+                    )}
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
 
-                  return (
-                    <div key={metric.key} className="px-5 py-4">
-                      {/* Metric header + default goal */}
+          <tbody className="divide-y divide-slate-100 text-xs">
+            {loading ? (
+              <tr>
+                <td colSpan={ALL_METRICS.length + 1} className="py-16 text-center text-slate-400">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto text-amber-500 mb-2" />
+                  Loading KPI Target Matrix...
+                </td>
+              </tr>
+            ) : (
+              visibleEntities.map(entity => {
+                const isBaseline = entity.type === "baseline"
+                const rowBg = isBaseline
+                  ? "bg-slate-50/90 font-semibold"
+                  : entity.type === "team"
+                  ? "bg-white hover:bg-slate-50/50"
+                  : "bg-white hover:bg-slate-50/50"
+
+                return (
+                  <tr
+                    key={entity.id}
+                    className={`divide-x divide-slate-200 transition-colors ${rowBg} ${
+                      isBaseline ? "border-b-2 border-slate-300 shadow-sm" : ""
+                    }`}
+                  >
+                    {/* Sticky Left Entity Header */}
+                    <td
+                      className={`p-2.5 sticky left-0 z-10 shadow-[1px_0_0_0_#e2e8f0] ${
+                        isBaseline ? "bg-slate-100 text-slate-900" : "bg-white text-slate-800"
+                      }`}
+                    >
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-semibold text-slate-800">{metric.label}</span>
-                          {metric.unit && (
-                            <span className="text-[10px] text-slate-400 uppercase tracking-wider">{metric.unit === "$" ? "Currency" : metric.unit}</span>
-                          )}
+                        <div className="truncate">
+                          <span className={`font-bold ${isBaseline ? "text-slate-900" : "text-slate-800"}`}>
+                            {entity.label}
+                          </span>
+                          <div className="text-[10px] text-slate-400 font-normal">
+                            {entity.sublabel}
+                          </div>
                         </div>
-                        
-                        <div className="flex items-center gap-2">
-                          {/* Default goal value */}
+                        {isBaseline && (
+                          <Badge variant="outline" className="text-[9px] bg-slate-900 text-white font-mono uppercase px-1 py-0 border-none">
+                            Base
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Metric Cells */}
+                    {ALL_METRICS.map(metric => {
+                      const goal = getGoalForEntity(entity, metric.key)
+                      const baseline = getBaselineGoal(metric.key)
+                      const isEditing = activeCell?.entityId === entity.id && activeCell?.metricKey === metric.key
+                      const hasOverride = !isBaseline && !!goal && goal.target_value > 0
+                      const displayVal = hasOverride
+                        ? goal.target_value
+                        : isBaseline
+                        ? (goal?.target_value ?? 0)
+                        : (baseline?.target_value ?? 0)
+
+                      return (
+                        <td
+                          key={metric.key}
+                          onClick={() => !isEditing && handleCellClick(entity, metric)}
+                          onMouseEnter={() => {
+                            setHoveredCell({
+                              entity,
+                              metric,
+                              val: goal?.target_value ?? null,
+                              isOverride: hasOverride,
+                              baselineVal: baseline?.target_value ?? null,
+                            })
+                          }}
+                          className={`p-1 text-center cursor-pointer transition-all ${
+                            isEditing
+                              ? "bg-blue-50 ring-2 ring-blue-500 ring-inset z-10"
+                              : hasOverride
+                              ? "bg-emerald-50/40 hover:bg-emerald-100/60"
+                              : isBaseline
+                              ? "hover:bg-slate-200/60"
+                              : "hover:bg-blue-50/50"
+                          }`}
+                        >
                           {isEditing ? (
-                            <div className="flex items-center gap-1.5">
-                              {metric.unit === "$" && <span className="text-slate-400 text-sm">$</span>}
+                            /* In-cell Input Mode */
+                            <div className="flex items-center justify-center gap-1 p-0.5">
                               {metric.unit === "min" ? (
-                                <>
+                                <div className="flex items-center gap-0.5">
                                   <input
-                                    type="number" min="0" max="23" autoFocus
-                                    className="w-14 bg-white border border-slate-300 rounded-md px-2 py-1 text-sm font-mono text-slate-900 text-center focus:ring-2 focus:ring-blue-400 outline-none"
+                                    type="number"
+                                    min="0"
+                                    max="23"
+                                    autoFocus
+                                    className="w-10 bg-white border border-blue-400 rounded px-1 py-0.5 text-xs font-mono font-bold text-center outline-none"
                                     value={timeHours}
                                     onChange={e => setTimeHours(Math.max(0, parseInt(e.target.value) || 0))}
-                                    onKeyDown={e => { if (e.key === "Enter") commitEdit(metric.key, defaultGoal?.id); if (e.key === "Escape") setEditingKey(null) }}
+                                    onKeyDown={e => handleKeyDown(e, entity, metric)}
                                   />
-                                  <span className="text-slate-400 text-xs">h</span>
+                                  <span className="text-[10px] text-slate-400">h</span>
                                   <input
-                                    type="number" min="0" max="59"
-                                    className="w-14 bg-white border border-slate-300 rounded-md px-2 py-1 text-sm font-mono text-slate-900 text-center focus:ring-2 focus:ring-blue-400 outline-none"
+                                    type="number"
+                                    min="0"
+                                    max="59"
+                                    className="w-10 bg-white border border-blue-400 rounded px-1 py-0.5 text-xs font-mono font-bold text-center outline-none"
                                     value={timeMinutes}
                                     onChange={e => setTimeMinutes(Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))}
-                                    onKeyDown={e => { if (e.key === "Enter") commitEdit(metric.key, defaultGoal?.id); if (e.key === "Escape") setEditingKey(null) }}
+                                    onKeyDown={e => handleKeyDown(e, entity, metric)}
                                   />
-                                  <span className="text-slate-400 text-xs">m</span>
-                                </>
+                                  <span className="text-[10px] text-slate-400">m</span>
+                                </div>
                               ) : (
-                                <input
-                                  type="number"
-                                  autoFocus
-                                  className="w-24 bg-white border border-slate-300 rounded-md px-2.5 py-1 text-sm font-mono text-slate-900 focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none"
-                                  value={editValue}
-                                  onChange={e => setEditValue(e.target.value)}
-                                  onKeyDown={e => {
-                                    if (e.key === "Enter") commitEdit(metric.key, defaultGoal?.id)
-                                    if (e.key === "Escape") setEditingKey(null)
-                                  }}
-                                />
+                                <div className="flex items-center gap-0.5 w-full">
+                                  {metric.unit === "$" && <span className="text-slate-400 text-xs">$</span>}
+                                  <input
+                                    type="number"
+                                    step={metric.step || 1}
+                                    autoFocus
+                                    className="w-full bg-white border border-blue-400 rounded px-1.5 py-0.5 text-xs font-mono font-bold text-center outline-none"
+                                    value={inputValue}
+                                    onChange={e => setInputValue(e.target.value)}
+                                    onKeyDown={e => handleKeyDown(e, entity, metric)}
+                                    onBlur={() => handleCommit(entity, metric)}
+                                  />
+                                </div>
                               )}
-                              <button
-                                onClick={() => commitEdit(metric.key, defaultGoal?.id)}
-                                className="p-1 rounded hover:bg-emerald-50 text-emerald-600 transition-colors"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setEditingKey(null)}
-                                className="p-1 rounded hover:bg-slate-100 text-slate-400 transition-colors"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ) : defaultGoal ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm font-mono font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                                {formatGoalDisplay(defaultGoal.target_value, metric.unit)}
-                              </span>
-                              <button
-                                onClick={() => startEdit(editKey, defaultGoal.target_value, metric.unit === "min")}
-                                className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                              </button>
-                              <button
-                                onClick={() => removeGoal(defaultGoal.id)}
-                                className="p-1 rounded hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
                             </div>
                           ) : (
-                            <button
-                              onClick={() => startEdit(editKey, 0, metric.unit === "min")}
-                              className="text-xs text-slate-400 hover:text-blue-600 border border-dashed border-slate-300 hover:border-blue-400 rounded-md px-3 py-1 transition-colors"
-                            >
-                              + Set Goal
-                            </button>
+                            /* Display Mode */
+                            <div className="relative group/cell flex items-center justify-center min-h-[28px] px-1">
+                              {hasOverride ? (
+                                <span className="inline-flex items-center gap-1 font-mono font-bold text-emerald-700 bg-emerald-100/90 border border-emerald-300 rounded px-1.5 py-0.5 shadow-sm text-xs">
+                                  {formatDisplay(goal.target_value, metric.unit)}
+                                </span>
+                              ) : isBaseline ? (
+                                <span
+                                  className={`font-mono font-bold px-1.5 py-0.5 rounded text-xs ${
+                                    displayVal > 0
+                                      ? "text-slate-900 bg-white border border-slate-300 shadow-sm"
+                                      : "text-slate-300"
+                                  }`}
+                                >
+                                  {formatDisplay(displayVal, metric.unit)}
+                                </span>
+                              ) : (
+                                <span className="font-mono text-slate-400 italic text-xs flex items-center gap-0.5 opacity-60 group-hover/cell:opacity-100">
+                                  {displayVal > 0 ? formatDisplay(displayVal, metric.unit) : "—"}
+                                </span>
+                              )}
+
+                              {/* Quick Revert / Trash button for overrides on hover */}
+                              {hasOverride && goal && (
+                                <button
+                                  onClick={e => {
+                                    e.stopPropagation()
+                                    deleteOverride(goal.id)
+                                  }}
+                                  className="absolute right-0.5 top-0.5 opacity-0 group-hover/cell:opacity-100 p-0.5 text-slate-400 hover:text-red-600 bg-white rounded shadow-sm border border-slate-200 transition-all"
+                                  title="Revert to Agency Baseline"
+                                >
+                                  <X className="w-2.5 h-2.5" />
+                                </button>
+                              )}
+                            </div>
                           )}
-                        </div>
-                      </div>
-
-                      {/* Overrides */}
-                      {overrides.length > 0 && (
-                        <div className="mt-3 ml-4 space-y-1.5">
-                          {overrides.map(ov => {
-                            const ovEditKey = `override-${ov.id}`
-                            const isOvEditing = editingKey === ovEditKey
-                            const label = ov.office ? `${ov.office} Office` : `${ov.team} Team`
-
-                            return (
-                              <div key={ov.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 group">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="text-[10px] bg-white border-slate-200 text-slate-600">
-                                    {label}
-                                  </Badge>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  {isOvEditing ? (
-                                    <>
-                                      {metric.unit === "$" && <span className="text-slate-400 text-xs">$</span>}
-                                      {metric.unit === "min" ? (
-                                        <>
-                                          <input type="number" min="0" max="23" autoFocus className="w-12 bg-white border border-slate-300 rounded px-1.5 py-0.5 text-xs font-mono text-center focus:ring-2 focus:ring-blue-400 outline-none" value={timeHours} onChange={e => setTimeHours(Math.max(0, parseInt(e.target.value) || 0))} onKeyDown={e => { if (e.key === "Enter") commitEdit(metric.key, ov.id); if (e.key === "Escape") setEditingKey(null) }} />
-                                          <span className="text-slate-400 text-[10px]">h</span>
-                                          <input type="number" min="0" max="59" className="w-12 bg-white border border-slate-300 rounded px-1.5 py-0.5 text-xs font-mono text-center focus:ring-2 focus:ring-blue-400 outline-none" value={timeMinutes} onChange={e => setTimeMinutes(Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))} onKeyDown={e => { if (e.key === "Enter") commitEdit(metric.key, ov.id); if (e.key === "Escape") setEditingKey(null) }} />
-                                          <span className="text-slate-400 text-[10px]">m</span>
-                                        </>
-                                      ) : (
-                                        <input
-                                          type="number"
-                                          autoFocus
-                                          className="w-20 bg-white border border-slate-300 rounded px-2 py-0.5 text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none"
-                                          value={editValue}
-                                          onChange={e => setEditValue(e.target.value)}
-                                          onKeyDown={e => {
-                                            if (e.key === "Enter") commitEdit(metric.key, ov.id)
-                                            if (e.key === "Escape") setEditingKey(null)
-                                          }}
-                                        />
-                                      )}
-                                      <button onClick={() => commitEdit(metric.key, ov.id)} className="p-0.5 rounded hover:bg-emerald-50 text-emerald-600"><Check className="w-3 h-3" /></button>
-                                      <button onClick={() => setEditingKey(null)} className="p-0.5 rounded hover:bg-slate-100 text-slate-400"><X className="w-3 h-3" /></button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span className="text-xs font-mono font-bold text-slate-700">
-                                        {formatGoalDisplay(ov.target_value, metric.unit)}
-                                      </span>
-                                      <button
-                                        onClick={() => startEdit(ovEditKey, ov.target_value, metric.unit === "min")}
-                                        className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-slate-200 text-slate-400 transition-all"
-                                      >
-                                        <Edit2 className="w-3 h-3" />
-                                      </button>
-                                      <button
-                                        onClick={() => removeGoal(ov.id)}
-                                        className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-red-50 text-slate-300 hover:text-red-500 transition-all"
-                                      >
-                                        <Trash2 className="w-3 h-3" />
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-
-                      {/* Add override form */}
-                      {isAddingHere ? (
-                        <div className="mt-3 ml-4 flex items-center gap-2 bg-blue-50/50 border border-blue-200 rounded-lg px-3 py-2">
-                          <select
-                            className="bg-white border border-slate-300 rounded-md px-2 py-1 text-xs text-slate-700 focus:ring-2 focus:ring-blue-400 outline-none"
-                            value={overrideType}
-                            onChange={e => { setOverrideType(e.target.value as "office" | "team"); setOverrideTarget("") }}
-                          >
-                            <option value="office">Office</option>
-                            <option value="team">Team</option>
-                          </select>
-                          <select
-                            className="bg-white border border-slate-300 rounded-md px-2 py-1 text-xs text-slate-700 focus:ring-2 focus:ring-blue-400 outline-none"
-                            value={overrideTarget}
-                            onChange={e => setOverrideTarget(e.target.value)}
-                          >
-                            <option value="">Select...</option>
-                            {(overrideType === "office" ? OFFICES : TEAMS).map(v => (
-                              <option key={v} value={v}>{v}</option>
-                            ))}
-                          </select>
-                          {metric.unit === "$" && <span className="text-slate-400 text-xs">$</span>}
-                          {metric.unit === "min" ? (
-                            <>
-                              <input type="number" min="0" max="23" placeholder="0" className="w-12 bg-white border border-slate-300 rounded-md px-1.5 py-1 text-xs font-mono text-center focus:ring-2 focus:ring-blue-400 outline-none" value={timeHours || ""} onChange={e => setTimeHours(Math.max(0, parseInt(e.target.value) || 0))} onKeyDown={e => { if (e.key === "Enter") saveOverride(metric.key) }} />
-                              <span className="text-slate-400 text-[10px]">h</span>
-                              <input type="number" min="0" max="59" placeholder="0" className="w-12 bg-white border border-slate-300 rounded-md px-1.5 py-1 text-xs font-mono text-center focus:ring-2 focus:ring-blue-400 outline-none" value={timeMinutes || ""} onChange={e => setTimeMinutes(Math.min(59, Math.max(0, parseInt(e.target.value) || 0)))} onKeyDown={e => { if (e.key === "Enter") saveOverride(metric.key) }} />
-                              <span className="text-slate-400 text-[10px]">m</span>
-                            </>
-                          ) : (
-                            <input
-                              type="number"
-                              placeholder="Goal"
-                              className="w-20 bg-white border border-slate-300 rounded-md px-2 py-1 text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none"
-                              value={overrideValue}
-                              onChange={e => setOverrideValue(e.target.value)}
-                              onKeyDown={e => { if (e.key === "Enter") saveOverride(metric.key) }}
-                            />
-                          )}
-                          <button onClick={() => saveOverride(metric.key)} className="p-1 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-700 transition-colors">
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => setAddingOverride(null)} className="p-1 rounded hover:bg-slate-100 text-slate-400 transition-colors">
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => { setAddingOverride(metric.key); setOverrideType("office"); setOverrideTarget(""); setOverrideValue("") }}
-                          className="mt-2 ml-4 text-[11px] text-slate-400 hover:text-blue-600 transition-colors"
-                        >
-                          + Add override
-                        </button>
-                      )}
-                    </div>
-                  )
-                })}
-              </CardContent>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })
             )}
-          </Card>
-        )
-      })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ─── Compact Cell Inspector / Context Preview Drawer (Light Theme) ────── */}
+      {hoveredCell && (
+        <div className="bg-white text-slate-800 rounded-xl p-3.5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs border border-slate-200 animate-in fade-in duration-150">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 font-bold">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="font-bold text-slate-900 flex items-center gap-2">
+                <span>{hoveredCell.entity.label}</span>
+                <span className="text-slate-400">➔</span>
+                <span className="text-blue-700 font-semibold">{hoveredCell.metric.label}</span>
+                <Badge variant="outline" className="text-[10px] font-mono uppercase bg-slate-50 text-slate-600 border-slate-200 py-0 px-1">
+                  {timeframe}
+                </Badge>
+              </div>
+              <div className="text-slate-500 text-[11px] mt-0.5">
+                {hoveredCell.isOverride ? (
+                  <span className="text-emerald-700 font-medium">
+                    Custom override set: <strong className="text-emerald-800">{formatDisplay(hoveredCell.val, hoveredCell.metric.unit)}</strong> (Agency baseline: {formatDisplay(hoveredCell.baselineVal, hoveredCell.metric.unit)})
+                  </span>
+                ) : hoveredCell.entity.type === "baseline" ? (
+                  <span className="text-slate-700 font-medium">
+                    Agency Baseline Benchmark: <strong>{formatDisplay(hoveredCell.baselineVal, hoveredCell.metric.unit)}</strong>
+                  </span>
+                ) : (
+                  <span className="text-slate-500">
+                    Inheriting Agency Baseline: <strong className="text-slate-700">{formatDisplay(hoveredCell.baselineVal, hoveredCell.metric.unit)}</strong>. Click cell to set a custom override.
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 text-[11px] font-mono text-slate-700 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+            {timeframe === "daily" && (
+              <>
+                <div>
+                  Wkly: <strong className="text-blue-700 font-bold">{hoveredCell.val ? formatDisplay(hoveredCell.val * 5, hoveredCell.metric.unit) : "—"}</strong>
+                </div>
+                <div className="text-slate-300">|</div>
+                <div>
+                  Mthly: <strong className="text-amber-800 font-bold">{hoveredCell.val ? formatDisplay(Math.round(hoveredCell.val * bizDaysInMonth), hoveredCell.metric.unit) : "—"}</strong>
+                </div>
+              </>
+            )}
+            {timeframe === "weekly" && (
+              <>
+                <div>
+                  Daily: <strong className="text-blue-700 font-bold">{hoveredCell.val ? formatDisplay(Math.round((hoveredCell.val / 5) * 10) / 10, hoveredCell.metric.unit) : "—"}</strong>
+                </div>
+                <div className="text-slate-300">|</div>
+                <div>
+                  Mthly: <strong className="text-amber-800 font-bold">{hoveredCell.val ? formatDisplay(Math.round((hoveredCell.val / 5) * bizDaysInMonth), hoveredCell.metric.unit) : "—"}</strong>
+                </div>
+              </>
+            )}
+            {timeframe === "monthly" && (
+              <>
+                <div>
+                  Daily: <strong className="text-blue-700 font-bold">{hoveredCell.val ? formatDisplay(Math.round((hoveredCell.val / bizDaysInMonth) * 10) / 10, hoveredCell.metric.unit) : "—"}</strong>
+                </div>
+                <div className="text-slate-300">|</div>
+                <div>
+                  Wkly: <strong className="text-blue-700 font-bold">{hoveredCell.val ? formatDisplay(Math.round((hoveredCell.val / bizDaysInMonth) * 5), hoveredCell.metric.unit) : "—"}</strong>
+                </div>
+              </>
+            )}
+            <div className="text-slate-300">|</div>
+            <div>
+              Trigger: <span className="text-emerald-700 font-bold bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">≥ Target = Green</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

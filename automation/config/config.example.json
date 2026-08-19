@@ -1,0 +1,98 @@
+{
+  "spine": {
+    "path": "Daily Standup Report.xlsx",
+    "sheet_name": "Spine",
+    "excluded_agents": ["Teyssy", "Elizabeth"]
+  },
+  "email_sources": {
+    "rc": {
+      "sender_filter": "analytics.portal@ringcentral.com",
+      "subject_filter": "scheduled reports from ringcentral",
+      "attachment_filter": "users",
+      "folder": "Inbox/Daily Reports",
+      "lookback_days": 2
+    },
+    "rico": {
+      "source_type": "downloads_folder",
+      "downloads_folder": "AUTO_DETECT",
+      "lookback_days": 2
+    },
+    "rico_ch": {
+      "source_type": "downloads_folder",
+      "downloads_folder": "AUTO_DETECT"
+    },
+    "rico_ap": {
+      "source_type": "downloads_folder",
+      "downloads_folder": "AUTO_DETECT"
+    },
+    "hs": {
+      "source_type": "downloads_folder",
+      "downloads_folder": "AUTO_DETECT",
+      "file_pattern": "Performance Breakdown Report",
+      "lookback_days": 2
+    },
+    "nb": {
+      "source_type": "downloads_folder",
+      "downloads_folder": "AUTO_DETECT"
+    },
+    "quotes": {
+      "source_type": "downloads_folder",
+      "downloads_folder": "AUTO_DETECT"
+    },
+    "premium": {
+      "source_type": "downloads_folder",
+      "downloads_folder": "AUTO_DETECT"
+    },
+    "rico_leads": {
+      "source_type": "downloads_folder",
+      "downloads_folder": "AUTO_DETECT",
+      "file_glob": "leads_report_*.csv"
+    }
+  },
+  "ricochet": {
+    "reports_url": "https://admin-allstate-mt3.ricochet.me/alsop/reports",
+    "org": "Alsop",
+    "username": "YOUR_RICOCHET_ADMIN_EMAIL",
+    "password": "YOUR_RICOCHET_ADMIN_PASSWORD",
+    "profile_dir": "data/playwright_profile"
+  },
+  "ricochet_ch": {
+    "login_url": "https://alsop.ricochet.me/login",
+    "dashboard_url": "https://alsop.ricochet.me/dashboard/",
+    "username": "YOUR_RICOCHET_USER_EMAIL",
+    "password": "YOUR_RICOCHET_USER_PASSWORD",
+    "org": "Alsop",
+    "profile_dir": "data/rico_ch_playwright_profile",
+    "mfa_sender_filter": "ricochet",
+    "mfa_subject_filter": ""
+  },
+  "allstate_dash": {
+    "url": "https://dash.allstate.com/Home/Dash/",
+    "username": "YOUR_ALLSTATE_USERNAME",
+    "password": "YOUR_ALLSTATE_PASSWORD",
+    "profile_dir": "data/dash_playwright_profile",
+    "mfa_type": "push"
+  },
+  "agencyzoom": {
+    "login_url": "https://app.agencyzoom.com",
+    "username": "YOUR_AGENCYZOOM_EMAIL",
+    "password": "YOUR_AGENCYZOOM_PASSWORD",
+    "profile_dir": "data/az_playwright_profile"
+  },
+  "download": {
+    "raw_data_folder": "data/raw"
+  },
+  "screenshots": {
+    "folder": "data/screenshots"
+  },
+  "report": {
+    "master_path": "DSR_Master.xlsx",
+    "output_folder": "reports",
+    "template_name": "DSR_{date}.xlsx",
+    "company_name": "Allstate Agency"
+  },
+  "supabase": {
+    "url": "https://xejmpdfqaghamemjrhxa.supabase.co",
+    "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhlam1wZGZxYWdoYW1lbWpyaHhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0NTkxMTUsImV4cCI6MjA5MjAzNTExNX0.0m_8BHyk-2dVZUjCme-yDXwrpswhpBi8gFZVTdIyWOc"
+  }
+}

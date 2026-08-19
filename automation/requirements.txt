@@ -1,0 +1,13 @@
+# Data processing
+pandas>=2.2.0
+openpyxl>=3.1.0
+xlrd>=2.0.0
+
+# Outlook COM automation (Windows only)
+pywin32>=308
+
+# Claude Vision API for screenshot OCR
+anthropic>=0.39.0
+
+# HTTP (for future browser automation)
+requests>=2.32.0

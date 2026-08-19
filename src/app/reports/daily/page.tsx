@@ -36,8 +36,8 @@ function formatHeaderDate(dateStr: string) {
 const COLUMNS: ColumnDef[] = [
   // Agent Info
   { key: "agent",  label: "Agent",  group: "agent", sortAccessor: (m: any) => m.agents?.name || "" },
-  { key: "office", label: "Office", group: "agent", sortAccessor: (m: any) => m.agents?.office || "" },
-  { key: "team",   label: "Team",   group: "agent", sortAccessor: (m: any) => m.agents?.team || "" },
+  { key: "office", label: "Office", group: "meta",  sortAccessor: (m: any) => m.agents?.office || "" },
+  { key: "team",   label: "Team",   group: "meta",  sortAccessor: (m: any) => m.agents?.team || "" },
   // RC / Ricochet
   { key: "calls",     label: "Calls",     group: "calls", sortAccessor: (m: any) => m.calls || 0 },
   { key: "inbound",   label: "Inbound",   group: "calls", sortAccessor: (m: any) => m.inbound || 0 },
@@ -950,12 +950,16 @@ export default function DailyReport() {
 
                 return (
                   <>
-                    {/* ── Agent Info ── */}
-                    <td className="py-[2px] px-1.5 text-[15px] whitespace-nowrap">
+                    {/* ── Agent Info (Sticky Left Column) ── */}
+                    <td className={`py-[2px] px-1.5 text-[15px] whitespace-nowrap sticky left-0 z-20 border-r ${
+                      item.isTotal 
+                        ? "bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" 
+                        : "bg-white dark:bg-slate-900 group-hover/row:bg-slate-50 dark:group-hover/row:bg-slate-800/90 border-slate-200 dark:border-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
+                    }`}>
                       {item.isTotal ? (
                         <span className="font-extrabold text-slate-900 dark:text-slate-100">Total</span>
                       ) : (
-                        <Link href={`/reports/agent/${item.agent_id}`} className="font-bold text-blue-400 hover:underline">
+                        <Link href={`/reports/agent/${item.agent_id}`} className="font-bold text-blue-500 hover:underline">
                           {item.agents?.name}
                         </Link>
                       )}

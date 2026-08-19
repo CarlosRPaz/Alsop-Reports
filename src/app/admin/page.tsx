@@ -27,7 +27,7 @@ export default function AdminHub() {
           </CardHeader>
           <CardContent>
             <p className="text-slate-500 text-sm mb-6">
-              Create, edit, archive, and manage office/team assignments for your agency roster.
+              Manage agency roster, office/team assignments, meeting times, and multi-system name aliases.
             </p>
             <Link href="/admin/agents">
               <button className="w-full inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white border border-slate-200 bg-white text-slate-700 shadow-sm h-10 py-2 px-4 group-hover:text-blue-600 group-hover:border-blue-600 hover:bg-blue-600 hover:text-white hover:border-blue-600">
@@ -46,7 +46,7 @@ export default function AdminHub() {
           </CardHeader>
           <CardContent>
             <p className="text-slate-500 text-sm mb-6">
-              Invite agents to the dashboard, manage login credentials, and control site access.
+              Invite team members, manage login credentials and roles, and configure granular page permissions.
             </p>
             <Link href="/admin/users">
               <button className="w-full inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white border border-slate-200 bg-white text-slate-700 shadow-sm h-10 py-2 px-4 group-hover:text-violet-600 group-hover:border-violet-600 hover:bg-violet-600 hover:text-white hover:border-violet-600">
@@ -65,7 +65,7 @@ export default function AdminHub() {
           </CardHeader>
           <CardContent>
             <p className="text-slate-500 text-sm mb-6">
-              Set Daily, Weekly, Monthly, and YTD performance goals. Target specific offices and teams.
+              High-density Target Matrix to set baseline and custom override targets by team or office.
             </p>
             <Link href="/admin/goals">
               <button className="w-full inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white border border-slate-200 bg-white text-slate-700 shadow-sm h-10 py-2 px-4 group-hover:text-amber-600 group-hover:border-amber-600 hover:bg-amber-600 hover:text-white hover:border-amber-600">
@@ -103,7 +103,7 @@ export default function AdminHub() {
           </CardHeader>
           <CardContent>
             <p className="text-slate-500 text-sm mb-6">
-              Manually trigger the Python DSR pipeline and view the data sources dictionary.
+              Upload raw report files, sync data to Supabase, monitor Sync Calendar coverage, and manage manual entries.
             </p>
             <Link href="/admin/sync">
               <button className="w-full inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-white border border-slate-200 bg-white text-slate-700 shadow-sm h-10 py-2 px-4 group-hover:text-emerald-600 group-hover:border-emerald-600 hover:bg-emerald-600 hover:text-white hover:border-emerald-600">

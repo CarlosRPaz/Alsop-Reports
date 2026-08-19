@@ -32,8 +32,8 @@ const SOURCE_KEYS = Object.keys(SOURCE_META) as (keyof typeof SOURCE_META)[]
 
 const COLUMNS: ColumnDef[] = [
   { key: "agent", label: "Agent", group: "agent", sortAccessor: (i) => i.agents?.name },
-  { key: "office", label: "Office", group: "agent", sortAccessor: (i) => i.agents?.office },
-  { key: "team", label: "Team", group: "agent", sortAccessor: (i) => i.agents?.team },
+  { key: "office", label: "Office", group: "meta",  sortAccessor: (i) => i.agents?.office },
+  { key: "team", label: "Team", group: "meta",  sortAccessor: (i) => i.agents?.team },
 
   { key: "calls", label: "In Calls", group: "calls", sortAccessor: (i) => i.inbound },
   { key: "outbound", label: "Out Calls", group: "calls", sortAccessor: (i) => i.outbound },
@@ -819,13 +819,40 @@ export default function WeeklyReport() {
               renderRow={(item) => {
                 const bdr = (group: string) => GROUP_CELL_BORDER[group] || "";
                 const manualHL = (!manualSubmitted && !item.isTotal) ? "orange" as const : undefined;
+
+                // Resolve Weekly Goal for this agent & metric (Team/Office override -> Baseline)
+                const getWeeklyGoal = (metric: string) => {
+                  if (item.isTotal || !goals) return null;
+                  const agentOffice = item.agents?.office;
+                  const agentTeam = item.agents?.team;
+                  const matching = goals.filter((g: any) => g.metric_name === metric && g.timeframe === "weekly");
+                  if (!matching.length) return null;
+
+                  const teamAndOffice = matching.find((g: any) => g.team === agentTeam && g.office === agentOffice);
+                  if (teamAndOffice) return teamAndOffice;
+                  const teamOnly = matching.find((g: any) => g.team === agentTeam && !g.office);
+                  if (teamOnly) return teamOnly;
+                  const officeOnly = matching.find((g: any) => g.office === agentOffice && !g.team);
+                  if (officeOnly) return officeOnly;
+                  const globalGoal = matching.find((g: any) => !g.office && !g.team);
+                  return globalGoal || null;
+                };
+
+                const talkGoal = getWeeklyGoal("talk_time_seconds");
+                const talkMinutes = (item.talk_time_seconds || 0) / 60;
+                const talkMeetsGoal = !item.isTotal && talkGoal && talkGoal.target_value > 0 && talkMinutes >= talkGoal.target_value;
+
                 return (
                   <>
-                    <td className="py-[2px] px-1.5 text-[15px] whitespace-nowrap">
+                    <td className={`py-[2px] px-1.5 text-[15px] whitespace-nowrap sticky left-0 z-20 border-r ${
+                      item.isTotal 
+                        ? "bg-slate-50 border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" 
+                        : "bg-white group-hover/row:bg-slate-50 border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
+                    }`}>
                       {item.isTotal ? (
                         <span className="font-extrabold text-slate-900">Total</span>
                       ) : (
-                        <Link href={`/reports/agent/${item.agent_id}`} className="font-bold text-blue-400 hover:underline">
+                        <Link href={`/reports/agent/${item.agent_id}`} className="font-bold text-blue-500 hover:underline">
                           {item.agents?.name}
                         </Link>
                       )}
@@ -836,32 +863,38 @@ export default function WeeklyReport() {
                     </td>
 
                     {/* RC / Ricochet */}
-                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("calls")}`}>{formatValue(item.inbound)}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.outbound)}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.calls)}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatTime(item.talk_time_seconds)}</td>
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("calls")}`}>{formatValue(item.inbound, "", "", getWeeklyGoal("inbound"))}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.outbound, "", "", getWeeklyGoal("outbound"))}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.calls, "", "", getWeeklyGoal("calls"))}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">
+                      {talkMeetsGoal ? (
+                        <span className="bg-emerald-200 text-emerald-900 dark:bg-emerald-500/30 dark:text-emerald-100 rounded px-1.5 -mx-1">{formatTime(item.talk_time_seconds)}</span>
+                      ) : (
+                        formatTime(item.talk_time_seconds)
+                      )}
+                    </td>
                     
                     {/* Hearsay */}
-                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("texts")}`}>{formatValue(item.texts)}</td>
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("texts")}`}>{formatValue(item.texts, "", "", getWeeklyGoal("texts"))}</td>
 
                     {/* Leads (manual) */}
                     <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("leads")}`}>{formatValue(item.unique_leads, "", "", null, manualHL)}</td>
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.rico_hot_pipeline, "", "", null, manualHL)}</td>
 
                     {/* eAgent (manual) */}
-                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("eagent")}`}>{formatValue(item.pivot)}</td>
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("eagent")}`}>{formatValue(item.pivot, "", "", getWeeklyGoal("pivots"))}</td>
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.saved, "", "", null, manualHL)}</td>
 
                     {/* Production */}
-                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("production")}`}>{formatValue(item.quotes)}</td>
-                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.prem_premium, "$")}</td>
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("production")}`}>{formatValue(item.quotes, "", "", getWeeklyGoal("quotes"))}</td>
+                    <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.prem_premium, "$", "", getWeeklyGoal("prem_premium"))}</td>
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.premium_mtd, "$", "", null, "gold")}</td>
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.prem_points)}</td>
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.prev_month_points)}</td>
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.items_mtd, "", "", null, "gold")}</td>
 
                     {/* Past Due / Dismissed (manual) */}
-                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("eagent")}`}>{formatValue(item.w_dismissed_todos)}</td>
+                    <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("eagent")}`}>{formatValue(item.w_dismissed_todos, "", "", getWeeklyGoal("dismissed_todos"))}</td>
                     <td className="py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900">{formatValue(item.w_past_due_todos, "", "", null, manualHL)}</td>
                     
                     <td className={`py-[2px] px-1.5 text-[15px] font-mono font-bold text-slate-900 ${bdr("leads")}`}>{formatValue(item.rico_past_due_tasks, "", "", null, manualHL)}</td>

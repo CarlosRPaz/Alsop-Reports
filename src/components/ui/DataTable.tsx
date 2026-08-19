@@ -28,7 +28,8 @@ interface DataTableProps extends React.HTMLAttributes<HTMLDivElement> {
 
 // Group header color classes matching the new Excel scheme
 const DEFAULT_GROUP_COLORS: Record<string, string> = {
-  agent:      "bg-slate-800 text-white",
+  agent:      "bg-slate-900 text-white",
+  meta:       "bg-slate-800 text-slate-200",
   calls:      "bg-[#115E2E] text-white", // Solid Dark green
   texts:      "bg-[#5B2163] text-white", // Solid Dark purple
   production: "bg-amber-500 text-black", // Match MCM/gold
@@ -38,6 +39,7 @@ const DEFAULT_GROUP_COLORS: Record<string, string> = {
 
 const DEFAULT_GROUP_BORDER_COLORS: Record<string, string> = {
   agent:      "",
+  meta:       "border-l border-l-slate-700",
   calls:      "border-l-2 border-l-emerald-600/50",
   texts:      "border-l-2 border-l-fuchsia-600/50",
   production: "border-l-2 border-l-amber-500/50",
@@ -137,7 +139,8 @@ export function DataTable({
   }
 
   const GROUP_LABELS: Record<string, string> = {
-    agent: "Agent Info",
+    agent: "Agent",
+    meta: "Office / Team",
     calls: "RC / Ricochet",
     texts: "Texts",
     production: "Production",
@@ -215,6 +218,7 @@ export function DataTable({
                   colSpan={gs.span}
                   className={cn(
                     "py-0.5 px-1.5 text-[9px] uppercase tracking-widest font-bold text-center border-b border-slate-200",
+                    idx === 0 && "sticky left-0 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.12)]",
                     gs.group ? groupColors[gs.group] || "" : "bg-slate-100 text-slate-500",
                     gs.group && idx > 0 ? groupBorderColors[gs.group] || "" : ""
                   )}
@@ -230,7 +234,7 @@ export function DataTable({
                 const sortState = getSortState(col.key);
                 const isSortable = !!col.sortAccessor;
                 const isFirstOfGroup = idx === 0 || normalizedColumns[idx - 1].group !== col.group;
-                const isDataCol = col.group && col.group !== "agent";
+                const isDataCol = col.group && col.group !== "agent" && col.group !== "meta";
                 
                 return (
                   <th 
@@ -238,6 +242,7 @@ export function DataTable({
                     onClick={(e) => handleHeaderClick(col, e)}
                     className={cn(
                       "select-none",
+                      idx === 0 && "sticky left-0 z-30 bg-white dark:bg-slate-900 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] border-r border-slate-200 dark:border-slate-800",
                       isSortable && "cursor-pointer transition-colors",
                       isFirstOfGroup && col.group && idx > 0 ? groupBorderColors[col.group] || "" : "",
                       isDataCol ? "p-0 align-bottom" : "py-1 px-1.5"
@@ -293,7 +298,7 @@ export function DataTable({
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
             {totals && sortedData.length > 0 && (
-              <tr className="dsr-totals-row font-extrabold border-y border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white">
+              <tr className="dsr-totals-row font-extrabold border-y border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-800/70">
                 {renderRow({ ...totals, isTotal: true })}
               </tr>
             )}
@@ -305,7 +310,7 @@ export function DataTable({
               </tr>
             ) : (
               sortedData.map((item) => (
-                <tr key={keyExtractor(item)} className="transition-colors">
+                <tr key={keyExtractor(item)} className="group/row transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
                   {renderRow(item)}
                 </tr>
               ))
