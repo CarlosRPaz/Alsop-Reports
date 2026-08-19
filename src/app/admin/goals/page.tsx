@@ -87,7 +87,7 @@ const OFFICES = ["MCM", "MB", "RC", "CH"]
 interface GoalRecord {
   id: string
   metric_name: string
-  timeframe: "daily" | "monthly"
+  timeframe: "daily" | "weekly" | "monthly" | "ytd"
   target_value: number
   office: string | null
   team: string | null
