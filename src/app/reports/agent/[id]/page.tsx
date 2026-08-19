@@ -259,15 +259,20 @@ export default function AgentDashboardPage() {
 
   const { agent, scorecards, periodLabel, businessDaysTotal, businessDaysPassed, dailyGoals = {} } = data
 
-  // Trend Chart Data mapping
-  const trendData = filteredDailyRows.map(r => ({
-    date: r.report_date.split("-").slice(1).join("/"), // MM/DD
-    Items: r.items || 0,
-    Premium: Math.round(r.prem_premium || 0),
-    Quotes: r.quotes || 0,
-    "Talk Time (min)": Math.round((r.talk_time_seconds || 0) / 60),
-    Calls: r.calls || 0,
-  }))
+  // Trend Chart Data mapping (includes Day of Week + Date, e.g. Mon 8/18)
+  const trendData = filteredDailyRows.map(r => {
+    const d = new Date(r.report_date + "T12:00:00")
+    const weekday = d.toLocaleDateString("en-US", { weekday: "short" })
+    const monthDay = `${d.getMonth() + 1}/${d.getDate()}`
+    return {
+      date: `${weekday} ${monthDay}`,
+      Items: r.items || 0,
+      Premium: Math.round(r.prem_premium || 0),
+      Quotes: r.quotes || 0,
+      "Talk Time (min)": Math.round((r.talk_time_seconds || 0) / 60),
+      Calls: r.calls || 0,
+    }
+  })
 
   const trendLineConfigs = {
     items: [{ key: "Items", color: "#f59e0b", formatter: (v: number) => `${v}` }],
