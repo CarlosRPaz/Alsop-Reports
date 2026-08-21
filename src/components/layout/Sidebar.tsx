@@ -286,9 +286,11 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 px-3 space-y-1 mt-4 overflow-y-auto">
-          {dynamicNavItems.filter(item => {
+          {navItems.filter(item => {
             // Admin Panel is rendered separately below the nav
             if (item.href === '/admin') return false
+            // Agent Portal is only shown in the reports list for Managers and Admins
+            if (item.pageKey === 'agent_portal' && !isManagerOrAdmin) return false
             // Heatmap is strictly Admin-only
             if (item.pageKey === 'heatmap') {
               return currentAgent?.role === 'admin'
@@ -338,8 +340,8 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Mobile Admin Panel link */}
-        {currentAgent?.role === 'admin' && (() => {
+        {/* Mobile Pinned Bottom Link: Admin Panel for Admins, My Portal for Agents */}
+        {currentAgent?.role === 'admin' ? (() => {
           const isActive = pathname === '/admin' || pathname.startsWith('/admin')
           return (
             <div className="px-3 mb-1">
@@ -361,7 +363,30 @@ export function Sidebar() {
               </Link>
             </div>
           )
-        })()}
+        })() : currentAgent?.id ? (() => {
+          const portalHref = `/reports/agent/${currentAgent.id}`
+          const isActive = pathname === portalHref || pathname.startsWith(portalHref)
+          return (
+            <div className="px-3 mb-1">
+              <Link
+                href={portalHref}
+                onClick={() => setIsMobileOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
+                  isActive
+                    ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                )}
+              >
+                <UserCircle className={cn(
+                  "shrink-0 transition-colors w-4 h-4",
+                  isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-300"
+                )} />
+                <span className="font-semibold">My Portal</span>
+              </Link>
+            </div>
+          )
+        })() : null}
 
         {/* Mobile User Profile Summary */}
         {currentAgent && (
@@ -450,9 +475,11 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 px-2 space-y-1 mt-4">
-          {dynamicNavItems.filter(item => {
+          {navItems.filter(item => {
             // Admin Panel is rendered separately below the nav
             if (item.href === '/admin') return false
+            // Agent Portal is only shown in the reports list for Managers and Admins
+            if (item.pageKey === 'agent_portal' && !isManagerOrAdmin) return false
             // Heatmap is strictly Admin-only
             if (item.pageKey === 'heatmap') {
               return currentAgent?.role === 'admin'
@@ -507,8 +534,8 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Admin Panel – pinned above user profile, visible only to admins */}
-        {currentAgent?.role === 'admin' && (() => {
+        {/* Pinned Bottom Link: Admin Panel for Admins, My Portal for Agents */}
+        {currentAgent?.role === 'admin' ? (() => {
           const isActive = pathname === '/admin' || pathname.startsWith('/admin')
           return (
             <div className="px-2 mb-1">
@@ -528,11 +555,36 @@ export function Sidebar() {
                   !isExpanded ? "w-5 h-5" : "w-4 h-4",
                   isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-300"
                 )} />
-                {isExpanded && <span className="whitespace-nowrap">Admin Panel</span>}
+                {isExpanded && <span className="whitespace-nowrap font-medium">Admin Panel</span>}
               </Link>
             </div>
           )
-        })()}
+        })() : currentAgent?.id ? (() => {
+          const portalHref = `/reports/agent/${currentAgent.id}`
+          const isActive = pathname === portalHref || pathname.startsWith(portalHref)
+          return (
+            <div className="px-2 mb-1">
+              <Link
+                href={portalHref}
+                title={!isExpanded ? 'My Portal' : undefined}
+                className={cn(
+                  "flex items-center rounded-lg text-sm font-medium transition-all group overflow-hidden",
+                  !isExpanded ? "justify-center p-2" : "gap-3 px-3 py-2",
+                  isActive
+                    ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                )}
+              >
+                <UserCircle className={cn(
+                  "shrink-0 transition-colors",
+                  !isExpanded ? "w-5 h-5" : "w-4 h-4",
+                  isActive ? "text-blue-600" : "text-slate-500 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-300"
+                )} />
+                {isExpanded && <span className="whitespace-nowrap font-semibold">My Portal</span>}
+              </Link>
+            </div>
+          )
+        })() : null}
 
         {/* User Profile Summary Component */}
         {currentAgent && (

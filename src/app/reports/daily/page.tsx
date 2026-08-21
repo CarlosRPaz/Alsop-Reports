@@ -831,7 +831,7 @@ export default function DailyReport() {
         </div>
 
         {/* Row 3 (Desktop): Daily Leaders */}
-        {/* Top Total Premium (Daily) — aligned exactly under Premium MTD */}
+        {/* Top Total Premium (Daily) */}
         <LeaderboardCard
           title="Top Total Premium (Daily)"
           icon={<DollarSign className="w-3.5 h-3.5" />}
@@ -839,7 +839,7 @@ export default function DailyReport() {
           accessor={(m) => Number(m.prem_premium) || 0}
           format={(v) => `$${v.toLocaleString()}`}
           colorClass="text-emerald-600"
-          className="col-span-12 md:col-span-6 lg:col-span-2 order-5 lg:order-none"
+          className="col-span-12 sm:col-span-6 lg:col-span-3 order-5 lg:order-none"
         />
 
         {/* Top Items (Issued) */}
@@ -850,7 +850,7 @@ export default function DailyReport() {
           accessor={(m) => m.items || 0}
           format={(v) => `${v} items`}
           colorClass="text-amber-400"
-          className="col-span-12 md:col-span-6 lg:col-span-2 order-6 lg:order-none"
+          className="col-span-12 sm:col-span-6 lg:col-span-3 order-6 lg:order-none"
         />
 
         {/* Top Talk Time (Daily) */}
@@ -861,7 +861,7 @@ export default function DailyReport() {
           accessor={(m) => m.talk_time_seconds || 0}
           format={(v) => formatTime(v)}
           colorClass="text-sky-400"
-          className="col-span-12 md:col-span-6 lg:col-span-2 order-7 lg:order-none"
+          className="col-span-12 sm:col-span-6 lg:col-span-3 order-7 lg:order-none"
         />
 
         {/* Top Texts (Daily) */}
@@ -872,7 +872,7 @@ export default function DailyReport() {
           accessor={(m) => m.texts || 0}
           format={(v) => `${v.toLocaleString()}`}
           colorClass="text-fuchsia-400"
-          className="col-span-12 md:col-span-6 lg:col-span-2 order-8 lg:order-none"
+          className="col-span-12 sm:col-span-6 lg:col-span-3 order-8 lg:order-none"
         />
       </div>
 
