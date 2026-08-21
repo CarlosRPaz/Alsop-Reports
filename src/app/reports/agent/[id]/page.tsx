@@ -246,6 +246,60 @@ export default function AgentDashboardPage() {
     })
   }, [data])
 
+  // Daily Goal Playbook Calculations (must be declared at top level before early returns)
+  const playbookData = useMemo(() => {
+    if (!data) return null
+    const monthlyItemsGoal = 40 // Standard Agency benchmark
+    const currentItems = data.scorecards.find(s => s.metric === "items")?.value || 0
+    const itemsNeeded = Math.max(0, monthlyItemsGoal - currentItems)
+    const bizDaysTotal = data.businessDaysTotal || 22
+    const bizDaysPassed = data.businessDaysPassed || 1
+    const bizDaysRemaining = Math.max(1, bizDaysTotal - bizDaysPassed)
+
+    const requiredDailyPace = Number((itemsNeeded / bizDaysRemaining).toFixed(1))
+    const currentDailyPace = Number((currentItems / Math.max(1, bizDaysPassed)).toFixed(1))
+    const percent = Math.min(100, Math.round((currentItems / monthlyItemsGoal) * 100))
+    const isGoalMet = currentItems >= monthlyItemsGoal
+
+    let statusLabel = ""
+    let statusColor = ""
+    let adviceText = ""
+
+    if (isGoalMet) {
+      statusLabel = "Goal Crushed! 🏆"
+      statusColor = "text-emerald-800 bg-emerald-100 border-emerald-300"
+      adviceText = `Incredible work! You've already reached ${currentItems} NB Auto Items, surpassing your monthly goal of ${monthlyItemsGoal}. Every additional policy this month pushes your agency rank even higher!`
+    } else if (currentDailyPace >= requiredDailyPace) {
+      statusLabel = "Ahead of Pace 🟢"
+      statusColor = "text-emerald-800 bg-emerald-100 border-emerald-300"
+      adviceText = `You're in great shape! You have written ${currentItems} items (${percent}% of your ${monthlyItemsGoal}-item target). With ${bizDaysRemaining} working days remaining, maintaining a steady pace of just ${requiredDailyPace} items/day guarantees you win the month!`
+    } else if (requiredDailyPace <= 2.5) {
+      statusLabel = "Within Reach 🟡"
+      statusColor = "text-amber-800 bg-amber-100 border-amber-300"
+      adviceText = `You are within striking distance! You need ${itemsNeeded} more items to hit your ${monthlyItemsGoal}-item milestone. Writing ${requiredDailyPace} items/day over the next ${bizDaysRemaining} working days gets you there.`
+    } else {
+      statusLabel = "Push Pace 🚀"
+      statusColor = "text-blue-800 bg-blue-100 border-blue-300"
+      adviceText = `Focus on high-volume quote follow-ups and outbound dials today. Writing ${requiredDailyPace} items/day across the remaining ${bizDaysRemaining} working days will close the gap and secure your ${monthlyItemsGoal}-item goal.`
+    }
+
+    return {
+      monthlyItemsGoal,
+      currentItems,
+      itemsNeeded,
+      bizDaysTotal,
+      bizDaysPassed,
+      bizDaysRemaining,
+      requiredDailyPace,
+      currentDailyPace,
+      percent,
+      isGoalMet,
+      statusLabel,
+      statusColor,
+      adviceText
+    }
+  }, [data])
+
   if (loading && !data) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3 text-slate-500">
@@ -337,60 +391,6 @@ export default function AgentDashboardPage() {
     if (rank <= 5) return "bg-blue-50 text-blue-800 border border-blue-200"
     return scope === "team" ? "bg-slate-100 text-slate-700" : "bg-slate-50 text-slate-600"
   }
-
-  // Daily Goal Playbook Calculations
-  const playbookData = useMemo(() => {
-    if (!data) return null
-    const monthlyItemsGoal = 40 // Standard Agency benchmark
-    const currentItems = data.scorecards.find(s => s.metric === "items")?.value || 0
-    const itemsNeeded = Math.max(0, monthlyItemsGoal - currentItems)
-    const bizDaysTotal = data.businessDaysTotal || 22
-    const bizDaysPassed = data.businessDaysPassed || 1
-    const bizDaysRemaining = Math.max(1, bizDaysTotal - bizDaysPassed)
-
-    const requiredDailyPace = Number((itemsNeeded / bizDaysRemaining).toFixed(1))
-    const currentDailyPace = Number((currentItems / Math.max(1, bizDaysPassed)).toFixed(1))
-    const percent = Math.min(100, Math.round((currentItems / monthlyItemsGoal) * 100))
-    const isGoalMet = currentItems >= monthlyItemsGoal
-
-    let statusLabel = ""
-    let statusColor = ""
-    let adviceText = ""
-
-    if (isGoalMet) {
-      statusLabel = "Goal Crushed! 🏆"
-      statusColor = "text-emerald-800 bg-emerald-100 border-emerald-300"
-      adviceText = `Incredible work! You've already reached ${currentItems} NB Auto Items, surpassing your monthly goal of ${monthlyItemsGoal}. Every additional policy this month pushes your agency rank even higher!`
-    } else if (currentDailyPace >= requiredDailyPace) {
-      statusLabel = "Ahead of Pace 🟢"
-      statusColor = "text-emerald-800 bg-emerald-100 border-emerald-300"
-      adviceText = `You're in great shape! You have written ${currentItems} items (${percent}% of your ${monthlyItemsGoal}-item target). With ${bizDaysRemaining} working days remaining, maintaining a steady pace of just ${requiredDailyPace} items/day guarantees you win the month!`
-    } else if (requiredDailyPace <= 2.5) {
-      statusLabel = "Within Reach 🟡"
-      statusColor = "text-amber-800 bg-amber-100 border-amber-300"
-      adviceText = `You are within striking distance! You need ${itemsNeeded} more items to hit your ${monthlyItemsGoal}-item milestone. Writing ${requiredDailyPace} items/day over the next ${bizDaysRemaining} working days gets you there.`
-    } else {
-      statusLabel = "Push Pace 🚀"
-      statusColor = "text-blue-800 bg-blue-100 border-blue-300"
-      adviceText = `Focus on high-volume quote follow-ups and outbound dials today. Writing ${requiredDailyPace} items/day across the remaining ${bizDaysRemaining} working days will close the gap and secure your ${monthlyItemsGoal}-item goal.`
-    }
-
-    return {
-      monthlyItemsGoal,
-      currentItems,
-      itemsNeeded,
-      bizDaysTotal,
-      bizDaysPassed,
-      bizDaysRemaining,
-      requiredDailyPace,
-      currentDailyPace,
-      percent,
-      isGoalMet,
-      statusLabel,
-      statusColor,
-      adviceText
-    }
-  }, [data])
 
   return (
     <div className="p-3 md:p-5 max-w-[1600px] mx-auto space-y-4 min-h-screen">
