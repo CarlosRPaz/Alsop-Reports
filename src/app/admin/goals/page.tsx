@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/Badge"
 import {
   Target, Check, X, Phone, MessageSquare, BarChart3, ClipboardList,
   CalendarDays, Zap, RefreshCw, Layers, ShieldCheck, ArrowRight,
-  Info, Sparkles, Filter, CheckCircle2, Loader2, Trash2
+  Info, Sparkles, Filter, CheckCircle2, Loader2, Trash2,
+  Medal, Award, Trophy, Crown, Flame, Star, Eye, Compass
 } from "lucide-react"
 import { getBusinessDaysInMonth, toHolidaySet } from "@/lib/businessDays"
 
@@ -134,6 +135,14 @@ export default function GoalManagement() {
   const [bizDaysInMonth, setBizDaysInMonth] = useState<number>(21)
   const [currentMonthName, setCurrentMonthName] = useState<string>("")
   const [autoProrating, setAutoProrating] = useState<boolean>(false)
+
+  // Top-level Mode Switch
+  const [activeAdminTab, setActiveAdminTab] = useState<"matrix" | "medals">("matrix")
+
+  // Medals Designer state
+  const [medalsDesignOption, setMedalsDesignOption] = useState<"ribbon" | "showcase" | "strip">("ribbon")
+  const [previewAgentName, setPreviewAgentName] = useState<string>("Charmaine")
+  const [preview40Count, setPreview40Count] = useState<number>(3)
 
   // Hover preview inspector
   const [hoveredCell, setHoveredCell] = useState<{
@@ -422,239 +431,624 @@ export default function GoalManagement() {
       <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shadow-inner">
-            <Target className="w-5 h-5" />
+            {activeAdminTab === "matrix" ? <Target className="w-5 h-5" /> : <Medal className="w-5 h-5" />}
           </div>
           <div>
-            <h1 className="text-xl font-black tracking-tight text-slate-900">
-              KPI Goals & Target Matrix
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-black tracking-tight text-slate-900">
+                {activeAdminTab === "matrix" ? "KPI Goals & Target Matrix" : "Agency Medals & Milestones"}
+              </h1>
+              {activeAdminTab === "medals" && (
+                <Badge variant="warning" className="text-[10px] py-0 font-bold bg-amber-100 text-amber-800 border-amber-300">
+                  Roadmap & Live Designer
+                </Badge>
+              )}
+            </div>
             <p className="text-xs text-slate-500 font-medium">
-              Configure baseline benchmarks & team/office target overrides. Highlighting applies automatically to all reports.
+              {activeAdminTab === "matrix" 
+                ? "Configure baseline benchmarks & team/office target overrides. Highlighting applies automatically to all reports."
+                : "Plan, configure, and preview gamification medals and agent portal celebration banners."}
             </p>
           </div>
         </div>
 
+        {/* Primary View Switcher */}
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Timeframe 3-Way Toggle */}
           <div className="inline-flex p-1 bg-slate-100 rounded-lg border border-slate-200 shadow-inner">
             <button
-              onClick={() => setTimeframe("daily")}
-              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
-                timeframe === "daily"
+              onClick={() => setActiveAdminTab("matrix")}
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 ${
+                activeAdminTab === "matrix"
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-500 hover:text-slate-900"
               }`}
             >
-              📅 Daily
+              <Target className="w-3.5 h-3.5 text-amber-500" />
+              Target Matrix
             </button>
             <button
-              onClick={() => setTimeframe("weekly")}
-              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
-                timeframe === "weekly"
+              onClick={() => setActiveAdminTab("medals")}
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 ${
+                activeAdminTab === "medals"
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-500 hover:text-slate-900"
               }`}
             >
-              📊 Weekly
-            </button>
-            <button
-              onClick={() => setTimeframe("monthly")}
-              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
-                timeframe === "monthly"
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-900"
-              }`}
-            >
-              📆 Monthly
+              <Medal className="w-3.5 h-3.5 text-amber-500" />
+              Medals & Milestones
             </button>
           </div>
 
-          {/* Entity Filter */}
-          <div className="inline-flex p-1 bg-slate-100 rounded-lg border border-slate-200">
-            <button
-              onClick={() => setEntityFilter("all")}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
-                entityFilter === "all" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
-              }`}
-            >
-              All Rows
-            </button>
-            <button
-              onClick={() => setEntityFilter("teams")}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
-                entityFilter === "teams" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
-              }`}
-            >
-              Teams
-            </button>
-            <button
-              onClick={() => setEntityFilter("offices")}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
-                entityFilter === "offices" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
-              }`}
-            >
-              Offices
-            </button>
-          </div>
+          {activeAdminTab === "matrix" && (
+            <>
+              {/* Timeframe 3-Way Toggle */}
+              <div className="inline-flex p-1 bg-slate-100 rounded-lg border border-slate-200 shadow-inner">
+                <button
+                  onClick={() => setTimeframe("daily")}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                    timeframe === "daily"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  📅 Daily
+                </button>
+                <button
+                  onClick={() => setTimeframe("weekly")}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                    timeframe === "weekly"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  📊 Weekly
+                </button>
+                <button
+                  onClick={() => setTimeframe("monthly")}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                    timeframe === "monthly"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  📆 Monthly
+                </button>
+              </div>
 
-          {/* Auto-Prorate / Sync Buttons */}
-          {timeframe === "weekly" && (
-            <div className="inline-flex items-center gap-1">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleAutoProrate("daily")}
-                disabled={autoProrating}
-                className="h-8 text-xs font-semibold border-amber-300 text-amber-800 bg-amber-50/50 hover:bg-amber-100/80 gap-1.5"
-                title="Multiply daily targets by 5 days"
-              >
-                {autoProrating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-600" />}
-                Sync from Daily (×5d)
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleAutoProrate("monthly")}
-                disabled={autoProrating}
-                className="h-8 text-xs font-semibold border-slate-300 text-slate-700 bg-white hover:bg-slate-50 gap-1.5"
-                title="Divide monthly targets by working weeks"
-              >
-                Prorate from Monthly
-              </Button>
-            </div>
+              {/* Entity Filter */}
+              <div className="inline-flex p-1 bg-slate-100 rounded-lg border border-slate-200">
+                <button
+                  onClick={() => setEntityFilter("all")}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                    entityFilter === "all" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                  }`}
+                >
+                  All Rows
+                </button>
+                <button
+                  onClick={() => setEntityFilter("teams")}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                    entityFilter === "teams" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                  }`}
+                >
+                  Teams
+                </button>
+                <button
+                  onClick={() => setEntityFilter("offices")}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                    entityFilter === "offices" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                  }`}
+                >
+                  Offices
+                </button>
+              </div>
+
+              {/* Auto-Prorate / Sync Buttons */}
+              {timeframe === "weekly" && (
+                <div className="inline-flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleAutoProrate("daily")}
+                    disabled={autoProrating}
+                    className="h-8 text-xs font-semibold border-amber-300 text-amber-800 bg-amber-50/50 hover:bg-amber-100/80 gap-1.5"
+                    title="Multiply daily targets by 5 days"
+                  >
+                    {autoProrating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-600" />}
+                    Sync from Daily (×5d)
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleAutoProrate("monthly")}
+                    disabled={autoProrating}
+                    className="h-8 text-xs font-semibold border-slate-300 text-slate-700 bg-white hover:bg-slate-50 gap-1.5"
+                    title="Divide monthly targets by working weeks"
+                  >
+                    Prorate from Monthly
+                  </Button>
+                </div>
+              )}
+
+              {timeframe === "daily" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleAutoProrate("weekly")}
+                  disabled={autoProrating}
+                  className="h-8 text-xs font-semibold border-amber-300 text-amber-800 bg-amber-50/50 hover:bg-amber-100/80 gap-1.5"
+                  title="Divide weekly targets by 5 days"
+                >
+                  {autoProrating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-600" />}
+                  Prorate from Weekly (÷5d)
+                </Button>
+              )}
+
+              {timeframe === "monthly" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleAutoProrate("weekly")}
+                  disabled={autoProrating}
+                  className="h-8 text-xs font-semibold border-amber-300 text-amber-800 bg-amber-50/50 hover:bg-amber-100/80 gap-1.5"
+                  title={`Multiply weekly targets by ${Math.round((bizDaysInMonth / 5) * 10) / 10} weeks`}
+                >
+                  {autoProrating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-600" />}
+                  Sync from Weekly (×{(Math.round((bizDaysInMonth / 5) * 10) / 10)}w)
+                </Button>
+              )}
+
+              {/* Save status badge */}
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-medium border border-slate-200 bg-slate-50 text-slate-600">
+                {saveStatus === "saving" && (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
+                    <span>Saving...</span>
+                  </>
+                )}
+                {saveStatus === "saved" && (
+                  <>
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    <span className="text-emerald-700 font-bold">Saved ✓</span>
+                  </>
+                )}
+                {saveStatus === "idle" && (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+                    <span>Live Sync</span>
+                  </>
+                )}
+              </div>
+            </>
           )}
-
-          {timeframe === "daily" && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleAutoProrate("weekly")}
-              disabled={autoProrating}
-              className="h-8 text-xs font-semibold border-amber-300 text-amber-800 bg-amber-50/50 hover:bg-amber-100/80 gap-1.5"
-              title="Divide weekly targets by 5 days"
-            >
-              {autoProrating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-600" />}
-              Prorate from Weekly (÷5d)
-            </Button>
-          )}
-
-          {timeframe === "monthly" && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleAutoProrate("weekly")}
-              disabled={autoProrating}
-              className="h-8 text-xs font-semibold border-amber-300 text-amber-800 bg-amber-50/50 hover:bg-amber-100/80 gap-1.5"
-              title={`Multiply weekly targets by ${Math.round((bizDaysInMonth / 5) * 10) / 10} weeks`}
-            >
-              {autoProrating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-600" />}
-              Sync from Weekly (×{(Math.round((bizDaysInMonth / 5) * 10) / 10)}w)
-            </Button>
-          )}
-
-          {/* Save status badge */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-medium border border-slate-200 bg-slate-50 text-slate-600">
-            {saveStatus === "saving" && (
-              <>
-                <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
-                <span>Saving...</span>
-              </>
-            )}
-            {saveStatus === "saved" && (
-              <>
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                <span className="text-emerald-700 font-bold">Saved ✓</span>
-              </>
-            )}
-            {saveStatus === "idle" && (
-              <>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
-                <span>Auto-Save Active</span>
-              </>
-            )}
-          </div>
         </div>
       </header>
 
-      {/* ─── Compact Legend & Pacing Context Bar ───────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-slate-50/80 border border-slate-200 rounded-lg text-xs text-slate-600">
-        <div className="flex items-center gap-3">
-          <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-            <Info className="w-3.5 h-3.5 text-blue-500" /> Matrix Guide:
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-2.5 h-2.5 rounded bg-emerald-100 border border-emerald-300"></span>
-            <strong>Bold Badge:</strong> Custom Override
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-2.5 h-2.5 rounded bg-slate-100 border border-slate-300 border-dashed"></span>
-            <span className="text-slate-400 italic">(Gray Text):</span> Inherited Agency Baseline
-          </span>
-          <span className="hidden md:inline text-slate-400">|</span>
-          <span className="hidden md:inline text-slate-500">
-            Click any cell to edit • Press <kbd className="px-1 py-0.5 bg-white border border-slate-300 rounded font-mono text-[10px]">Enter</kbd> to save • Clear value to remove override
-          </span>
-        </div>
-
-        <div className="text-[11px] font-mono text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
-          Working Days: <strong>{bizDaysInMonth} days</strong> ({currentMonthName})
-        </div>
-      </div>
-
-      {/* ─── Target Matrix Grid ────────────────────────────────────────────────── */}
-      <div className="relative overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full text-left border-collapse select-none">
-          <thead>
-            {/* Top Row: Group Headers */}
-            <tr className="border-b border-slate-200 divide-x divide-slate-200 text-[11px] font-bold tracking-wider uppercase">
-              <th className="p-2.5 bg-slate-100 text-slate-700 min-w-[200px] sticky left-0 z-20 shadow-[1px_0_0_0_#e2e8f0]">
-                Scope / Entity
-              </th>
-              {KPI_GROUPS.map(group => {
-                const colSpan = group.metrics.length
-                const groupColor = {
-                  sky: "bg-sky-50 text-sky-800 border-sky-200",
-                  teal: "bg-teal-50 text-teal-800 border-teal-200",
-                  amber: "bg-amber-50 text-amber-800 border-amber-200",
-                  violet: "bg-violet-50 text-violet-800 border-violet-200",
-                }[group.color]
-
-                return (
-                  <th
-                    key={group.label}
-                    colSpan={colSpan}
-                    className={`p-2 text-center ${groupColor} border-b-2`}
-                  >
-                    <div className="flex items-center justify-center gap-1.5">
-                      <group.icon className="w-3.5 h-3.5" />
-                      <span>{group.label}</span>
+      {/* ─── Main Views: Medals vs Target Matrix ─────────────────────────────────── */}
+      {activeAdminTab === "medals" ? (
+        <div className="space-y-6">
+          {/* Section 1: Architecture & Plan for 40-Club */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <Card className="lg:col-span-2 border-slate-200 shadow-sm bg-white">
+              <CardHeader className="pb-3 border-b border-slate-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
+                      <Trophy className="w-4 h-4" />
                     </div>
-                  </th>
-                )
-              })}
-            </tr>
-
-            {/* Sub-Row: Individual Metric Columns */}
-            <tr className="border-b border-slate-200 divide-x divide-slate-200 bg-slate-50 text-[10px] font-bold uppercase text-slate-600">
-              <th className="p-2 sticky left-0 z-20 bg-slate-50 shadow-[1px_0_0_0_#e2e8f0]">
-                Entity & Overrides
-              </th>
-              {ALL_METRICS.map(metric => (
-                <th key={metric.key} className="p-2 text-center min-w-[95px]">
-                  <div className="truncate" title={metric.label}>
-                    {metric.shortLabel}
-                    {metric.unit && (
-                      <span className="ml-1 text-[9px] text-slate-400 font-mono font-normal">
-                        ({metric.unit === "$" ? "$" : "min"})
-                      </span>
-                    )}
+                    <div>
+                      <CardTitle className="text-base font-black text-slate-900">
+                        Monthly 40-Club Milestone: Implementation Architecture
+                      </CardTitle>
+                      <p className="text-xs text-slate-500 font-medium">
+                        Automatic historical data qualification & badge progression pipeline
+                      </p>
+                    </div>
                   </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
+                  <Badge variant="success" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
+                    Planned Architecture
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-5 space-y-4 text-xs text-slate-700">
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/80 space-y-2.5">
+                  <div className="font-bold text-slate-900 flex items-center gap-2 text-sm">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <span>How Historical Month Checking Will Work:</span>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1.5 text-slate-600 leading-relaxed font-medium">
+                    <li>
+                      <strong className="text-slate-800">Historical Query:</strong> Query all historical records in <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-indigo-600 font-mono text-[11px]">daily_metrics</code> grouped by agent ID and calendar month (<code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-indigo-600 font-mono text-[11px]">YYYY-MM</code>).
+                    </li>
+                    <li>
+                      <strong className="text-slate-800">40-Item Threshold:</strong> For each completed calendar month where <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-indigo-600 font-mono text-[11px]">SUM(nb_auto_items) &gt;= 40</code>, the agent earns a <strong>40-Club Month Token</strong>.
+                    </li>
+                    <li>
+                      <strong className="text-slate-800">Lifetime Multiplier:</strong> Count total qualifying months to determine their lifetime badge tier and display count (e.g. <span className="font-bold text-amber-700">🏆 40-Club (x3)</span>).
+                    </li>
+                    <li>
+                      <strong className="text-slate-800">Current Month Pacing:</strong> If current MTD items reach 40 before month-end, award the current month badge immediately with celebration confetti.
+                    </li>
+                  </ol>
+                </div>
 
-          <tbody className="divide-y divide-slate-100 text-xs">
+                {/* Multiplier Progression Tiers */}
+                <div>
+                  <h3 className="font-bold text-slate-900 text-xs mb-2 uppercase tracking-wider text-slate-500">
+                    40-Club Progression Multiplier Tiers
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className="bg-amber-50/50 border border-amber-200 rounded-lg p-3 text-center">
+                      <div className="text-xl mb-1">🥉</div>
+                      <div className="font-bold text-slate-900 text-xs">Bronze Member</div>
+                      <div className="text-[10px] text-slate-500 font-medium">1 Month (40+ items)</div>
+                    </div>
+                    <div className="bg-slate-100 border border-slate-300 rounded-lg p-3 text-center">
+                      <div className="text-xl mb-1">🥈</div>
+                      <div className="font-bold text-slate-900 text-xs">Silver Veteran</div>
+                      <div className="text-[10px] text-slate-500 font-medium">3 Months (40+ items)</div>
+                    </div>
+                    <div className="bg-amber-100/70 border border-amber-300 rounded-lg p-3 text-center">
+                      <div className="text-xl mb-1">🥇</div>
+                      <div className="font-bold text-slate-900 text-xs">Gold Master</div>
+                      <div className="text-[10px] text-slate-500 font-medium">6 Months (40+ items)</div>
+                    </div>
+                    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-center">
+                      <div className="text-xl mb-1">👑</div>
+                      <div className="font-bold text-slate-900 text-xs">Platinum Legend</div>
+                      <div className="text-[10px] text-slate-500 font-medium">12+ Months (40+ items)</div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Section 2: Future Agency Medals Roadmap */}
+            <Card className="border-slate-200 shadow-sm bg-white">
+              <CardHeader className="pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+                    <Award className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base font-black text-slate-900">
+                      Agency Medals Roadmap
+                    </CardTitle>
+                    <p className="text-xs text-slate-500 font-medium">
+                      Future milestones to motivate all skillsets
+                    </p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-start gap-2.5 p-2 rounded-lg bg-slate-50 border border-slate-100">
+                  <div className="text-base shrink-0 mt-0.5">🚀</div>
+                  <div>
+                    <div className="font-bold text-slate-800 text-xs">Century Dials</div>
+                    <p className="text-[11px] text-slate-500 font-medium">100+ outbound dials in a single business day.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-2 rounded-lg bg-slate-50 border border-slate-100">
+                  <div className="text-base shrink-0 mt-0.5">⏱️</div>
+                  <div>
+                    <div className="font-bold text-slate-800 text-xs">Marathon Talker</div>
+                    <p className="text-[11px] text-slate-500 font-medium">90+ minutes talk time across daily calls.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-2 rounded-lg bg-slate-50 border border-slate-100">
+                  <div className="text-base shrink-0 mt-0.5">🎯</div>
+                  <div>
+                    <div className="font-bold text-slate-800 text-xs">Sharpshooter</div>
+                    <p className="text-[11px] text-slate-500 font-medium">20%+ monthly close rate on delivered quotes.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-2 rounded-lg bg-slate-50 border border-slate-100">
+                  <div className="text-base shrink-0 mt-0.5">🔥</div>
+                  <div>
+                    <div className="font-bold text-slate-800 text-xs">Consistency Streak</div>
+                    <p className="text-[11px] text-slate-500 font-medium">3 consecutive days hitting daily item quota.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-2 rounded-lg bg-slate-50 border border-slate-100">
+                  <div className="text-base shrink-0 mt-0.5">💎</div>
+                  <div>
+                    <div className="font-bold text-slate-800 text-xs">Golden Month</div>
+                    <p className="text-[11px] text-slate-500 font-medium">$50,000+ written premium in a single month.</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Section 3: Interactive Agent Portal Banner Designer */}
+          <Card className="border-slate-200 shadow-md bg-white overflow-hidden">
+            <CardHeader className="bg-slate-50/80 border-b border-slate-200 py-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-700">
+                    <Eye className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base font-black text-slate-900">
+                      Live Agent Portal Banner Studio (Design Options)
+                    </CardTitle>
+                    <p className="text-xs text-slate-500 font-medium">
+                      Select a layout option below to preview how the medals banner will look on the agent&apos;s personal portal.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Preview Controls */}
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Style Options */}
+                  <div className="inline-flex p-1 bg-slate-200/80 rounded-lg border border-slate-300 text-xs font-bold">
+                    <button
+                      onClick={() => setMedalsDesignOption("ribbon")}
+                      className={`px-3 py-1 rounded-md transition-all ${
+                        medalsDesignOption === "ribbon" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Option A: Prestige Ribbon
+                    </button>
+                    <button
+                      onClick={() => setMedalsDesignOption("showcase")}
+                      className={`px-3 py-1 rounded-md transition-all ${
+                        medalsDesignOption === "showcase" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Option B: Trophy Case
+                    </button>
+                    <button
+                      onClick={() => setMedalsDesignOption("strip")}
+                      className={`px-3 py-1 rounded-md transition-all ${
+                        medalsDesignOption === "strip" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Option C: Header Badges
+                    </button>
+                  </div>
+
+                  {/* Simulated Count Switcher */}
+                  <div className="flex items-center gap-1.5 text-xs bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                    <span className="text-slate-500 font-medium">Preview Hits:</span>
+                    {[1, 3, 6, 12].map((cnt) => (
+                      <button
+                        key={cnt}
+                        onClick={() => setPreview40Count(cnt)}
+                        className={`px-2 py-0.5 rounded font-mono font-bold ${
+                          preview40Count === cnt ? "bg-amber-500 text-white" : "text-slate-600 hover:bg-slate-100"
+                        }`}
+                      >
+                        {cnt}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-6 bg-slate-900/5 space-y-4">
+              <div className="text-[11px] uppercase tracking-wider font-bold text-slate-500 flex items-center gap-1.5">
+                <Compass className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Live Simulation on {previewAgentName}&apos;s Personal Portal</span>
+              </div>
+
+              {/* MOCKUP CONTAINER */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 md:p-6 space-y-4">
+                
+                {/* ── OPTION A: PRESTIGE GOLD RIBBON BANNER ── */}
+                {medalsDesignOption === "ribbon" && (
+                  <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 rounded-xl p-4 md:p-5 shadow-md border border-amber-300 relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-xl bg-white/90 shadow-sm flex items-center justify-center text-2xl shrink-0 border border-amber-200">
+                        {preview40Count >= 12 ? "👑" : preview40Count >= 6 ? "🥇" : preview40Count >= 3 ? "🥈" : "🥉"}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-base text-slate-950 tracking-tight">
+                            {preview40Count >= 12 ? "40-Club Platinum Legend" : preview40Count >= 6 ? "40-Club Gold Master" : preview40Count >= 3 ? "40-Club Silver Veteran" : "40-Club Member"}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-xs font-black bg-slate-950 text-amber-300 font-mono shadow-xs">
+                            {preview40Count}x Hit
+                          </span>
+                        </div>
+                        <p className="text-xs font-medium text-slate-800 mt-0.5">
+                          Honoring {previewAgentName} for surpassing 40+ Auto Items in {preview40Count} separate calendar months!
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-stretch md:self-auto justify-end">
+                      <div className="bg-white/80 backdrop-blur-xs px-3 py-1.5 rounded-lg border border-amber-300/60 text-right">
+                        <span className="text-[10px] text-slate-600 uppercase font-bold block">Lifetime Status</span>
+                        <span className="font-black text-xs text-slate-900 font-mono">Agency Elite Roster</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── OPTION B: TROPHY CASE SHOWCASE ── */}
+                {medalsDesignOption === "showcase" && (
+                  <div className="bg-slate-900 text-white rounded-xl p-5 border border-slate-800 shadow-md space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Trophy className="w-4 h-4 text-amber-400" />
+                        <h4 className="font-black text-sm text-slate-100">
+                          {previewAgentName}&apos;s Trophy Case & Milestone Badges
+                        </h4>
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        {preview40Count > 0 ? "1 Badge Unlocked" : "0 Badges"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                      {/* Unlocked 40 Club */}
+                      <div className="bg-slate-800/90 rounded-xl p-3.5 border border-amber-400/40 relative overflow-hidden flex flex-col justify-between h-28">
+                        <div className="flex items-center justify-between">
+                          <span className="text-2xl">🏆</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                            {preview40Count}x Earned
+                          </span>
+                        </div>
+                        <div>
+                          <div className="font-bold text-xs text-amber-200">40-Item Month Club</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">Surpassed 40 auto items</div>
+                        </div>
+                      </div>
+
+                      {/* Locked Badges */}
+                      <div className="bg-slate-800/40 rounded-xl p-3.5 border border-slate-700/60 opacity-60 flex flex-col justify-between h-28">
+                        <div className="flex items-center justify-between">
+                          <span className="text-2xl grayscale">🚀</span>
+                          <span className="text-[10px] font-medium text-slate-400">Locked</span>
+                        </div>
+                        <div>
+                          <div className="font-bold text-xs text-slate-300">Century Dials</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">100+ dials in one day</div>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-800/40 rounded-xl p-3.5 border border-slate-700/60 opacity-60 flex flex-col justify-between h-28">
+                        <div className="flex items-center justify-between">
+                          <span className="text-2xl grayscale">🎯</span>
+                          <span className="text-[10px] font-medium text-slate-400">Locked</span>
+                        </div>
+                        <div>
+                          <div className="font-bold text-xs text-slate-300">Sharpshooter</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">20%+ monthly close rate</div>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-800/40 rounded-xl p-3.5 border border-slate-700/60 opacity-60 flex flex-col justify-between h-28">
+                        <div className="flex items-center justify-between">
+                          <span className="text-2xl grayscale">💎</span>
+                          <span className="text-[10px] font-medium text-slate-400">Locked</span>
+                        </div>
+                        <div>
+                          <div className="font-bold text-xs text-slate-300">Golden Month</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">$50K+ written premium</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── OPTION C: SLEEK PROFILE BADGE STRIP ── */}
+                {medalsDesignOption === "strip" && (
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center font-black text-white text-sm">
+                        {previewAgentName.substring(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-black text-sm text-slate-900">{previewAgentName}</h4>
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-black bg-amber-100 text-amber-800 border border-amber-300">
+                            🏆 40-Club Milestone ({preview40Count}x)
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            ⭐ Top Tier
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                          Achieved 40+ written auto items across {preview40Count} separate months.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-xs font-mono font-bold text-slate-600 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                      Agency Milestone Badge Active ✓
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        /* Target Matrix View */
+        <>
+          {/* ─── Compact Legend & Pacing Context Bar ───────────────────────────────── */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-slate-50/80 border border-slate-200 rounded-lg text-xs text-slate-600">
+            <div className="flex items-center gap-3">
+              <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5 text-blue-500" /> Matrix Guide:
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-2.5 h-2.5 rounded bg-emerald-100 border border-emerald-300"></span>
+                <strong>Bold Badge:</strong> Custom Override
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-2.5 h-2.5 rounded bg-slate-100 border border-slate-300 border-dashed"></span>
+                <span className="text-slate-400 italic">(Gray Text):</span> Inherited Agency Baseline
+              </span>
+              <span className="hidden md:inline text-slate-400">|</span>
+              <span className="hidden md:inline text-slate-500">
+                Click any cell to edit • Press <kbd className="px-1 py-0.5 bg-white border border-slate-300 rounded font-mono text-[10px]">Enter</kbd> to save • Clear value to remove override
+              </span>
+            </div>
+
+            <div className="text-[11px] font-mono text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
+              Working Days: <strong>{bizDaysInMonth} days</strong> ({currentMonthName})
+            </div>
+          </div>
+
+          {/* ─── Target Matrix Grid ────────────────────────────────────────────────── */}
+          <div className="relative overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-full text-left border-collapse select-none">
+              <thead>
+                {/* Top Row: Group Headers */}
+                <tr className="border-b border-slate-200 divide-x divide-slate-200 text-[11px] font-bold tracking-wider uppercase">
+                  <th className="p-2.5 bg-slate-100 text-slate-700 min-w-[200px] sticky left-0 z-20 shadow-[1px_0_0_0_#e2e8f0]">
+                    Scope / Entity
+                  </th>
+                  {KPI_GROUPS.map(group => {
+                    const colSpan = group.metrics.length
+                    const groupColor = {
+                      sky: "bg-sky-50 text-sky-800 border-sky-200",
+                      teal: "bg-teal-50 text-teal-800 border-teal-200",
+                      amber: "bg-amber-50 text-amber-800 border-amber-200",
+                      violet: "bg-violet-50 text-violet-800 border-violet-200",
+                    }[group.color]
+
+                    return (
+                      <th
+                        key={group.label}
+                        colSpan={colSpan}
+                        className={`p-2 text-center ${groupColor} border-b-2`}
+                      >
+                        <div className="flex items-center justify-center gap-1.5">
+                          <group.icon className="w-3.5 h-3.5" />
+                          <span>{group.label}</span>
+                        </div>
+                      </th>
+                    )
+                  })}
+                </tr>
+
+                {/* Sub-Row: Individual Metric Columns */}
+                <tr className="border-b border-slate-200 divide-x divide-slate-200 bg-slate-50 text-[10px] font-bold uppercase text-slate-600">
+                  <th className="p-2 sticky left-0 z-20 bg-slate-50 shadow-[1px_0_0_0_#e2e8f0]">
+                    Entity & Overrides
+                  </th>
+                  {ALL_METRICS.map(metric => (
+                    <th key={metric.key} className="p-2 text-center min-w-[95px]">
+                      <div className="truncate" title={metric.label}>
+                        {metric.shortLabel}
+                        {metric.unit && (
+                          <span className="ml-1 text-[9px] text-slate-400 font-mono font-normal">
+                            ({metric.unit === "$" ? "$" : "min"})
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100 text-xs">
             {loading ? (
               <tr>
                 <td colSpan={ALL_METRICS.length + 1} className="py-16 text-center text-slate-400">
@@ -902,6 +1296,8 @@ export default function GoalManagement() {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   )

@@ -338,6 +338,60 @@ export default function AgentDashboardPage() {
     return scope === "team" ? "bg-slate-100 text-slate-700" : "bg-slate-50 text-slate-600"
   }
 
+  // Daily Goal Playbook Calculations
+  const playbookData = useMemo(() => {
+    if (!data) return null
+    const monthlyItemsGoal = 40 // Standard Agency benchmark
+    const currentItems = data.scorecards.find(s => s.metric === "items")?.value || 0
+    const itemsNeeded = Math.max(0, monthlyItemsGoal - currentItems)
+    const bizDaysTotal = data.businessDaysTotal || 22
+    const bizDaysPassed = data.businessDaysPassed || 1
+    const bizDaysRemaining = Math.max(1, bizDaysTotal - bizDaysPassed)
+
+    const requiredDailyPace = Number((itemsNeeded / bizDaysRemaining).toFixed(1))
+    const currentDailyPace = Number((currentItems / Math.max(1, bizDaysPassed)).toFixed(1))
+    const percent = Math.min(100, Math.round((currentItems / monthlyItemsGoal) * 100))
+    const isGoalMet = currentItems >= monthlyItemsGoal
+
+    let statusLabel = ""
+    let statusColor = ""
+    let adviceText = ""
+
+    if (isGoalMet) {
+      statusLabel = "Goal Crushed! 🏆"
+      statusColor = "text-emerald-800 bg-emerald-100 border-emerald-300"
+      adviceText = `Incredible work! You've already reached ${currentItems} NB Auto Items, surpassing your monthly goal of ${monthlyItemsGoal}. Every additional policy this month pushes your agency rank even higher!`
+    } else if (currentDailyPace >= requiredDailyPace) {
+      statusLabel = "Ahead of Pace 🟢"
+      statusColor = "text-emerald-800 bg-emerald-100 border-emerald-300"
+      adviceText = `You're in great shape! You have written ${currentItems} items (${percent}% of your ${monthlyItemsGoal}-item target). With ${bizDaysRemaining} working days remaining, maintaining a steady pace of just ${requiredDailyPace} items/day guarantees you win the month!`
+    } else if (requiredDailyPace <= 2.5) {
+      statusLabel = "Within Reach 🟡"
+      statusColor = "text-amber-800 bg-amber-100 border-amber-300"
+      adviceText = `You are within striking distance! You need ${itemsNeeded} more items to hit your ${monthlyItemsGoal}-item milestone. Writing ${requiredDailyPace} items/day over the next ${bizDaysRemaining} working days gets you there.`
+    } else {
+      statusLabel = "Push Pace 🚀"
+      statusColor = "text-blue-800 bg-blue-100 border-blue-300"
+      adviceText = `Focus on high-volume quote follow-ups and outbound dials today. Writing ${requiredDailyPace} items/day across the remaining ${bizDaysRemaining} working days will close the gap and secure your ${monthlyItemsGoal}-item goal.`
+    }
+
+    return {
+      monthlyItemsGoal,
+      currentItems,
+      itemsNeeded,
+      bizDaysTotal,
+      bizDaysPassed,
+      bizDaysRemaining,
+      requiredDailyPace,
+      currentDailyPace,
+      percent,
+      isGoalMet,
+      statusLabel,
+      statusColor,
+      adviceText
+    }
+  }, [data])
+
   return (
     <div className="p-3 md:p-5 max-w-[1600px] mx-auto space-y-4 min-h-screen">
       
@@ -435,6 +489,68 @@ export default function AgentDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Daily Goal Playbook Card ── */}
+      {playbookData && periodMode === "month" && (
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white rounded-xl p-4 md:p-5 shadow-lg border border-indigo-800/40 relative overflow-hidden">
+          {/* Subtle background glow */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            
+            {/* Left: Playbook Heading & Dynamic Advice */}
+            <div className="space-y-1.5 flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-400 text-slate-950 shadow-xs">
+                  <Sparkles className="w-3.5 h-3.5" /> Daily Goal Playbook
+                </span>
+                <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${playbookData.statusColor}`}>
+                  {playbookData.statusLabel}
+                </span>
+              </div>
+              <p className="text-xs md:text-sm text-slate-200 leading-relaxed font-medium">
+                {playbookData.adviceText}
+              </p>
+            </div>
+
+            {/* Right: Pace KPI Badges & Progress Bar */}
+            <div className="w-full lg:w-80 bg-white/10 backdrop-blur-md border border-white/15 rounded-xl p-3.5 flex flex-col gap-2.5 shrink-0">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-300 font-medium">Monthly Progress</span>
+                <span className="font-mono font-bold text-amber-300">
+                  {playbookData.currentItems} / {playbookData.monthlyItemsGoal} items ({playbookData.percent}%)
+                </span>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-white/10">
+                <div 
+                  className={`h-full transition-all duration-500 rounded-full ${playbookData.isGoalMet ? "bg-gradient-to-r from-emerald-400 to-emerald-300" : "bg-gradient-to-r from-amber-400 to-amber-300"}`}
+                  style={{ width: `${playbookData.percent}%` }}
+                />
+              </div>
+
+              {/* Stats Ribbon */}
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/10 text-center">
+                <div className="bg-slate-950/40 rounded-lg p-1.5 border border-white/5">
+                  <span className="text-[10px] text-slate-400 block font-medium">Needed Today</span>
+                  <span className="text-xs sm:text-sm font-black font-mono text-amber-300">
+                    {playbookData.isGoalMet ? "0 (Done!)" : `${playbookData.requiredDailyPace} / day`}
+                  </span>
+                </div>
+                <div className="bg-slate-950/40 rounded-lg p-1.5 border border-white/5">
+                  <span className="text-[10px] text-slate-400 block font-medium">Days Left</span>
+                  <span className="text-xs sm:text-sm font-black font-mono text-slate-200">
+                    {playbookData.bizDaysRemaining} days
+                  </span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* ── 8-Metric Spacious Responsive Scorecard Grid ────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3">

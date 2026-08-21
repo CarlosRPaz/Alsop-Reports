@@ -947,24 +947,24 @@ export default function Home() {
 
   return (
     <PageGuard pageKey="overview">
-    <main className="p-8 max-w-7xl mx-auto min-h-screen flex flex-col gap-8 text-slate-800">
+    <main className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto min-h-screen flex flex-col gap-6 sm:gap-8 text-slate-800">
       
       {/* Compact Header */}
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900 text-white p-6 rounded-2xl shadow-xl relative overflow-hidden border border-slate-800 shrink-0">
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900 text-white p-5 sm:p-6 rounded-2xl shadow-xl relative overflow-hidden border border-slate-800 shrink-0">
         <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10">
           <Badge variant="success" className="mb-2 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
             Executive View
           </Badge>
-          <h1 className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-indigo-100 to-purple-200">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-indigo-100 to-purple-200">
             Agency Overview Dashboard
           </h1>
-          <p className="text-slate-400 mt-1 text-sm font-medium">
+          <p className="text-slate-400 mt-1 text-xs sm:text-sm font-medium">
             Performance analysis, manager insights, and multi-timeline data breakdowns.
           </p>
         </div>
-        <div className="flex items-center gap-2 bg-slate-800/80 px-4 py-2.5 rounded-xl border border-slate-700 font-mono text-sm font-semibold relative z-10">
+        <div className="flex items-center gap-2 bg-slate-800/80 px-3.5 py-2 rounded-xl border border-slate-700 font-mono text-xs sm:text-sm font-semibold relative z-10">
           <CalendarDays className="w-4 h-4 text-indigo-400" />
           <span>{formatShortDate(startDate)}</span>
           <span className="text-slate-500">to</span>
@@ -979,15 +979,15 @@ export default function Home() {
 
       {/* Filter Bar */}
       <Card className="border border-slate-200 shadow-sm">
-        <CardContent className="p-4 flex flex-col gap-3">
+        <CardContent className="p-3.5 sm:p-4 flex flex-col gap-3">
           {/* Row 1: Presets + Custom Range */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-lg border border-slate-200">
               {["yesterday", "last_week", "last_month", "last_3_months", "mtd", "ytd"].map((preset) => (
                 <button
                   key={preset}
                   onClick={() => setActivePreset(preset)}
-                  className={`px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                  className={`px-3 py-1.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider rounded-md transition-all ${
                     activePreset === preset
                       ? "bg-white text-indigo-600 shadow-sm border border-slate-200"
                       : "text-slate-500 hover:text-slate-800 hover:bg-white/50"
@@ -999,7 +999,7 @@ export default function Home() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-400 px-1.5 uppercase tracking-wider">Custom</span>
+              <span className="text-[10px] font-bold text-slate-400 px-1 uppercase tracking-wider">Custom</span>
               <input
                 type="date"
                 value={customStart}
@@ -1124,8 +1124,8 @@ export default function Home() {
 
       {/* Module Access Navigation Cards */}
       <section>
-        <h2 className="text-xl font-bold text-slate-900 mb-4">Module Access</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <h2 className="text-lg sm:text-xl font-bold text-slate-900 mb-3 sm:mb-4">Module Access</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <NavCard title="Daily Standup" desc="Detailed daily breakdown of activities." href="/reports/daily" />
           <NavCard title="Weekly Report" desc="Aggregated performance for the week." href="/reports/weekly" />
           <NavCard title="MTD Performance" desc="Analyze month-to-date trends & pace." href="/reports/mtd" />
@@ -1136,11 +1136,11 @@ export default function Home() {
       {/* Leaderboard Lists */}
       {!loading && aggregatedAgents.length > 0 && (
         <section className="flex flex-col gap-4">
-          <h2 className="text-xl font-bold text-slate-900 mb-1 flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-amber-500" /> Agency Top Performers ({formatShortDate(startDate)} to {formatShortDate(endDate)})
+          <h2 className="text-lg sm:text-xl font-bold text-slate-900 mb-1 flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-amber-500 shrink-0" /> Agency Top Performers ({formatShortDate(startDate)} to {formatShortDate(endDate)})
           </h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6">
             <LeaderboardCard
               title="Top Premium"
               data={topPremium}
@@ -1181,7 +1181,7 @@ export default function Home() {
       )}
 
       {/* Main KPI Row */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         <KPICard
           title="Written Premium"
           value={loading ? "..." : `$${Math.round(stats.premium).toLocaleString()}`}
@@ -1211,8 +1211,6 @@ export default function Home() {
           color="violet"
         />
       </section>
-
-
 
       {/* Timeline Trend Charts — 2x2 Grid */}
       <section className="flex flex-col gap-6">
