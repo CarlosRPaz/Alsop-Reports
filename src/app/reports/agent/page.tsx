@@ -3,14 +3,28 @@
 import { PageGuard } from "@/components/layout/PageGuard"
 import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { getAllAgents, AgentInfo } from "./actions"
 import { Search, UserCircle, Users } from "lucide-react"
+import { useChat } from "@/lib/chat/chatContext"
 
 export default function AgentPortalPage() {
+  const router = useRouter()
+  const { currentAgent, isLoading: isChatLoading } = useChat()
   const [agents, setAgents] = useState<AgentInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [filterTeam, setFilterTeam] = useState<string | null>(null)
+
+  // Redirect non-managers directly to their own portal
+  useEffect(() => {
+    if (!isChatLoading && currentAgent) {
+      const isManagerOrAdmin = currentAgent.role === "admin" || currentAgent.team === "Managers"
+      if (!isManagerOrAdmin) {
+        router.replace(`/reports/agent/${currentAgent.id}`)
+      }
+    }
+  }, [currentAgent, isChatLoading, router])
 
   useEffect(() => {
     async function load() {

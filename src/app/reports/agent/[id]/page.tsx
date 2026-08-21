@@ -13,7 +13,7 @@ import { useChat } from "@/lib/chat/chatContext"
 import { Button } from "@/components/ui/Button"
 import {
   ArrowLeft, CalendarDays, Phone, MessageSquare,
-  FileBarChart, ShieldCheck, DollarSign, Trophy, Users, AlertTriangle, AlertCircle, Package, Loader2,
+  FileBarChart, ShieldCheck, Shield, DollarSign, Trophy, Users, AlertTriangle, AlertCircle, Package, Loader2,
   TrendingUp, TrendingDown, Clock, Sparkles, ChevronDown, Award, Target, Activity, Zap, Eye, EyeOff
 } from "lucide-react"
 
@@ -34,7 +34,7 @@ const ytdOptions = (() => {
   const now = new Date()
   return [
     { label: `${now.getFullYear()} YTD`, year: now.getFullYear() },
-    { label: `${now.getFullYear() - 1} YTD`, year: now.getFullYear() - 1 },
+    { label: `${now.getFullYear() - 1} Full Year`, year: now.getFullYear() - 1 },
   ]
 })()
 
@@ -45,8 +45,17 @@ function formatTime(seconds: number) {
   return `${h}:${m.toString().padStart(2, '0')}`
 }
 
-function formatMinutes(totalSeconds: number) {
-  if (!totalSeconds) return "0m"
+// Helper to format minutes as h:mm or mm
+function formatMinutes(totalMinutes: number): string {
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  if (h > 0 && m > 0) return `${h}h ${m}m`
+  if (h > 0) return `${h}h`
+  return `${m}m`
+}
+
+// Helper to format seconds as h:mm or mm
+function formatSeconds(totalSeconds: number): string {
   const mins = Math.floor(totalSeconds / 60)
   const h = Math.floor(mins / 60)
   const m = mins % 60
@@ -60,8 +69,10 @@ export default function AgentDashboardPage() {
   const router = useRouter()
   const agentId = params.id as string
 
-  const { currentAgent } = useChat()
+  const { currentAgent, isLoading: isAuthLoading } = useChat()
   const isAuthorizedManager = currentAgent?.role === 'admin' || currentAgent?.team === 'Managers'
+  const isSelf = currentAgent?.id === agentId
+  const isForbidden = !isAuthLoading && !!currentAgent && !isAuthorizedManager && !isSelf
 
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<AgentMonthlyData | null>(null)
@@ -244,15 +255,43 @@ export default function AgentDashboardPage() {
     )
   }
 
+  if (isForbidden) {
+    return (
+      <div className="p-6 max-w-md mx-auto my-20 text-center bg-white border border-slate-200 rounded-2xl shadow-sm space-y-4">
+        <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-500">
+          <Shield className="w-6 h-6" />
+        </div>
+        <h2 className="text-lg font-bold text-slate-800">Private Agent Portal</h2>
+        <p className="text-xs text-slate-500 leading-relaxed">
+          Individual agent performance records are strictly confidential. You only have access to your own personal portal.
+        </p>
+        {currentAgent?.id && (
+          <Link
+            href={`/reports/agent/${currentAgent.id}`}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
+          >
+            Go to My Portal &rarr;
+          </Link>
+        )}
+      </div>
+    )
+  }
+
   if (error || !data) {
     return (
       <div className="p-6 max-w-7xl mx-auto text-center py-20">
         <AlertTriangle className="w-8 h-8 text-rose-500 mx-auto mb-3" />
         <h2 className="text-xl font-bold text-slate-800">Error Loading Agent</h2>
         <p className="text-slate-500 mt-2 mb-6">{error || "Agent data not found."}</p>
-        <Link href="/reports/agent" className="text-blue-600 hover:underline">
-          &larr; Back to Agent Directory
-        </Link>
+        {isAuthorizedManager ? (
+          <Link href="/reports/agent" className="text-blue-600 hover:underline">
+            &larr; Back to Agent Directory
+          </Link>
+        ) : currentAgent?.id ? (
+          <Link href={`/reports/agent/${currentAgent.id}`} className="text-blue-600 hover:underline">
+            &larr; Go to My Portal
+          </Link>
+        ) : null}
       </div>
     )
   }
@@ -292,8 +331,6 @@ export default function AgentDashboardPage() {
     return null
   }
 
-
-
   // Ranking color helper
   const rankBadgeClass = (rank: number, scope: "team" | "agency") => {
     if (rank === 1) return "bg-emerald-100 text-emerald-800 border border-emerald-200"
@@ -307,20 +344,22 @@ export default function AgentDashboardPage() {
       {/* ── Top Header Context Bar ───────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-3">
-          <Link 
-            href="/reports/agent" 
-            className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition-colors shadow-sm"
-            title="Back to Agent Directory"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
+          {isAuthorizedManager && (
+            <Link 
+              href="/reports/agent" 
+              className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition-colors shadow-sm shrink-0"
+              title="Back to Agent Directory"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+          )}
 
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center font-black text-white text-base shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center font-black text-white text-base shadow-sm shrink-0">
             {agent.name.split(" ").map(n => n[0]).join("").substring(0, 2)}
           </div>
 
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-lg font-black tracking-tight text-slate-900">{agent.name}</h1>
               {agent.team && (
                 <Badge variant={agent.team === "Sales" ? "default" : agent.team === "CSR" ? "success" : "default"} className="text-[10px] py-0">
@@ -329,6 +368,10 @@ export default function AgentDashboardPage() {
               )}
               {agent.office && <Badge variant="outline" className="text-[10px] font-mono py-0">{agent.office}</Badge>}
               {agent.role === "admin" && <Badge variant="warning" className="text-[10px] py-0">Admin</Badge>}
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/80 rounded-md px-2 py-0.5">
+                <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+                <span>Confidential • Visible only to you & management</span>
+              </span>
             </div>
             <p className="text-[11px] text-slate-500 font-medium mt-0.5">
               Performance breakdown • {businessDaysPassed} of {businessDaysTotal} working days elapsed ({periodLabel})
@@ -393,17 +436,17 @@ export default function AgentDashboardPage() {
         </div>
       </div>
 
-      {/* ── 8-Metric Ultra-Compact Scorecard Grid ────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+      {/* ── 8-Metric Spacious Responsive Scorecard Grid ────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3">
         {scorecards.map((sc) => {
           const isItems = sc.metric === "items"
           const isCloseRate = sc.metric === "close_rate"
           const closeRateGreen = isCloseRate && sc.value >= 0.15
 
           // Card background class
-          let cardBg = "bg-white border-slate-200 shadow-sm hover:border-slate-300"
-          if (isItems) cardBg = "bg-amber-50/40 border-amber-300 shadow-sm"
-          else if (closeRateGreen) cardBg = "bg-emerald-50/40 border-emerald-300 shadow-sm"
+          let cardBg = "bg-white border-slate-200 shadow-xs hover:border-slate-300"
+          if (isItems) cardBg = "bg-amber-50/40 border-amber-300 shadow-xs"
+          else if (closeRateGreen) cardBg = "bg-emerald-50/40 border-emerald-300 shadow-xs"
 
           // Value text color
           let valueColor = "text-slate-900"
@@ -413,18 +456,18 @@ export default function AgentDashboardPage() {
           return (
             <div 
               key={sc.metric}
-              className={`p-3 rounded-xl border transition-all flex flex-col justify-between ${cardBg}`}
+              className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between ${cardBg}`}
             >
               {/* Metric Label */}
-              <div className="flex items-center justify-between gap-1 text-[11px] font-bold text-slate-600 truncate pb-1">
-                <span className="truncate">{sc.label}</span>
-                {isItems && <Award className="w-3.5 h-3.5 text-amber-600 shrink-0" />}
-                {closeRateGreen && <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+              <div className="flex items-start justify-between gap-1 text-[11px] font-bold text-slate-700 pb-1">
+                <span className="leading-tight">{sc.label}</span>
+                {isItems && <Award className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />}
+                {closeRateGreen && <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />}
               </div>
 
               {/* Big Metric Value */}
-              <div className="my-1">
-                <div className={`text-xl font-black font-mono tracking-tight leading-none ${valueColor}`}>
+              <div className="my-1.5">
+                <div className={`text-2xl font-black font-mono tracking-tight leading-none ${valueColor}`}>
                   {sc.unit === "$" && "$"}
                   {sc.unit === "%" 
                     ? `${(sc.value * 100).toFixed(1)}%` 
@@ -433,7 +476,7 @@ export default function AgentDashboardPage() {
                       : sc.value.toLocaleString()}
                 </div>
                 {sc.unit !== "%" && (
-                  <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                  <div className="text-[10px] font-mono text-slate-400 mt-1">
                     Avg: <strong className="text-slate-600">
                       {sc.unit === "min" ? formatMinutes(Math.round(sc.dailyAvg)) : sc.dailyAvg}/d
                     </strong> • <span className="text-slate-500">
@@ -442,23 +485,23 @@ export default function AgentDashboardPage() {
                   </div>
                 )}
                 {sc.unit === "%" && (
-                  <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                  <div className="text-[10px] font-mono text-slate-400 mt-1">
                     Team Avg: <strong className="text-slate-600">{sc.teamAvg}%</strong>
                   </div>
                 )}
               </div>
 
               {/* Dual Rankings Badge — #1 green, top 5 blue, else gray */}
-              <div className="space-y-1 pt-1.5 border-t border-slate-100 mt-1">
+              <div className="space-y-1 pt-2 border-t border-slate-100 mt-auto">
                 <div className="flex items-center justify-between text-[10px] font-mono">
-                  <span className="text-slate-400">Team:</span>
-                  <span className={`px-1.5 py-0.2 rounded font-bold ${rankBadgeClass(sc.rankInTeam, "team")}`}>
+                  <span className="text-slate-400 font-medium">Team Rank:</span>
+                  <span className={`px-1.5 py-0.5 rounded font-bold ${rankBadgeClass(sc.rankInTeam, "team")}`}>
                     #{sc.rankInTeam} <span className="font-normal opacity-70">/ {sc.totalInTeam}</span>
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[10px] font-mono">
-                  <span className="text-slate-400">Agency:</span>
-                  <span className={`px-1.5 py-0.2 rounded font-semibold ${rankBadgeClass(sc.rankInAgency, "agency")}`}>
+                  <span className="text-slate-400 font-medium">Agency Rank:</span>
+                  <span className={`px-1.5 py-0.5 rounded font-semibold ${rankBadgeClass(sc.rankInAgency, "agency")}`}>
                     #{sc.rankInAgency} <span className="font-normal opacity-70">/ {sc.totalInAgency}</span>
                   </span>
                 </div>
@@ -470,15 +513,15 @@ export default function AgentDashboardPage() {
 
       {/* ── Performance Trend Ribbon (Full Visibility) ───────────────────────── */}
       <Card className="bg-white border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-3.5 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="px-3.5 py-2.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50">
           <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-blue-600" />
+            <Activity className="w-4 h-4 text-blue-600 shrink-0" />
             <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Performance Trend Ribbon</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Metric Pills */}
-            <div className="inline-flex p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-[11px] font-bold">
+            <div className="inline-flex flex-wrap p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-[11px] font-bold">
               {(["items", "premium", "quotes", "talk_time", "calls"] as const).map(mKey => {
                 const labels = {
                   items: "🚗 Items",

@@ -99,6 +99,24 @@ export function Sidebar() {
   const [recentStatuses, setRecentStatuses] = useState<{ emoji: string; text: string }[]>([])
   const [pagePerms, setPagePerms] = useState<Record<string, string[]>>({})
 
+  const isManagerOrAdmin = currentAgent?.role === 'admin' || currentAgent?.team === 'Managers'
+
+  // Dynamically tailor nav items (e.g. 'My Portal' for regular agents vs 'Agent Portal' for managers)
+  const dynamicNavItems = useMemo(() => {
+    return navItems.map(item => {
+      if (item.pageKey === 'agent_portal') {
+        if (!isManagerOrAdmin && currentAgent?.id) {
+          return {
+            ...item,
+            name: 'My Portal',
+            href: `/reports/agent/${currentAgent.id}`,
+          }
+        }
+      }
+      return item
+    })
+  }, [currentAgent, isManagerOrAdmin])
+
   useEffect(() => {
     const loadAgent = async () => {
       const supabase = createSupabaseBrowserClient()
@@ -268,7 +286,7 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 px-3 space-y-1 mt-4 overflow-y-auto">
-          {navItems.filter(item => {
+          {dynamicNavItems.filter(item => {
             // Admin Panel is rendered separately below the nav
             if (item.href === '/admin') return false
             // Heatmap is strictly Admin-only
@@ -432,7 +450,7 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 px-2 space-y-1 mt-4">
-          {navItems.filter(item => {
+          {dynamicNavItems.filter(item => {
             // Admin Panel is rendered separately below the nav
             if (item.href === '/admin') return false
             // Heatmap is strictly Admin-only
