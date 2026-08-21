@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -102,8 +102,8 @@ export function Sidebar() {
   const isManagerOrAdmin = currentAgent?.role === 'admin' || currentAgent?.team === 'Managers'
 
   // Dynamically tailor nav items (e.g. 'My Portal' for regular agents vs 'Agent Portal' for managers)
-  const dynamicNavItems = useMemo(() => {
-    return navItems.map(item => {
+  const dynamicNavItems: NavItem[] = useMemo(() => {
+    return navItems.map((item: NavItem): NavItem => {
       if (item.pageKey === 'agent_portal') {
         if (!isManagerOrAdmin && currentAgent?.id) {
           return {
