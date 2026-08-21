@@ -11,10 +11,13 @@ import { TrendChart } from "@/components/charts/TrendChart"
 import { Badge } from "@/components/ui/Badge"
 import { useChat } from "@/lib/chat/chatContext"
 import { Button } from "@/components/ui/Button"
+import { REBEL_REWARDS_2026_SEED } from "@/lib/rebelRewardsSeed"
+import { calculateAgentRebelStatus } from "@/lib/rebelRewards"
 import {
   ArrowLeft, CalendarDays, Phone, MessageSquare,
   FileBarChart, ShieldCheck, Shield, DollarSign, Trophy, Users, AlertTriangle, AlertCircle, Package, Loader2,
-  TrendingUp, TrendingDown, Clock, Sparkles, ChevronDown, Award, Target, Activity, Zap, Eye, EyeOff
+  TrendingUp, TrendingDown, Clock, Sparkles, ChevronDown, ChevronRight, Award, Target, Activity, Zap, Eye, EyeOff,
+  Car, Heart, Home
 } from "lucide-react"
 
 // Month options (past 12 months)
@@ -196,19 +199,20 @@ export default function AgentDashboardPage() {
   }
 
   // Daily Table Columns — expanded to match daily standup report
+  type DailyMetricRow = { report_date: string; [key: string]: string | number | null }
   const COLUMNS: ColumnDef[] = [
-    { key: "date",      label: "Date",         group: "agent",      sortAccessor: (m: any) => m.report_date },
-    { key: "calls",     label: "Calls",        group: "calls",      sortAccessor: (m: any) => m.calls || 0 },
-    { key: "inbound",   label: "Inbound",      group: "calls",      sortAccessor: (m: any) => m.inbound || 0 },
-    { key: "outbound",  label: "Outbound",     group: "calls",      sortAccessor: (m: any) => m.outbound || 0 },
-    { key: "talktime",  label: "Talk Time",    group: "calls",      sortAccessor: (m: any) => m.talk_time_seconds || 0 },
-    { key: "texts",     label: "Texts",        group: "texts",      sortAccessor: (m: any) => m.texts || 0 },
-    { key: "outtexts",  label: "Out Texts",    group: "texts",      sortAccessor: (m: any) => m.out_texts || 0 },
-    { key: "quotes",    label: "Quotes",       group: "production", sortAccessor: (m: any) => m.quotes || 0 },
-    { key: "nb",        label: "NB",           group: "production", sortAccessor: (m: any) => m.nb_count || 0 },
-    { key: "items",     label: "Items",        group: "production", sortAccessor: (m: any) => m.items || 0 },
-    { key: "premium",   label: "Premium",      group: "production", sortAccessor: (m: any) => m.prem_premium || 0 },
-    { key: "pivots",    label: "Pivots",       group: "eagent",     sortAccessor: (m: any) => m.pivots || 0 },
+    { key: "date",      label: "Date",         group: "agent",      sortAccessor: (m: DailyMetricRow) => m.report_date },
+    { key: "calls",     label: "Calls",        group: "calls",      sortAccessor: (m: DailyMetricRow) => m.calls || 0 },
+    { key: "inbound",   label: "Inbound",      group: "calls",      sortAccessor: (m: DailyMetricRow) => m.inbound || 0 },
+    { key: "outbound",  label: "Outbound",     group: "calls",      sortAccessor: (m: DailyMetricRow) => m.outbound || 0 },
+    { key: "talktime",  label: "Talk Time",    group: "calls",      sortAccessor: (m: DailyMetricRow) => m.talk_time_seconds || 0 },
+    { key: "texts",     label: "Texts",        group: "texts",      sortAccessor: (m: DailyMetricRow) => m.texts || 0 },
+    { key: "outtexts",  label: "Out Texts",    group: "texts",      sortAccessor: (m: DailyMetricRow) => m.out_texts || 0 },
+    { key: "quotes",    label: "Quotes",       group: "production", sortAccessor: (m: DailyMetricRow) => m.quotes || 0 },
+    { key: "nb",        label: "NB",           group: "production", sortAccessor: (m: DailyMetricRow) => m.nb_count || 0 },
+    { key: "items",     label: "Items",        group: "production", sortAccessor: (m: DailyMetricRow) => m.items || 0 },
+    { key: "premium",   label: "Premium",      group: "production", sortAccessor: (m: DailyMetricRow) => m.prem_premium || 0 },
+    { key: "pivots",    label: "Pivots",       group: "eagent",     sortAccessor: (m: DailyMetricRow) => m.pivots || 0 },
   ]
 
   // Filtered daily rows (hide weekends if toggled)
@@ -298,6 +302,31 @@ export default function AgentDashboardPage() {
       statusColor,
       adviceText
     }
+  }, [data])
+
+  // Rebel Rewards YTD Jedi Tracker Calculation
+  const rebelStatus = useMemo(() => {
+    if (!data?.agent?.name) return null
+    const name = data.agent.name.toLowerCase().trim()
+    const match = REBEL_REWARDS_2026_SEED.find(r => {
+      const rName = r.name.toLowerCase().trim()
+      return rName === name || name.includes(rName.split(" ")[0]) || rName.includes(name.split(" ")[0])
+    })
+    if (!match) return null
+
+    return calculateAgentRebelStatus(
+      match.name,
+      match.autoItems,
+      match.ips,
+      match.afsPc,
+      match.ivanNlItems,
+      {
+        agentId: data.agent.id,
+        office: data.agent.office || undefined,
+        team: data.agent.team || undefined,
+        reyByJune30: match.reyByJune30,
+      }
+    )
   }, [data])
 
   if (loading && !data) {
@@ -548,6 +577,114 @@ export default function AgentDashboardPage() {
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* ── Rebel Rewards Jedi Milestone Tracker Card (High-End Dark Theme) ── */}
+      {rebelStatus && (
+        <div className="relative overflow-hidden rounded-2xl p-6 md:p-8 shadow-2xl border flex flex-col lg:flex-row items-center gap-8 bg-[#030712] border-blue-500/30">
+          {/* Background effects */}
+          <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] -translate-y-1/2 pointer-events-none" />
+          <div className="absolute top-1/2 right-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-[100px] -translate-y-1/2 pointer-events-none" />
+
+          {/* Left: Portrait & Status */}
+          <div className="flex flex-col sm:flex-row items-center gap-6 relative z-10 w-full lg:w-auto">
+            <div className={`relative w-28 h-32 md:w-32 md:h-40 rounded-xl flex items-center justify-center border bg-gradient-to-b overflow-hidden shrink-0
+              ${rebelStatus.highestTier === 'none' ? 'from-slate-800 to-slate-900 border-slate-700' :
+                rebelStatus.highestTier === 'anakin' ? 'from-blue-800 to-blue-900 border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.3)]' :
+                rebelStatus.highestTier === 'rey' ? 'from-yellow-600 to-yellow-800 border-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.3)]' :
+                rebelStatus.highestTier === 'luke' ? 'from-emerald-600 to-emerald-800 border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.3)]' :
+                'from-purple-600 to-purple-900 border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.3)]'
+              }`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img 
+                src={`/images/starwars/${rebelStatus.highestTier === 'none' ? 'anakin' : rebelStatus.highestTier}.png`} 
+                alt="Rank" 
+                className="absolute -bottom-4 w-[110%] object-contain filter drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)] opacity-90"
+              />
+              <div className="absolute top-2 left-2 right-2 flex justify-between items-center z-20">
+                <div className="bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-black uppercase text-white tracking-widest border border-white/20">
+                  {rebelStatus.highestTier === "none" ? "Padawan" : rebelStatus.highestTier}
+                </div>
+              </div>
+            </div>
+
+            <div className="text-center sm:text-left space-y-3 flex-1">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-900/50 text-blue-400 border border-blue-500/30 mb-2">
+                  <Sparkles className="w-3 h-3 text-blue-400" /> Jedi Telemetry Active
+                </div>
+                <h3 className="text-2xl font-black text-white uppercase tracking-wider drop-shadow-md">
+                  {rebelStatus.nextTier ? `Pursuing ${rebelStatus.nextTier.name}` : "Mastery Achieved"}
+                </h3>
+              </div>
+
+              {rebelStatus.totalPayout > 0 && (
+                <div className="inline-block bg-black/40 border border-emerald-500/30 rounded-lg px-4 py-2 text-emerald-400">
+                  <div className="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-0.5">Bounty Secured</div>
+                  <div className="text-xl font-black font-mono">${rebelStatus.totalPayout.toLocaleString()}</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right: Data Targets */}
+          {rebelStatus.nextTier ? (
+            <div className="flex-1 w-full lg:w-auto bg-black/40 border border-white/5 rounded-2xl p-5 relative z-10 grid grid-cols-1 md:grid-cols-3 gap-4">
+              
+              <div className="space-y-2">
+                <div className="flex justify-between items-end text-xs font-bold uppercase tracking-wider">
+                  <span className="text-blue-400 flex items-center gap-1"><Car className="w-3 h-3"/> Auto</span>
+                  <span className="font-mono text-slate-400">{rebelStatus.autoItems} / <span className="text-white">{rebelStatus.nextTier.targets.autoItems}</span></span>
+                </div>
+                <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/5">
+                  <div className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)] transition-all duration-1000" style={{ width: `${Math.min(100, (rebelStatus.autoItems / rebelStatus.nextTier.targets.autoItems) * 100)}%` }} />
+                </div>
+                <div className="text-[10px] text-slate-500 font-mono">Need {rebelStatus.nextTierProgress?.autoItemsNeeded} more</div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-end text-xs font-bold uppercase tracking-wider">
+                  <span className="text-rose-400 flex items-center gap-1"><Heart className="w-3 h-3"/> AFS</span>
+                  <span className="font-mono text-slate-400">{rebelStatus.ips} / <span className="text-white">{rebelStatus.nextTier.targets.ips}</span></span>
+                </div>
+                <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/5">
+                  <div className="h-full bg-rose-500 shadow-[0_0_10px_rgba(243,64,94,0.8)] transition-all duration-1000" style={{ width: `${Math.min(100, (rebelStatus.ips / rebelStatus.nextTier.targets.ips) * 100)}%` }} />
+                </div>
+                <div className="text-[10px] text-slate-500 font-mono">Need {rebelStatus.nextTierProgress?.ipsNeeded} IPS or ${Math.round((rebelStatus.nextTierProgress?.afsPcNeeded||0)/1000)}k PC</div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-end text-xs font-bold uppercase tracking-wider">
+                  <span className="text-yellow-400 flex items-center gap-1"><Home className="w-3 h-3"/> Ivan</span>
+                  <span className="font-mono text-slate-400">{rebelStatus.ivanNlItems} / <span className="text-white">{rebelStatus.nextTier.targets.ivanNlItems}</span></span>
+                </div>
+                <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/5">
+                  <div className="h-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.8)] transition-all duration-1000" style={{ width: `${Math.min(100, (rebelStatus.ivanNlItems / rebelStatus.nextTier.targets.ivanNlItems) * 100)}%` }} />
+                </div>
+                <div className="text-[10px] text-slate-500 font-mono">Need {rebelStatus.nextTierProgress?.ivanNeeded} more</div>
+              </div>
+
+            </div>
+          ) : (
+             <div className="flex-1 w-full text-center p-6 border border-yellow-500/30 rounded-2xl bg-yellow-500/5 relative z-10">
+               <Trophy className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
+               <div className="text-yellow-400 font-bold uppercase tracking-widest text-sm">Maximum Bounty Claimed</div>
+               <div className="text-slate-400 text-xs mt-1">You have dominated the 2026 Rebel Rewards program.</div>
+             </div>
+          )}
+
+          <div className="relative z-10 shrink-0">
+            <Link
+              href="/rebel-rewards"
+              className="group flex flex-col items-center justify-center p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-blue-600 transition-all cursor-pointer h-full"
+            >
+              <Target className="w-5 h-5 text-slate-400 group-hover:text-white mb-2" />
+              <span className="text-[10px] font-bold text-slate-400 group-hover:text-white uppercase tracking-widest">Full</span>
+              <span className="text-[10px] font-bold text-slate-400 group-hover:text-white uppercase tracking-widest">Roster</span>
+            </Link>
           </div>
         </div>
       )}

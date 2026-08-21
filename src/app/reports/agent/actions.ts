@@ -138,8 +138,9 @@ export async function getAllAgents(): Promise<{ success: boolean; data?: AgentIn
   try {
     const { data: agents, error } = await supabase
       .from("agents")
-      .select("id, name, team, office, role, active")
+      .select("id, name, team, office, role, active, report_visible")
       .eq("active", true)
+      .eq("report_visible", true)
       .order("name")
 
     if (error) throw error

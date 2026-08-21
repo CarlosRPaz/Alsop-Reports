@@ -21,7 +21,9 @@ import {
   History,
   Smile,
   Menu,
-  Flame
+  Flame,
+  Users,
+  Trophy
 } from "lucide-react"
 
 /* ── Letter icon for D / W / M reports ─────────────────────────────── */
@@ -73,6 +75,8 @@ const navItems: NavItem[] = [
   { name: 'MTD Performance', href: '/reports/mtd', letter: 'M', pageKey: 'mtd' },
   { name: 'Quotes & NB', href: '/reports/quotes', icon: Percent, pageKey: 'quotes' },
   { name: 'Agent Heatmap', href: '/reports/heatmap', icon: Flame, pageKey: 'heatmap' },
+  { name: 'Rebel Rewards', href: '/rebel-rewards', icon: Trophy, pageKey: 'rebel_rewards' },
+  { name: 'Staff', href: '/staff', icon: Users, pageKey: 'staff' },
   { name: 'Agent Portal', href: '/reports/agent', icon: UserCircle, pageKey: 'agent_portal' },
   { name: 'Communication', href: '/communication', icon: MessageSquare },
   { name: 'My Settings', href: '/settings', icon: Settings },
