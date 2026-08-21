@@ -5,11 +5,12 @@ import {
   Database, BarChart2, CalendarDays, TrendingUp, Users, ShieldCheck,
   MessageSquare, BookOpen, Target, Code, Search, ChevronRight,
   ArrowLeft, X, ExternalLink, FileText, Tag, Lightbulb, AlertTriangle,
-  HelpCircle, Table2, List, Hash, Terminal, Home, Info
+  HelpCircle, Table2, List, Hash, Terminal, Home, Info, Menu
 } from "lucide-react"
 import Link from "next/link"
 import { DOCS_SECTIONS, type DocSection, type DocArticle, type DocContent } from "./docs-content"
 import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser"
+import { cn } from "@/lib/utils"
 
 // ─── Icon map ──────────────────────────────────────────────────────────────
 
@@ -273,38 +274,61 @@ export default function AdminDocsPage() {
     return () => clearTimeout(timeout)
   }, [searchQuery, supabase])
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const hasResults = docResults.length > 0 || liveResults.length > 0
 
   const navigateTo = useCallback((sectionId: string, slug: string) => {
     setActiveSection(sectionId)
     setActiveArticle(slug)
     setSearchQuery("")
+    setMobileMenuOpen(false)
   }, [])
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 overflow-hidden relative">
+
+      {/* Mobile Backdrop */}
+      {mobileMenuOpen && (
+        <div
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 bg-slate-900/40 z-40 md:hidden transition-opacity"
+        />
+      )}
 
       {/* ─── Sidebar ─────────────────────────────────────────────────────── */}
-      <aside className="w-64 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden">
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 w-64 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden transition-transform duration-200 md:static md:translate-x-0",
+          mobileMenuOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
+        )}
+      >
 
         {/* Header */}
-        <div className="p-4 border-b border-slate-200">
-          <Link
-            href="/admin"
-            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors mb-3"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Admin Panel
-          </Link>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-slate-900 flex items-center justify-center flex-shrink-0">
-              <BookOpen className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <h1 className="text-sm font-bold text-slate-900 leading-none">Admin Docs</h1>
-              <p className="text-xs text-slate-500 mt-0.5">Site guide & reference</p>
+        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+          <div>
+            <Link
+              href="/admin"
+              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors mb-3"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Admin Panel
+            </Link>
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-slate-900 flex items-center justify-center flex-shrink-0">
+                <BookOpen className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h1 className="text-sm font-bold text-slate-900 leading-none">Admin Docs</h1>
+                <p className="text-xs text-slate-500 mt-0.5">Site guide & reference</p>
+              </div>
             </div>
           </div>
+          <button
+            onClick={() => setMobileMenuOpen(false)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 md:hidden"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Nav */}
@@ -337,7 +361,10 @@ export default function AdminDocsPage() {
                     {section.articles.map(article => (
                       <button
                         key={article.slug}
-                        onClick={() => setActiveArticle(article.slug)}
+                        onClick={() => {
+                          setActiveArticle(article.slug)
+                          setMobileMenuOpen(false)
+                        }}
                         className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs transition-all ${
                           article.slug === activeArticle
                             ? `${colors.text} font-semibold`
@@ -367,9 +394,17 @@ export default function AdminDocsPage() {
       <main className="flex-1 flex flex-col overflow-hidden">
 
         {/* Top bar with search */}
-        <div className="flex-shrink-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-4">
+        <div className="flex-shrink-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center gap-3 sm:gap-4">
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="p-1.5 rounded-lg border border-slate-200 md:hidden text-slate-500 hover:text-slate-800 shrink-0"
+            title="Open navigation"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+
           {/* Breadcrumb */}
-          <div className="flex items-center gap-1.5 text-xs text-slate-500 min-w-0 flex-shrink-0">
+          <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 min-w-0 flex-shrink-0">
             <span className="font-medium text-slate-700 truncate">{currentSection.title}</span>
             <ChevronRight className="w-3 h-3 flex-shrink-0" />
             <span className="truncate text-slate-500">{currentArticle.title}</span>
@@ -379,7 +414,7 @@ export default function AdminDocsPage() {
           <div className="flex-1" />
 
           {/* Search */}
-          <div className="relative w-72">
+          <div className="relative w-full sm:w-72">
             <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
               searchFocused ? "border-slate-400 ring-2 ring-slate-200" : "border-slate-200"
             } bg-white`}>

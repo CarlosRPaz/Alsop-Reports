@@ -282,17 +282,17 @@ export default function AgentManagement() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-4 sm:space-y-6">
       {/* ── Header ───────────────────────────────────────────────────────── */}
-      <header className="flex justify-between items-end">
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">Agent Management</h1>
-          <p className="text-slate-500 mt-1">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-100">Agent Management</h1>
+          <p className="text-slate-500 text-xs sm:text-sm mt-1">
             Manage names, offices, teams, system name variants, and report visibility.
           </p>
         </div>
         <Button
-          className="bg-blue-600 hover:bg-blue-500 text-white"
+          className="bg-blue-600 hover:bg-blue-500 text-white shrink-0"
           onClick={() => setShowNewAgent(true)}
         >
           <Plus className="w-4 h-4 mr-2" /> New Agent

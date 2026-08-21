@@ -430,15 +430,15 @@ export default function DataSyncPage() {
 
   return (
     <>
-    <div ref={topRef} className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6 min-h-screen pb-32">
+    <div ref={topRef} className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 min-h-screen pb-32">
 
       {/* ═══ Header ═══ */}
       <header className="space-y-1">
-        <h1 className="text-3xl font-extrabold text-slate-900 flex items-center gap-3">
-          <Database className="w-8 h-8 text-emerald-500" />
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 flex items-center gap-3">
+          <Database className="w-7 h-7 sm:w-8 sm:h-8 text-emerald-500 shrink-0" />
           Data Sync Hub
         </h1>
-        <p className="text-slate-500">Upload source files and track data coverage for the daily standup report.</p>
+        <p className="text-slate-500 text-xs sm:text-sm">Upload source files and track data coverage for the daily standup report.</p>
       </header>
 
       {/* ═══ Date Picker + DB Health Row ═══ */}

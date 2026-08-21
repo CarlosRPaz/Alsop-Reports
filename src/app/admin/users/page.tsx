@@ -54,6 +54,15 @@ export default function UserManagementPage() {
   const [pagePerms, setPagePerms] = useState<PagePermission[]>([])
   const [permSaving, setPermSaving] = useState<string | null>(null)
 
+  const generateRandomPassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$"
+    let pwd = ""
+    for (let i = 0; i < 10; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    setTempPassword(pwd)
+  }
+
   const fetchData = async () => {
     setLoading(true)
     const [unlinked, linked, perms] = await Promise.all([
@@ -129,15 +138,15 @@ export default function UserManagementPage() {
   const selectedAgent = unlinkedAgents.find(a => a.id === selectedAgentId)
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link href="/admin" className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
           <ArrowLeft className="w-5 h-5 text-slate-500" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">User Access Management</h1>
-          <p className="text-sm text-slate-500">Invite agents to the dashboard and manage their login credentials.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800">User Access Management</h1>
+          <p className="text-xs sm:text-sm text-slate-500">Invite agents to the dashboard and manage their login credentials.</p>
         </div>
       </div>
 
@@ -169,7 +178,7 @@ export default function UserManagementPage() {
           <div className="flex gap-2 mb-5">
             <button
               onClick={() => setMode("existing")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all ${
+              className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-all ${
                 mode === "existing"
                   ? "bg-blue-50 text-blue-700 ring-1 ring-blue-600/10"
                   : "text-slate-500 hover:bg-slate-50"
@@ -179,7 +188,7 @@ export default function UserManagementPage() {
             </button>
             <button
               onClick={() => setMode("new")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all ${
+              className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-all ${
                 mode === "new"
                   ? "bg-blue-50 text-blue-700 ring-1 ring-blue-600/10"
                   : "text-slate-500 hover:bg-slate-50"
@@ -189,11 +198,11 @@ export default function UserManagementPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Left: Agent selection or name */}
             {mode === "existing" ? (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1.5">
                   Select Agent
                 </label>
                 <div className="relative">
@@ -218,92 +227,89 @@ export default function UserManagementPage() {
                 )}
                 {unlinkedAgents.length === 0 && !loading && (
                   <p className="mt-2 text-xs text-amber-600">
-                    All agents already have login accounts.
+                    All agents already have login credentials linked.
                   </p>
                 )}
               </div>
             ) : (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1.5">
                   Full Name
                 </label>
                 <input
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="e.g. Jane Smith"
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                  placeholder="e.g. John Smith"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                 />
-                <p className="mt-2 text-xs text-slate-500">
-                  This creates a new agent record. Use &ldquo;Link Existing Agent&rdquo; for people already in the system.
-                </p>
               </div>
             )}
 
-            {/* Right: Email */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Email
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@allstate.com"
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                />
+            {/* Right: Email and Temp Password */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1.5">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="agent@allstate.com"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs sm:text-sm font-medium text-slate-700">
+                    Temporary Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={generateRandomPassword}
+                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Generate Random
+                  </button>
+                </div>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={tempPassword}
+                    onChange={(e) => setTempPassword(e.target.value)}
+                    placeholder="Min 6 characters"
+                    className="w-full pl-9 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
             </div>
+          </div>
 
-            {/* Password */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Temporary Password
-              </label>
-              <div className="relative">
-                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={tempPassword}
-                  onChange={(e) => setTempPassword(e.target.value)}
-                  placeholder="Min 6 characters"
-                  className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              <p className="mt-1.5 text-xs text-slate-400">
-                Share this with the person so they can log in.
-              </p>
-            </div>
-
-            {/* Submit */}
-            <div className="flex items-end">
-              <Button
-                onClick={handleInvite}
-                disabled={
-                  inviting ||
-                  !email ||
-                  !tempPassword ||
-                  (mode === "existing" && !selectedAgentId) ||
-                  (mode === "new" && !newName)
-                }
-                className="w-full"
-              >
-                {inviting ? (
-                  <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Inviting...</>
-                ) : (
-                  <><UserPlus className="w-4 h-4 mr-2" /> Send Invite</>
-                )}
-              </Button>
-            </div>
+          <div className="mt-6 flex justify-end">
+            <Button
+              onClick={handleInvite}
+              disabled={inviting || !email || !tempPassword || (mode === "existing" && !selectedAgentId) || (mode === "new" && !newName)}
+              className="bg-blue-600 hover:bg-blue-500 text-white w-full sm:w-auto"
+            >
+              {inviting ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating Account...</>
+              ) : (
+                <><UserPlus className="w-4 h-4 mr-2" /> Send Invitation</>
+              )}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -311,25 +317,20 @@ export default function UserManagementPage() {
       {/* Active Users */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between w-full">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
               Active Users ({linkedAgents.length})
             </CardTitle>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchLinked}
-                  onChange={(e) => setSearchLinked(e.target.value)}
-                  placeholder="Search..."
-                  className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 w-48"
-                />
-              </div>
-              <button onClick={fetchData} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors" title="Refresh">
-                <RefreshCw className={`w-4 h-4 text-slate-400 ${loading ? "animate-spin" : ""}`} />
-              </button>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={searchLinked}
+                onChange={(e) => setSearchLinked(e.target.value)}
+                placeholder="Search users..."
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+              />
             </div>
           </div>
         </CardHeader>
@@ -345,7 +346,7 @@ export default function UserManagementPage() {
           ) : (
             <div className="divide-y divide-slate-100">
               {filteredLinked.map(agent => (
-                <div key={agent.id} className="flex items-center justify-between py-3 group">
+                <div key={agent.id} className="flex flex-col sm:flex-row sm:items-center justify-between py-3 gap-2 group">
                   <div className="flex items-center gap-3">
                     {/* Avatar */}
                     <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white text-sm font-bold shrink-0">
@@ -367,7 +368,7 @@ export default function UserManagementPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity self-end sm:self-center">
                     {resetAgentId === agent.id ? (
                       <div className="flex items-center gap-1">
                         <input

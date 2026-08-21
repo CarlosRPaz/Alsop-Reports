@@ -150,30 +150,30 @@ export default function HolidayCalendar() {
   }
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-6">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="p-4 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-6">
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 flex items-center gap-3">
-            <CalendarDays className="w-7 h-7 text-red-500" />
+          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 flex items-center gap-3">
+            <CalendarDays className="w-6 h-6 sm:w-7 sm:h-7 text-red-500 shrink-0" />
             Holiday Calendar
           </h1>
-          <p className="text-slate-500 mt-1 text-sm">
+          <p className="text-slate-500 mt-1 text-xs sm:text-sm">
             Manage observed holidays to exclude from business day calculations.
           </p>
         </div>
 
         {/* Year Selector */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-1">
           <button
             onClick={() => setYear(y => y - 1)}
-            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors"
+            className="p-1.5 rounded-md hover:bg-white hover:shadow-xs text-slate-500 transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <span className="text-lg font-bold text-slate-900 min-w-[60px] text-center">{year}</span>
+          <span className="text-base sm:text-lg font-bold text-slate-900 min-w-[60px] text-center">{year}</span>
           <button
             onClick={() => setYear(y => y + 1)}
-            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors"
+            className="p-1.5 rounded-md hover:bg-white hover:shadow-xs text-slate-500 transition-colors"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -181,15 +181,15 @@ export default function HolidayCalendar() {
       </header>
 
       {/* Holiday Announcement Banner */}
-      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-start shadow-sm">
-        <h2 className="text-lg font-medium text-slate-700 flex items-center gap-2">
+      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-start shadow-xs">
+        <h2 className="text-base sm:text-lg font-medium text-slate-700 flex items-center gap-2">
           <span className="text-xl">✨</span> 
           Happy Holidays & Warm Wishes
         </h2>
       </div>
 
       {/* Year Summary */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800 flex items-start gap-3">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-xs sm:text-sm text-blue-800 flex items-start gap-3">
         <Info className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" />
         <div>
           <strong>{year} Summary:</strong> {yearStats.totalBizDays} total business days
@@ -201,14 +201,14 @@ export default function HolidayCalendar() {
       {/* Add Holiday Form */}
       <Card className="border-dashed border-slate-300">
         <CardContent className="p-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+            <div className="flex flex-col gap-1 w-full sm:w-auto">
               <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Date</label>
               <input
                 type="date"
                 value={addDate}
                 onChange={e => setAddDate(e.target.value)}
-                className="bg-white border border-slate-300 rounded-md px-3 py-1.5 text-sm text-slate-700 focus:ring-2 focus:ring-blue-400 outline-none"
+                className="bg-white border border-slate-300 rounded-md px-3 py-1.5 text-sm text-slate-700 focus:ring-2 focus:ring-blue-400 outline-none w-full"
               />
             </div>
             <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
@@ -219,13 +219,13 @@ export default function HolidayCalendar() {
                 onChange={e => setAddName(e.target.value)}
                 placeholder="e.g., Memorial Day"
                 onKeyDown={e => e.key === "Enter" && handleAdd()}
-                className="bg-white border border-slate-300 rounded-md px-3 py-1.5 text-sm text-slate-700 focus:ring-2 focus:ring-blue-400 outline-none"
+                className="bg-white border border-slate-300 rounded-md px-3 py-1.5 text-sm text-slate-700 focus:ring-2 focus:ring-blue-400 outline-none w-full"
               />
             </div>
             <Button
               onClick={handleAdd}
               disabled={adding || !addDate || !addName.trim()}
-              className="bg-red-600 hover:bg-red-500 text-white flex items-center gap-2"
+              className="bg-red-600 hover:bg-red-500 text-white flex items-center justify-center gap-2 shrink-0 w-full sm:w-auto"
             >
               <Plus className="w-4 h-4" /> Add Holiday
             </Button>
@@ -239,7 +239,7 @@ export default function HolidayCalendar() {
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-500"></div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {Array.from({ length: 12 }, (_, i) => (
             <MonthGrid key={i} month={i + 1} />
           ))}
