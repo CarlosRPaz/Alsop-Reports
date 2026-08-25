@@ -29,7 +29,7 @@ export async function fetchMessages(
       `
       *,
       sender:agents!chat_messages_sender_id_fkey(id, name, avatar_url, role, team, status_message, presence),
-      reactions:chat_message_reactions(id, agent_id, emoji, created_at)
+      reactions:chat_message_reactions(id, agent_id, emoji, created_at, agents(id, name))
     `,
     )
     .eq('conversation_id', conversationId)
@@ -101,18 +101,21 @@ export async function fetchMessages(
   })
 }
 
-/** Group flat reaction rows into `{ emoji, count, agent_ids }` */
+/** Group flat reaction rows into `{ emoji, count, agent_ids, agent_names }` */
 function groupReactions(reactions: any[]): ReactionGroup[] {
-  const map = new Map<string, string[]>()
+  const map = new Map<string, { agentIds: string[]; agentNames: string[] }>()
   for (const r of reactions) {
-    const existing = map.get(r.emoji) ?? []
-    existing.push(r.agent_id)
+    const existing = map.get(r.emoji) ?? { agentIds: [], agentNames: [] }
+    existing.agentIds.push(r.agent_id)
+    const agentName = r.agents?.name || r.agent?.name || 'Someone'
+    existing.agentNames.push(agentName)
     map.set(r.emoji, existing)
   }
-  return [...map.entries()].map(([emoji, agentIds]) => ({
+  return [...map.entries()].map(([emoji, val]) => ({
     emoji,
-    count: agentIds.length,
-    agent_ids: agentIds,
+    count: val.agentIds.length,
+    agent_ids: val.agentIds,
+    agent_names: val.agentNames,
   }))
 }
 

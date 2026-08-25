@@ -112,6 +112,7 @@ export interface ReactionGroup {
   emoji: string
   count: number
   agent_ids: string[]
+  agent_names?: string[]
 }
 
 export interface MessageReaction {

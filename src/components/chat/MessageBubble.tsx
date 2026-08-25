@@ -68,6 +68,34 @@ function parseStatusMessage(msg: string | null): { emoji: string | null; text: s
   return { emoji: null, text: msg }
 }
 
+function formatReactionTooltip(r: Reaction, currentAgentId: string): string {
+  if (!r.agent_ids || r.agent_ids.length === 0) return ''
+
+  const names = r.agent_ids.map((id, index) => {
+    if (id === currentAgentId) return 'You'
+    return r.agent_names?.[index] || 'Someone'
+  })
+
+  // Sort so 'You' appears first
+  const sortedNames = [...names].sort((a, b) => {
+    if (a === 'You') return -1
+    if (b === 'You') return 1
+    return 0
+  })
+
+  if (sortedNames.length === 1) {
+    return `${sortedNames[0]}`
+  }
+  if (sortedNames.length === 2) {
+    return `${sortedNames[0]} and ${sortedNames[1]}`
+  }
+  if (sortedNames.length === 3) {
+    return `${sortedNames[0]}, ${sortedNames[1]}, and ${sortedNames[2]}`
+  }
+  const remaining = sortedNames.length - 3
+  return `${sortedNames.slice(0, 3).join(', ')}, and ${remaining} other${remaining > 1 ? 's' : ''}`
+}
+
 /**
  * Renders message content with inline markdown and mentions.
  * Supports: **bold**, *italic*, `code`, @Mentions, URLs
@@ -305,22 +333,37 @@ export default function MessageBubble({
 
           {/* Reactions */}
           {message.reactions && message.reactions.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1.5">
-              {message.reactions.map((r) => (
-                <button
-                  key={r.emoji}
-                  onClick={() => onReact(message.id, r.emoji)}
-                  className={cn(
-                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors',
-                    r.agent_ids.includes(currentAgentId)
-                      ? 'bg-blue-50 border-blue-200 text-blue-700'
-                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                  )}
-                >
-                  <span>{r.emoji}</span>
-                  <span className="font-medium">{r.count}</span>
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {message.reactions.map((r) => {
+                const isReactedByMe = r.agent_ids.includes(currentAgentId)
+                const reactorNames = formatReactionTooltip(r, currentAgentId)
+                return (
+                  <div key={r.emoji} className="relative group/reaction inline-flex">
+                    <button
+                      onClick={() => onReact(message.id, r.emoji)}
+                      title={`${r.emoji} ${reactorNames}`}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs border transition-all duration-150 cursor-pointer select-none',
+                        isReactedByMe
+                          ? 'bg-blue-50 border-blue-200 text-blue-700 font-medium hover:bg-blue-100 hover:border-blue-300'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300'
+                      )}
+                    >
+                      <span className="text-[13px] leading-none">{r.emoji}</span>
+                      <span className="font-semibold text-[11px]">{r.count}</span>
+                    </button>
+
+                    {/* Floating Tooltip Showing Who Reacted on Hover */}
+                    <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/reaction:flex flex-col items-center z-30">
+                      <div className="bg-slate-900/95 text-white text-[11px] font-medium px-2.5 py-1 rounded-md shadow-xl whitespace-nowrap backdrop-blur-sm border border-slate-800 flex items-center gap-1.5">
+                        <span className="text-xs">{r.emoji}</span>
+                        <span>{reactorNames}</span>
+                      </div>
+                      <div className="w-2 h-1 bg-slate-900 rotate-45 -mt-0.5" />
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
