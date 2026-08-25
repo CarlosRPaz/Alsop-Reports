@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Sparkles, X, MessageSquare } from "lucide-react"
 import { useChat } from "@/lib/chat/chatContext"
 
-const STORAGE_KEY = "alsop_welcome_announcement_v1"
+const STORAGE_KEY = "alsop_welcome_announcement_v2"
 
 export function WelcomeBanner() {
   const [isVisible, setIsVisible] = useState(false)
