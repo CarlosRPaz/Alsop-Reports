@@ -244,12 +244,52 @@ export function calculateAgentRebelStatus(
     payoutBreakdown.push("Obi-Wan: $5,000")
   }
 
-  // Next Tier Requirements Target
+  // Smart "True Goal" Determination for Next Tier
+  // Instead of strict sequential (Anakin -> Rey -> Luke -> Obi-Wan), find the most
+  // realistic unearned tier based on the agent's active production and required hits (2 of 3 vs 3 of 3).
+  const unearnedTiers: RebelRewardTier[] = []
+  if (!anakinEarned) unearnedTiers.push(REBEL_TIERS[0])
+  if (!reyEarned) unearnedTiers.push(REBEL_TIERS[1])
+  if (!lukeEarned) unearnedTiers.push(REBEL_TIERS[2])
+  if (!obiwanEarned) unearnedTiers.push(REBEL_TIERS[3])
+
   let nextTier: RebelRewardTier | null = null
-  if (!anakinEarned) nextTier = REBEL_TIERS[0]
-  else if (!reyEarned) nextTier = REBEL_TIERS[1]
-  else if (!lukeEarned) nextTier = REBEL_TIERS[2]
-  else if (!obiwanEarned) nextTier = REBEL_TIERS[3]
+  if (unearnedTiers.length > 0) {
+    if (unearnedTiers.length === 1) {
+      nextTier = unearnedTiers[0]
+    } else {
+      const scoredTiers = unearnedTiers.map(tier => {
+        const t = tier.targets
+        const autoRatio = Math.min(1, autoItems / t.autoItems)
+        const afsRatio = Math.min(1, Math.max(ips / t.ips, afsPc / t.afsPc))
+        const ivanRatio = Math.min(1, ivanNlItems / t.ivanNlItems)
+
+        const deficits = [
+          { key: "auto", deficit: 1 - autoRatio, val: autoItems },
+          { key: "afs", deficit: 1 - afsRatio, val: ips },
+          { key: "ivan", deficit: 1 - ivanRatio, val: ivanNlItems },
+        ].sort((a, b) => a.deficit - b.deficit)
+
+        // For "Hit 2 of 3", take the 2 closest metrics (lowest deficits)
+        // For "Hit 3 of 3", take all 3 metrics
+        const relevantDeficits = deficits.slice(0, tier.requiredHits)
+        const totalDeficit = relevantDeficits.reduce((sum, d) => sum + d.deficit, 0)
+        
+        // If 3 of 3 requires producing in a category where agent has 0 activity (e.g. Ivantage),
+        // add a penalty so 2-of-3 tiers (like Luke) are prioritized
+        const requiresZeroCat = tier.requiredHits === 3 && (autoItems === 0 || (ips === 0 && afsPc === 0) || ivanNlItems === 0)
+        const adjustedDeficit = totalDeficit + (requiresZeroCat ? 0.6 : 0)
+
+        return {
+          tier,
+          totalDeficit: adjustedDeficit,
+        }
+      })
+
+      scoredTiers.sort((a, b) => a.totalDeficit - b.totalDeficit)
+      nextTier = scoredTiers[0].tier
+    }
+  }
 
   let nextTierProgress = null
   if (nextTier) {

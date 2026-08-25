@@ -79,31 +79,34 @@ export default function SyncCalendar({ selectedDate, refreshTrigger, onDateSelec
         )
 
         // Fetch daily_reports_meta for eagent_submitted
-        const { data: metaData, error: metaErr } = await supabase
-          .from("daily_reports_meta")
-          .select("report_date, eagent_submitted")
-          .gte("report_date", startDate)
-          .lte("report_date", endStr)
+        const metaData = await fetchAllRows((from, to) =>
+          supabase
+            .from("daily_reports_meta")
+            .select("report_date, eagent_submitted")
+            .gte("report_date", startDate)
+            .lte("report_date", endStr)
+            .range(from, to)
+        )
 
-        if (metaErr) throw metaErr
+        // Fetch leads_snapshot for leads presence (paginated to avoid 1000-row cap)
+        const leadsData = await fetchAllRows((from, to) =>
+          supabase
+            .from("leads_snapshot")
+            .select("report_date")
+            .gte("report_date", startDate)
+            .lte("report_date", endStr)
+            .range(from, to)
+        )
 
-        // Fetch leads_snapshot for leads presence
-        const { data: leadsData, error: leadsErr } = await supabase
-          .from("leads_snapshot")
-          .select("report_date")
-          .gte("report_date", startDate)
-          .lte("report_date", endStr)
-
-        if (leadsErr) throw leadsErr
-
-        // Fetch upload_history_files for file type tracking
-        const { data: uploadedFiles, error: filesErr } = await supabase
-          .from("upload_history_files")
-          .select("target_date, file_type")
-          .gte("target_date", startDate)
-          .lte("target_date", endStr)
-
-        if (filesErr) throw filesErr
+        // Fetch upload_history_files for file type tracking (paginated to avoid 1000-row cap)
+        const uploadedFiles = await fetchAllRows((from, to) =>
+          supabase
+            .from("upload_history_files")
+            .select("target_date, file_type")
+            .gte("target_date", startDate)
+            .lte("target_date", endStr)
+            .range(from, to)
+        )
 
         // Build per-date source presence map
         const result = new Map<string, DaySources>()

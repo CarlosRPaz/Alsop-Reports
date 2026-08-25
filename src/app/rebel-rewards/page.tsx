@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react"
 import Link from "next/link"
 import { getRebelRewardsStandings, uploadRebelRewardsExcel } from "./actions"
-import { REBEL_TIERS, AgentRebelStandings } from "@/lib/rebelRewards"
+import { REBEL_TIERS, AgentRebelStandings, RebelRewardTier } from "@/lib/rebelRewards"
 import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
@@ -46,6 +46,7 @@ export default function RebelRewardsPage() {
   const [sortKey, setSortKey] = useState<string>("rank")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
   const [selectedAgent, setSelectedAgent] = useState<AgentRebelStandings | null>(null)
+  const [modalTargetTierId, setModalTargetTierId] = useState<string | null>(null)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -314,7 +315,7 @@ export default function RebelRewardsPage() {
                     const colors = tierColors[agent.highestTier]
                     const nt = agent.nextTier
                     return (
-                      <tr key={agent.agentName} onClick={() => setSelectedAgent(agent)} className="hover:bg-blue-50/40 transition-colors cursor-pointer group">
+                      <tr key={agent.agentName} onClick={() => { setSelectedAgent(agent); setModalTargetTierId(agent.nextTier?.id || "obiwan"); }} className="hover:bg-blue-50/40 transition-colors cursor-pointer group">
                         <td className="py-2 px-3 text-center font-mono font-bold text-slate-300 text-[11px]">{i + 1}</td>
                         <td className="py-2 px-3">
                           <div className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors text-xs flex items-center gap-1.5">
@@ -362,7 +363,7 @@ export default function RebelRewardsPage() {
                 const colors = tierColors[agent.highestTier]
                 const nt = agent.nextTier
                 return (
-                  <div key={agent.agentName} onClick={() => setSelectedAgent(agent)} className="p-3 cursor-pointer hover:bg-blue-50/30 transition-colors active:bg-blue-50/50">
+                  <div key={agent.agentName} onClick={() => { setSelectedAgent(agent); setModalTargetTierId(agent.nextTier?.id || "obiwan"); }} className="p-3 cursor-pointer hover:bg-blue-50/30 transition-colors active:bg-blue-50/50">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-[10px] font-mono font-bold text-slate-300 w-5 text-center flex-shrink-0">{i + 1}</span>
@@ -424,96 +425,126 @@ export default function RebelRewardsPage() {
               </div>
             </div>
 
-            <div className="p-5 sm:p-6 space-y-5">
-              {/* Tiers Earned */}
-              <div>
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Tiers Unlocked</div>
-                <div className="flex flex-wrap gap-2">
-                  {REBEL_TIERS.map((t) => {
-                    const earned = (selectedAgent as any)[t.id]?.earned
-                    return (
-                      <div key={t.id} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold ${earned ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                        {earned ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-300" />}
-                        {t.name}
-                        <span className="font-mono text-[10px] ml-1 opacity-70">{t.prizeText}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Multi-Tier Milestone Progress for each metric */}
-              <div className="space-y-4">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Metric Progress Across All Tiers</div>
-                
-                <MilestoneBar
-                  label="Allstate Auto Items"
-                  icon={<Car className="w-4 h-4 text-blue-500" />}
-                  current={selectedAgent.autoItems}
-                  milestones={MILESTONES.auto}
-                  tierLabels={TIER_LABELS}
-                  color="blue"
-                  agent={selectedAgent}
-                />
-                <MilestoneBar
-                  label="AFS (IPS)"
-                  icon={<Heart className="w-4 h-4 text-rose-500" />}
-                  current={selectedAgent.ips}
-                  milestones={MILESTONES.ips}
-                  tierLabels={TIER_LABELS}
-                  color="rose"
-                  agent={selectedAgent}
-                  altValue={`$${Math.round(selectedAgent.afsPc / 1000)}k PC`}
-                />
-                <MilestoneBar
-                  label="Ivantage + NL Items"
-                  icon={<Home className="w-4 h-4 text-amber-500" />}
-                  current={selectedAgent.ivanNlItems}
-                  milestones={MILESTONES.ivan}
-                  tierLabels={TIER_LABELS}
-                  color="amber"
-                  agent={selectedAgent}
-                />
-              </div>
-
-              {/* Next tier criteria summary */}
-              {selectedAgent.nextTier && (() => {
-                const ntId = selectedAgent.nextTier!.id
-                const tierData = (selectedAgent as any)[ntId]
-                const autoHit = tierData?.autoHit || false
-                const afsHit = tierData?.afsHit || false
-                const ivanHit = tierData?.ivanHit || false
-                const hitsCount = (autoHit ? 1 : 0) + (afsHit ? 1 : 0) + (ivanHit ? 1 : 0)
-                const required = selectedAgent.nextTier!.requiredHits
-                return (
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Target className="w-4 h-4 text-blue-500" />
-                      <span className="text-xs font-bold text-slate-700">Next: {selectedAgent.nextTier!.name}</span>
-                      <span className="text-[10px] font-mono text-slate-400">({selectedAgent.nextTier!.ruleText})</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-black font-mono ${hitsCount >= required ? 'text-emerald-600' : 'text-slate-700'}`}>
-                        {hitsCount}/{required} Met
+            {/* Modal Body */}
+            {(() => {
+              const activeTargetTier = REBEL_TIERS.find(t => t.id === modalTargetTierId) || selectedAgent.nextTier || REBEL_TIERS[3]
+              return (
+                <div className="p-5 sm:p-6 space-y-5">
+                  {/* Tiers Earned & Interactive Target Selector */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tiers Unlocked (Click to View Goals)</div>
+                      <span className="text-[9px] font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 font-bold">
+                        Targeting: {activeTargetTier.character}
                       </span>
-                      <div className="flex gap-1">
-                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${autoHit ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>Auto {autoHit ? '✓' : '✗'}</span>
-                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${afsHit ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>AFS {afsHit ? '✓' : '✗'}</span>
-                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${ivanHit ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>Ivan {ivanHit ? '✓' : '✗'}</span>
-                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {REBEL_TIERS.map((t) => {
+                        const earned = (selectedAgent as any)[t.id]?.earned
+                        const isSelected = activeTargetTier.id === t.id
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setModalTargetTierId(t.id)}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-all text-left cursor-pointer ${
+                              isSelected
+                                ? 'ring-2 ring-blue-500 border-blue-400 bg-blue-50/80 shadow-xs'
+                                : earned
+                                  ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800 hover:bg-emerald-100/60'
+                                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
+                            }`}
+                          >
+                            {earned ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                            ) : (
+                              <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ${isSelected ? 'border-blue-500 bg-blue-200' : 'border-slate-300'}`} />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className={`truncate leading-tight ${isSelected ? 'text-blue-950 font-black' : earned ? 'text-emerald-950' : 'text-slate-700'}`}>{t.character}</div>
+                              <div className="font-mono text-[10px] opacity-70 leading-none mt-0.5">{t.prizeText}</div>
+                            </div>
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
-                )
-              })()}
 
-              {!selectedAgent.nextTier && (
-                <div className="p-4 bg-blue-50 rounded-xl border border-blue-200 text-center">
-                  <Trophy className="w-8 h-8 text-blue-600 mx-auto mb-1" />
-                  <div className="text-sm font-black text-blue-900 uppercase">Grand Jedi Master!</div>
-                  <p className="text-xs text-slate-500 mt-0.5">All tiers completed. Maximum bounty claimed.</p>
+                  {/* Multi-Tier Milestone Progress for each metric */}
+                  <div className="space-y-4">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Metric Progress Across All Tiers</div>
+                    
+                    <MilestoneBar
+                      label="Allstate Auto Items"
+                      icon={<Car className="w-4 h-4 text-blue-500" />}
+                      current={selectedAgent.autoItems}
+                      milestones={MILESTONES.auto}
+                      tierLabels={TIER_LABELS}
+                      color="blue"
+                      agent={selectedAgent}
+                      targetTier={activeTargetTier}
+                    />
+                    <MilestoneBar
+                      label="AFS (IPS)"
+                      icon={<Heart className="w-4 h-4 text-rose-500" />}
+                      current={selectedAgent.ips}
+                      milestones={MILESTONES.ips}
+                      tierLabels={TIER_LABELS}
+                      color="rose"
+                      agent={selectedAgent}
+                      altValue={`$${Math.round(selectedAgent.afsPc / 1000)}k PC`}
+                      targetTier={activeTargetTier}
+                    />
+                    <MilestoneBar
+                      label="Ivantage + NL Items"
+                      icon={<Home className="w-4 h-4 text-amber-500" />}
+                      current={selectedAgent.ivanNlItems}
+                      milestones={MILESTONES.ivan}
+                      tierLabels={TIER_LABELS}
+                      color="amber"
+                      agent={selectedAgent}
+                      targetTier={activeTargetTier}
+                    />
+                  </div>
+
+                  {/* Target tier criteria summary */}
+                  {(() => {
+                    const ntId = activeTargetTier.id
+                    const tierData = (selectedAgent as any)[ntId]
+                    const autoHit = tierData?.autoHit || false
+                    const afsHit = tierData?.afsHit || false
+                    const ivanHit = tierData?.ivanHit || false
+                    const hitsCount = (autoHit ? 1 : 0) + (afsHit ? 1 : 0) + (ivanHit ? 1 : 0)
+                    const required = activeTargetTier.requiredHits
+                    const isEarned = (selectedAgent as any)[ntId]?.earned
+
+                    return (
+                      <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 ${isEarned ? 'bg-emerald-50/70 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className="flex items-center gap-2">
+                          <Target className={`w-4 h-4 ${isEarned ? 'text-emerald-600' : 'text-blue-500'}`} />
+                          <div>
+                            <span className="text-xs font-bold text-slate-800">
+                              {isEarned ? "Unlocked: " : "Goal: "}{activeTargetTier.name}
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-400 ml-1.5">({activeTargetTier.ruleText})</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-black font-mono ${hitsCount >= required ? 'text-emerald-600' : 'text-slate-700'}`}>
+                            {hitsCount}/{required} Met
+                          </span>
+                          <div className="flex gap-1">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${autoHit ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>Auto {autoHit ? '✓' : '✗'}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${afsHit ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>AFS {afsHit ? '✓' : '✗'}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${ivanHit ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>Ivan {ivanHit ? '✓' : '✗'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
-              )}
-            </div>
+              )
+            })()}
           </div>
         </div>
       )}
@@ -604,15 +635,24 @@ function MobilePace({ label, current, target }: { label: string; current: number
 }
 
 /** Multi-tier milestone progress bar for the modal */
-function MilestoneBar({ label, icon, current, milestones, tierLabels, color, agent, altValue }: {
-  label: string; icon: React.ReactNode; current: number; milestones: number[]; tierLabels: string[]; color: string; agent: AgentRebelStandings; altValue?: string
+function MilestoneBar({ label, icon, current, milestones, tierLabels, color, agent, altValue, targetTier }: {
+  label: string
+  icon: React.ReactNode
+  current: number
+  milestones: number[]
+  tierLabels: string[]
+  color: string
+  agent: AgentRebelStandings
+  altValue?: string
+  targetTier?: RebelRewardTier | null
 }) {
   const max = milestones[milestones.length - 1]
   const pct = Math.min(100, (current / max) * 100)
   const fillColors: Record<string, string> = { blue: "bg-blue-500", rose: "bg-rose-500", amber: "bg-amber-500" }
+  const activeTier = targetTier || agent.nextTier
 
   return (
-    <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
+    <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5 font-bold text-xs text-slate-700 uppercase tracking-wide">{icon} {label}</div>
         <div className="flex items-center gap-2">
@@ -621,24 +661,41 @@ function MilestoneBar({ label, icon, current, milestones, tierLabels, color, age
         </div>
       </div>
 
-      {/* Progress bar with milestone markers */}
-      <div className="relative h-3 bg-slate-200/80 rounded-full overflow-visible">
+      {/* Progress bar with milestone markers & hover tooltips */}
+      <div className="relative h-3 bg-slate-200/80 rounded-full overflow-visible my-3">
         <div className={`absolute top-0 left-0 h-full rounded-full transition-all duration-500 ${fillColors[color] || 'bg-blue-500'}`} style={{ width: `${pct}%` }} />
         
-        {/* Milestone markers */}
+        {/* Milestone markers with tooltips */}
         {milestones.map((ms, idx) => {
           const msPct = (ms / max) * 100
           const reached = current >= ms
+          const diff = Math.max(0, ms - current)
+          const tierName = REBEL_TIERS[idx]?.name || tierLabels[idx]
           return (
-            <div key={idx} className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2" style={{ left: `${msPct}%` }}>
-              <div className={`w-2.5 h-2.5 rounded-full border-2 ${reached ? 'bg-emerald-500 border-white' : 'bg-white border-slate-300'}`} />
+            <div key={idx} className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group/marker z-20" style={{ left: `${msPct}%` }}>
+              <div className={`w-3 h-3 rounded-full border-2 transition-all cursor-pointer group-hover/marker:scale-150 ${reached ? 'bg-emerald-500 border-white shadow-xs' : 'bg-white border-slate-400 group-hover/marker:border-blue-500 group-hover/marker:bg-blue-50'}`} />
+              
+              {/* Tooltip on hover */}
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/marker:flex flex-col items-center pointer-events-none z-40">
+                <div className="bg-slate-900 text-white text-[10px] font-mono px-2.5 py-1 rounded-md shadow-xl whitespace-nowrap border border-slate-700">
+                  <span className="font-bold text-slate-200">{tierName} ({ms}):</span>{" "}
+                  {reached ? (
+                    <span className="text-emerald-400 font-bold">✓ Achieved</span>
+                  ) : current > 0 ? (
+                    <span className="text-amber-300 font-bold">{diff} more needed</span>
+                  ) : (
+                    <span className="text-slate-300">{ms} needed</span>
+                  )}
+                </div>
+                <div className="w-2 h-2 bg-slate-900 rotate-45 -mt-1" />
+              </div>
             </div>
           )
         })}
       </div>
 
-      {/* Milestone labels below */}
-      <div className="relative mt-1 h-4">
+      {/* Milestone numbers below */}
+      <div className="relative h-3 mt-1">
         {milestones.map((ms, idx) => {
           const msPct = (ms / max) * 100
           const reached = current >= ms
@@ -650,8 +707,8 @@ function MilestoneBar({ label, icon, current, milestones, tierLabels, color, age
         })}
       </div>
 
-      {/* Tier labels */}
-      <div className="relative h-3">
+      {/* Tier labels below numbers */}
+      <div className="relative h-3 mb-1">
         {milestones.map((ms, idx) => {
           const msPct = (ms / max) * 100
           const reached = current >= ms
@@ -663,17 +720,25 @@ function MilestoneBar({ label, icon, current, milestones, tierLabels, color, age
         })}
       </div>
 
-      {/* Next target callout */}
-      {agent.nextTier && (
-        <div className="flex items-center justify-between mt-1 text-[10px]">
+      {/* Target callout */}
+      {activeTier && (
+        <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-100 text-[10px]">
           <span className="text-slate-500">
-            Next: <span className="font-bold text-slate-700">{(agent.nextTier.targets as any)[label === "Allstate Auto Items" ? "autoItems" : label === "AFS (IPS)" ? "ips" : "ivanNlItems"]}</span>
+            {activeTier.character} Target: <span className="font-bold text-slate-700">{(activeTier.targets as any)[label === "Allstate Auto Items" ? "autoItems" : label === "AFS (IPS)" ? "ips" : "ivanNlItems"]}</span>
           </span>
           {(() => {
             const targetKey = label === "Allstate Auto Items" ? "autoItems" : label === "AFS (IPS)" ? "ips" : "ivanNlItems"
-            const targetVal = (agent.nextTier!.targets as any)[targetKey]
+            const targetVal = (activeTier.targets as any)[targetKey]
             const needed = Math.max(0, targetVal - current)
-            return needed > 0 ? <span className="text-slate-400">Need <span className="font-bold text-blue-600">{needed}</span> more</span> : <span className="text-emerald-600 font-bold">✓ Met</span>
+            if (current === 0 && needed > 0) {
+              // 0 progress in this category - show clean neutral target
+              return <span className="text-slate-400 font-mono">0 / {targetVal}</span>
+            }
+            return needed > 0 ? (
+              <span className="text-slate-400">Need <span className="font-bold text-blue-600">{needed}</span> more</span>
+            ) : (
+              <span className="text-emerald-600 font-bold">✓ Met</span>
+            )
           })()}
         </div>
       )}

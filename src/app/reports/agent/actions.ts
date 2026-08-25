@@ -86,6 +86,8 @@ export interface AgentMonthlyData {
   periodLabel: string
   lastDataDate: string
   mode: "month" | "ytd"
+  /** Live 2026 YTD Auto Items for Rebel Rewards tracker */
+  ytdAutoItems?: number
   /** Resolved daily goal targets for this agent (metric_name → target_value) */
   dailyGoals: Record<string, number>
 }
@@ -266,7 +268,7 @@ export async function getAgentMonthlyData(
     }
 
     for (const m of (metrics || [])) {
-      const effectiveQuotes = m.quotes_deduped > 0 ? m.quotes_deduped : (m.quotes || 0)
+      const effectiveQuotes = m.quotes_deduped || 0
       agentTotals.quotes += effectiveQuotes
       agentTotals.nb_count += m.nb_auto_count || 0
       agentTotals.items += m.nb_auto_items || 0
@@ -351,8 +353,8 @@ export async function getAgentMonthlyData(
 
     for (const m of (allMetrics || [])) {
       const aid = m.agent_id
+      const q = m.quotes_deduped || 0
       if (agencyAggs[aid]) {
-        const q = m.quotes_deduped > 0 ? m.quotes_deduped : (m.quotes || 0)
         agencyAggs[aid].quotes += q
         agencyAggs[aid].nb += m.nb_auto_count || 0
         agencyAggs[aid].items += m.nb_auto_items || 0
@@ -363,7 +365,6 @@ export async function getAgentMonthlyData(
         agencyAggs[aid].texts += m.texts || 0
       }
       if (teamAggs[aid]) {
-        const q = m.quotes_deduped > 0 ? m.quotes_deduped : (m.quotes || 0)
         teamAggs[aid].quotes += q
         teamAggs[aid].nb += m.nb_auto_count || 0
         teamAggs[aid].items += m.nb_auto_items || 0
@@ -457,11 +458,29 @@ export async function getAgentMonthlyData(
       if (target !== null && target > 0) dailyGoals[metricName] = target
     }
 
+    // 10. Fetch live 2026 YTD Auto Items for Rebel Rewards tracker
+    let ytdAutoItems: number | undefined
+    try {
+      const { data: ytdSummary } = await supabase
+        .from("period_summaries")
+        .select("nb_auto_items")
+        .eq("agent_id", agentId)
+        .eq("period_type", "ytd")
+        .eq("period_key", String(year))
+        .single()
+      if (ytdSummary?.nb_auto_items !== undefined) {
+        ytdAutoItems = ytdSummary.nb_auto_items
+      }
+    } catch {
+      // Non-critical fallback
+    }
+
     return {
       success: true,
       data: {
         agent: agentData, scorecards, dailyRows, businessDaysTotal,
         businessDaysPassed, periodLabel, lastDataDate, mode, dailyGoals,
+        ytdAutoItems,
       },
     }
   } catch (error: any) {
@@ -521,7 +540,7 @@ export async function getAgentHistoricalTrends(
         weekBuckets[monStr] = { items: 0, premium: 0, quotes: 0, calls: 0, talkTimeSeconds: 0, outbound: 0, texts: 0 }
       }
 
-      const q = m.quotes_deduped > 0 ? m.quotes_deduped : (m.quotes || 0)
+      const q = m.quotes_deduped || 0
       weekBuckets[monStr].items += m.nb_auto_items || 0
       weekBuckets[monStr].premium += Number(m.prem_premium) || 0
       weekBuckets[monStr].quotes += q
@@ -577,7 +596,7 @@ export async function getAgentHistoricalTrends(
       if (!monthBuckets[monthNum]) {
         monthBuckets[monthNum] = { items: 0, premium: 0, quotes: 0, calls: 0, talkTimeSeconds: 0, outbound: 0, texts: 0 }
       }
-      const q = m.quotes_deduped > 0 ? m.quotes_deduped : (m.quotes || 0)
+      const q = m.quotes_deduped || 0
       monthBuckets[monthNum].items += m.nb_auto_items || 0
       monthBuckets[monthNum].premium += Number(m.prem_premium) || 0
       monthBuckets[monthNum].quotes += q

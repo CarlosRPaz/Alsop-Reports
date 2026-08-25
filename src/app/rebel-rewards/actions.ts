@@ -60,6 +60,20 @@ export async function getRebelRewardsStandings(): Promise<{
     const agentsList = dbAgents || []
     const sourceRows = customUploadedRows || REBEL_REWARDS_2026_SEED
 
+    // 1b. Fetch live YTD auto items from period_summaries (pre-aggregated, updated on every upload)
+    const { data: ytdSummaries } = await supabase
+      .from("period_summaries")
+      .select("agent_id, nb_auto_items")
+      .eq("period_type", "ytd")
+      .eq("period_key", "2026")
+
+    const liveAutoMap = new Map<string, number>()
+    if (ytdSummaries) {
+      for (const row of ytdSummaries) {
+        liveAutoMap.set(row.agent_id, row.nb_auto_items || 0)
+      }
+    }
+
     // 2. Compute Rebel standings for each row
     const standings: AgentRebelStandings[] = sourceRows
       .filter(row => {
@@ -74,9 +88,13 @@ export async function getRebelRewardsStandings(): Promise<{
       })
       .map(row => {
         const matchedAgent = findBestAgentMatch(row.name, agentsList)
+        // Use live YTD auto items from daily uploads if available, otherwise fall back to contest report
+        const liveAutoItems = matchedAgent?.id ? liveAutoMap.get(matchedAgent.id) : undefined
+        const autoItems = liveAutoItems !== undefined ? liveAutoItems : row.autoItems
+
         return calculateAgentRebelStatus(
           row.name,
-          row.autoItems,
+          autoItems,
           row.ips,
           row.afsPc,
           row.ivanNlItems,

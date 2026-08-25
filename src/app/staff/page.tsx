@@ -41,7 +41,7 @@ export default function StaffPage() {
             Our Wonderful Agency Staff Directory
           </h1>
           <p className="text-sm font-semibold text-slate-900 max-w-xl leading-relaxed">
-            We&apos;re currently polishing up this space with photos, extensions, direct lines, and office shortcuts! 🚧✨ In the meantime, here&apos;s our active team roster.
+            We&apos;re currently polishing up this space with office info, direct lines, helpful phone numbers, and extensions! 🚧✨ In the meantime, here&apos;s our active team roster.
           </p>
         </div>
 

@@ -314,9 +314,12 @@ export default function AgentDashboardPage() {
     })
     if (!match) return null
 
+    // Use live YTD auto items from daily uploads if available
+    const liveAuto = data.ytdAutoItems !== undefined ? data.ytdAutoItems : match.autoItems
+
     return calculateAgentRebelStatus(
       match.name,
-      match.autoItems,
+      liveAuto,
       match.ips,
       match.afsPc,
       match.ivanNlItems,
@@ -519,64 +522,30 @@ export default function AgentDashboardPage() {
         </div>
       </div>
 
-      {/* ── Daily Goal Playbook Card ── */}
+      {/* ── Daily Goal Playbook Banner (Compact & Sleek) ── */}
       {playbookData && periodMode === "month" && (
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white rounded-xl p-4 md:p-5 shadow-lg border border-indigo-800/40 relative overflow-hidden">
-          {/* Subtle background glow */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white rounded-xl px-3.5 py-2 md:py-2.5 shadow-md border border-indigo-800/40 relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5">
+          {/* Left: Badge + Crisp Advice */}
+          <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-400 text-slate-950 shrink-0">
+              <Sparkles className="w-3 h-3" /> Goal Playbook
+            </span>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${playbookData.statusColor}`}>
+              {playbookData.statusLabel}
+            </span>
+            <p className="text-xs text-slate-300 font-medium">
+              {playbookData.isGoalMet 
+                ? `Target Crushed! ${playbookData.currentItems} items written (surpassed 40-item goal).`
+                : `${playbookData.currentItems} / ${playbookData.monthlyItemsGoal} items (${playbookData.percent}%) • Need ${playbookData.itemsNeeded} more (${playbookData.requiredDailyPace}/day over ${playbookData.bizDaysRemaining} days)`
+              }
+            </p>
+          </div>
 
-          <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-            
-            {/* Left: Playbook Heading & Dynamic Advice */}
-            <div className="space-y-1.5 flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-400 text-slate-950 shadow-xs">
-                  <Sparkles className="w-3.5 h-3.5" /> Daily Goal Playbook
-                </span>
-                <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${playbookData.statusColor}`}>
-                  {playbookData.statusLabel}
-                </span>
-              </div>
-              <p className="text-xs md:text-sm text-slate-200 leading-relaxed font-medium">
-                {playbookData.adviceText}
-              </p>
-            </div>
-
-            {/* Right: Pace KPI Badges & Progress Bar */}
-            <div className="w-full lg:w-80 bg-white/10 backdrop-blur-md border border-white/15 rounded-xl p-3.5 flex flex-col gap-2.5 shrink-0">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-300 font-medium">Monthly Progress</span>
-                <span className="font-mono font-bold text-amber-300">
-                  {playbookData.currentItems} / {playbookData.monthlyItemsGoal} items ({playbookData.percent}%)
-                </span>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-white/10">
-                <div 
-                  className={`h-full transition-all duration-500 rounded-full ${playbookData.isGoalMet ? "bg-gradient-to-r from-emerald-400 to-emerald-300" : "bg-gradient-to-r from-amber-400 to-amber-300"}`}
-                  style={{ width: `${playbookData.percent}%` }}
-                />
-              </div>
-
-              {/* Stats Ribbon */}
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/10 text-center">
-                <div className="bg-slate-950/40 rounded-lg p-1.5 border border-white/5">
-                  <span className="text-[10px] text-slate-400 block font-medium">Needed Today</span>
-                  <span className="text-xs sm:text-sm font-black font-mono text-amber-300">
-                    {playbookData.isGoalMet ? "0 (Done!)" : `${playbookData.requiredDailyPace} / day`}
-                  </span>
-                </div>
-                <div className="bg-slate-950/40 rounded-lg p-1.5 border border-white/5">
-                  <span className="text-[10px] text-slate-400 block font-medium">Days Left</span>
-                  <span className="text-xs sm:text-sm font-black font-mono text-slate-200">
-                    {playbookData.bizDaysRemaining} days
-                  </span>
-                </div>
-              </div>
-            </div>
-
+          {/* Right: Quick Pace Pill */}
+          <div className="inline-flex items-center gap-2 bg-black/40 border border-white/10 rounded-lg px-2.5 py-1 text-[11px] font-mono shrink-0">
+            <span className="text-slate-400">Pace: <strong className="text-amber-300 font-bold">{playbookData.isGoalMet ? "0" : `${playbookData.requiredDailyPace}/d`}</strong></span>
+            <span className="text-slate-600">|</span>
+            <span className="text-slate-400">{playbookData.bizDaysRemaining}d left</span>
           </div>
         </div>
       )}
@@ -590,82 +559,329 @@ export default function AgentDashboardPage() {
 
           {/* Left: Portrait & Status */}
           <div className="flex flex-col sm:flex-row items-center gap-6 relative z-10 w-full lg:w-auto">
-            <div className={`relative w-28 h-32 md:w-32 md:h-40 rounded-xl flex items-center justify-center border bg-gradient-to-b overflow-hidden shrink-0
-              ${rebelStatus.highestTier === 'none' ? 'from-slate-800 to-slate-900 border-slate-700' :
-                rebelStatus.highestTier === 'anakin' ? 'from-blue-800 to-blue-900 border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.3)]' :
-                rebelStatus.highestTier === 'rey' ? 'from-yellow-600 to-yellow-800 border-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.3)]' :
-                rebelStatus.highestTier === 'luke' ? 'from-emerald-600 to-emerald-800 border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.3)]' :
-                'from-purple-600 to-purple-900 border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.3)]'
+            {/* Portrait Box — centered full-body character artwork */}
+            <div className={`relative w-28 h-36 md:w-32 md:h-44 rounded-2xl flex items-end justify-center border bg-gradient-to-b overflow-hidden shrink-0 shadow-lg
+              ${rebelStatus.highestTier === 'none' ? 'from-slate-800 to-slate-950 border-slate-700' :
+                rebelStatus.highestTier === 'anakin' ? 'from-blue-800 to-blue-950 border-blue-500/50 shadow-[0_0_25px_rgba(59,130,246,0.35)]' :
+                rebelStatus.highestTier === 'rey' ? 'from-cyan-800 to-cyan-950 border-cyan-500/50 shadow-[0_0_25px_rgba(6,182,212,0.35)]' :
+                rebelStatus.highestTier === 'luke' ? 'from-amber-700 to-yellow-950 border-amber-500/50 shadow-[0_0_25px_rgba(245,158,11,0.35)]' :
+                'from-purple-800 to-indigo-950 border-purple-500/50 shadow-[0_0_25px_rgba(168,85,247,0.35)]'
               }`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img 
                 src={`/images/starwars/${rebelStatus.highestTier === 'none' ? 'anakin' : rebelStatus.highestTier}.png`} 
-                alt="Rank" 
-                className="absolute -bottom-4 w-[110%] object-contain filter drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)] opacity-90"
+                alt="Jedi Rank" 
+                className="h-[88%] w-auto max-w-none object-contain object-bottom filter drop-shadow-[0_10px_15px_rgba(0,0,0,0.9)] transition-transform duration-300 hover:scale-105"
               />
               <div className="absolute top-2 left-2 right-2 flex justify-between items-center z-20">
-                <div className="bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-black uppercase text-white tracking-widest border border-white/20">
+                <div className="bg-black/75 backdrop-blur-md px-2 py-0.5 rounded-md text-[9px] font-black uppercase text-white tracking-widest border border-white/20 shadow-xs">
                   {rebelStatus.highestTier === "none" ? "Padawan" : rebelStatus.highestTier}
                 </div>
               </div>
             </div>
 
-            <div className="text-center sm:text-left space-y-3 flex-1">
-              <div>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-900/50 text-blue-400 border border-blue-500/30 mb-2">
-                  <Sparkles className="w-3 h-3 text-blue-400" /> Jedi Telemetry Active
+            {/* Status & Goals */}
+            <div className="text-center sm:text-left space-y-2 flex-1">
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-900/60 text-blue-400 border border-blue-500/30">
+                  <Sparkles className="w-3 h-3 text-blue-400" /> Jedi Telemetry
                 </div>
-                <h3 className="text-2xl font-black text-white uppercase tracking-wider drop-shadow-md">
-                  {rebelStatus.nextTier ? `Pursuing ${rebelStatus.nextTier.name}` : "Mastery Achieved"}
-                </h3>
+                <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-slate-300 bg-white/5 border border-white/10">
+                  Current: <strong className="text-white capitalize">{rebelStatus.highestTier === "none" ? "Padawan" : rebelStatus.highestTier}</strong>
+                </div>
               </div>
 
+              <div>
+                <h3 className="text-2xl md:text-3xl font-black text-white uppercase tracking-wider drop-shadow-md">
+                  {rebelStatus.nextTier ? `Pursuing ${rebelStatus.nextTier.name}` : "Grand Jedi Master"}
+                </h3>
+                {rebelStatus.nextTier && (
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Goal Prize: <span className="font-semibold text-emerald-400">{rebelStatus.nextTier.prizeText} Bounty</span> • <span className="font-mono text-slate-400">{rebelStatus.nextTier.ruleText}</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Checklist Badges for Next Goal */}
+              {rebelStatus.nextTier && (() => {
+                const ntId = rebelStatus.nextTier.id
+                const tierData = (rebelStatus as any)[ntId]
+                const autoHit = tierData?.autoHit || false
+                const afsHit = tierData?.afsHit || false
+                const ivanHit = tierData?.ivanHit || false
+                const hitsCount = (autoHit ? 1 : 0) + (afsHit ? 1 : 0) + (ivanHit ? 1 : 0)
+                const required = rebelStatus.nextTier.requiredHits
+                const isAllMet = hitsCount >= required
+
+                return (
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 pt-0.5">
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                      isAllMet ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/10 text-slate-300 border border-white/10'
+                    }`}>
+                      {hitsCount}/{required} Met
+                    </span>
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${autoHit ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/5 text-slate-500 border border-white/5'}`}>
+                      Auto {autoHit ? '✓' : '✗'}
+                    </span>
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${afsHit ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/5 text-slate-500 border border-white/5'}`}>
+                      AFS {afsHit ? '✓' : '✗'}
+                    </span>
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${ivanHit ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/5 text-slate-500 border border-white/5'}`}>
+                      Ivan {ivanHit ? '✓' : '✗'}
+                    </span>
+                  </div>
+                )
+              })()}
+
               {rebelStatus.totalPayout > 0 && (
-                <div className="inline-block bg-black/40 border border-emerald-500/30 rounded-lg px-4 py-2 text-emerald-400">
-                  <div className="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-0.5">Bounty Secured</div>
-                  <div className="text-xl font-black font-mono">${rebelStatus.totalPayout.toLocaleString()}</div>
+                <div className="inline-flex items-center gap-2 bg-black/50 border border-emerald-500/30 rounded-xl px-3 py-1 text-emerald-400 shadow-inner mt-1">
+                  <div className="text-[9px] font-bold uppercase tracking-widest opacity-80 leading-none">Bounty:</div>
+                  <div className="text-base font-black font-mono leading-none">${rebelStatus.totalPayout.toLocaleString()}</div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Right: Data Targets */}
+          {/* Right: Data Targets with Multi-Tier Milestone Pins */}
           {rebelStatus.nextTier ? (
-            <div className="flex-1 w-full lg:w-auto bg-black/40 border border-white/5 rounded-2xl p-5 relative z-10 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex-1 w-full lg:w-auto bg-black/40 border border-white/5 rounded-2xl p-4 sm:p-5 relative z-10 grid grid-cols-1 md:grid-cols-3 gap-3.5">
               
-              <div className="space-y-2">
-                <div className="flex justify-between items-end text-xs font-bold uppercase tracking-wider">
-                  <span className="text-blue-400 flex items-center gap-1"><Car className="w-3 h-3"/> Auto</span>
-                  <span className="font-mono text-slate-400">{rebelStatus.autoItems} / <span className="text-white">{rebelStatus.nextTier.targets.autoItems}</span></span>
-                </div>
-                <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/5">
-                  <div className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)] transition-all duration-1000" style={{ width: `${Math.min(100, (rebelStatus.autoItems / rebelStatus.nextTier.targets.autoItems) * 100)}%` }} />
-                </div>
-                <div className="text-[10px] text-slate-500 font-mono">Need {rebelStatus.nextTierProgress?.autoItemsNeeded} more</div>
-              </div>
+              {/* Auto Metric */}
+              {(() => {
+                const maxVal = 500 // Obi-Wan max
+                const targetVal = rebelStatus.nextTier.targets.autoItems
+                const currentVal = rebelStatus.autoItems
+                const isZero = currentVal === 0
+                const isMet = currentVal >= targetVal
+                const pctOfMax = Math.min(100, Math.round((currentVal / maxVal) * 100))
+                const needed = Math.max(0, targetVal - currentVal)
+                const milestones = [120, 240, 360, 500]
 
-              <div className="space-y-2">
-                <div className="flex justify-between items-end text-xs font-bold uppercase tracking-wider">
-                  <span className="text-rose-400 flex items-center gap-1"><Heart className="w-3 h-3"/> AFS</span>
-                  <span className="font-mono text-slate-400">{rebelStatus.ips} / <span className="text-white">{rebelStatus.nextTier.targets.ips}</span></span>
-                </div>
-                <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/5">
-                  <div className="h-full bg-rose-500 shadow-[0_0_10px_rgba(243,64,94,0.8)] transition-all duration-1000" style={{ width: `${Math.min(100, (rebelStatus.ips / rebelStatus.nextTier.targets.ips) * 100)}%` }} />
-                </div>
-                <div className="text-[10px] text-slate-500 font-mono">Need {rebelStatus.nextTierProgress?.ipsNeeded} IPS or ${Math.round((rebelStatus.nextTierProgress?.afsPcNeeded||0)/1000)}k PC</div>
-              </div>
+                return (
+                  <div className={`p-3 rounded-xl border transition-all ${
+                    isZero 
+                      ? 'opacity-40 hover:opacity-100 bg-white/[0.02] border-white/5' 
+                      : isMet 
+                        ? 'opacity-100 bg-emerald-950/20 border-emerald-500/30' 
+                        : 'opacity-100 bg-white/[0.04] border-white/10'
+                  }`}>
+                    <div className="flex justify-between items-end text-xs font-bold uppercase tracking-wider mb-2">
+                      <span className={`flex items-center gap-1.5 ${isZero ? 'text-slate-500' : isMet ? 'text-emerald-400' : 'text-blue-400'}`}>
+                        <Car className="w-3.5 h-3.5"/> Auto
+                      </span>
+                      <span className="font-mono">
+                        <strong className={isZero ? 'text-slate-500' : 'text-white'}>{currentVal}</strong>
+                        <span className="text-slate-500 font-normal"> / {targetVal}</span>
+                      </span>
+                    </div>
 
-              <div className="space-y-2">
-                <div className="flex justify-between items-end text-xs font-bold uppercase tracking-wider">
-                  <span className="text-yellow-400 flex items-center gap-1"><Home className="w-3 h-3"/> Ivan</span>
-                  <span className="font-mono text-slate-400">{rebelStatus.ivanNlItems} / <span className="text-white">{rebelStatus.nextTier.targets.ivanNlItems}</span></span>
-                </div>
-                <div className="w-full h-1.5 bg-black/50 rounded-full overflow-hidden border border-white/5">
-                  <div className="h-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.8)] transition-all duration-1000" style={{ width: `${Math.min(100, (rebelStatus.ivanNlItems / rebelStatus.nextTier.targets.ivanNlItems) * 100)}%` }} />
-                </div>
-                <div className="text-[10px] text-slate-500 font-mono">Need {rebelStatus.nextTierProgress?.ivanNeeded} more</div>
-              </div>
+                    {/* Progress track with milestone markers */}
+                    <div className="relative h-2 bg-black/60 rounded-full overflow-visible border border-white/5 my-2.5">
+                      <div className={`h-full rounded-full transition-all duration-1000 ${
+                        isMet 
+                          ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]' 
+                          : isZero 
+                            ? 'bg-slate-700' 
+                            : 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]'
+                      }`} style={{ width: `${pctOfMax}%` }} />
+
+                      {!isZero && milestones.map((ms, idx) => {
+                        const msPct = (ms / maxVal) * 100
+                        const reached = currentVal >= ms
+                        const isGoal = targetVal === ms
+                        const tierName = ["Anakin", "Rey", "Luke", "Obi-Wan"][idx]
+                        return (
+                          <div key={idx} className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group/pin z-20" style={{ left: `${msPct}%` }}>
+                            <div className={`w-2.5 h-2.5 rounded-full border transition-all cursor-pointer group-hover/pin:scale-150 ${
+                              reached 
+                                ? 'bg-emerald-500 border-white' 
+                                : isGoal 
+                                  ? 'bg-blue-500 border-white ring-2 ring-blue-400 shadow-sm' 
+                                  : 'bg-slate-800 border-slate-600'
+                            }`} />
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/pin:flex flex-col items-center pointer-events-none z-40">
+                              <div className="bg-slate-900 text-white text-[9px] font-mono px-2 py-0.5 rounded shadow-xl whitespace-nowrap border border-slate-700">
+                                <span className="font-bold">{tierName} ({ms}):</span> {reached ? "✓ Reached" : `${Math.max(0, ms - currentVal)} more`}
+                              </div>
+                              <div className="w-1.5 h-1.5 bg-slate-900 rotate-45 -mt-0.5" />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="text-[10px] font-mono mt-1.5 flex justify-between items-center">
+                      {isMet ? (
+                        <span className="text-emerald-400 font-bold">✓ Target Met</span>
+                      ) : isZero ? (
+                        <span className="text-slate-500">0 written • Inactive</span>
+                      ) : (
+                        <span className="text-slate-400">Need <strong className="text-blue-400 font-bold">{needed}</strong> for {rebelStatus.nextTier.character}</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* AFS Metric */}
+              {(() => {
+                const maxVal = 10 // Obi-Wan max
+                const targetVal = rebelStatus.nextTier.targets.ips
+                const currentVal = rebelStatus.ips
+                const isZero = currentVal === 0 && rebelStatus.afsPc === 0
+                const isMet = currentVal >= targetVal || rebelStatus.afsPc >= rebelStatus.nextTier.targets.afsPc
+                const pctOfMax = Math.min(100, Math.max(
+                  Math.round((currentVal / maxVal) * 100),
+                  Math.round((rebelStatus.afsPc / 20000) * 100)
+                ))
+                const neededIps = Math.max(0, targetVal - currentVal)
+                const neededPc = Math.max(0, rebelStatus.nextTier.targets.afsPc - rebelStatus.afsPc)
+                const milestones = [1, 3, 5, 10]
+
+                return (
+                  <div className={`p-3 rounded-xl border transition-all ${
+                    isZero 
+                      ? 'opacity-40 hover:opacity-100 bg-white/[0.02] border-white/5' 
+                      : isMet 
+                        ? 'opacity-100 bg-emerald-950/20 border-emerald-500/30' 
+                        : 'opacity-100 bg-white/[0.04] border-white/10'
+                  }`}>
+                    <div className="flex justify-between items-end text-xs font-bold uppercase tracking-wider mb-2">
+                      <span className={`flex items-center gap-1.5 ${isZero ? 'text-slate-500' : isMet ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        <Heart className="w-3.5 h-3.5"/> AFS
+                      </span>
+                      <span className="font-mono">
+                        <strong className={isZero ? 'text-slate-500' : 'text-white'}>{currentVal}</strong>
+                        <span className="text-slate-500 font-normal"> / {targetVal}</span>
+                        {rebelStatus.afsPc > 0 && <span className="text-slate-400 text-[10px] ml-1">(${Math.round(rebelStatus.afsPc/1000)}k)</span>}
+                      </span>
+                    </div>
+
+                    {/* Progress track with milestone markers */}
+                    <div className="relative h-2 bg-black/60 rounded-full overflow-visible border border-white/5 my-2.5">
+                      <div className={`h-full rounded-full transition-all duration-1000 ${
+                        isMet 
+                          ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]' 
+                          : isZero 
+                            ? 'bg-slate-700' 
+                            : 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.8)]'
+                      }`} style={{ width: `${pctOfMax}%` }} />
+
+                      {!isZero && milestones.map((ms, idx) => {
+                        const msPct = (ms / maxVal) * 100
+                        const reached = currentVal >= ms
+                        const isGoal = targetVal === ms
+                        const tierName = ["Anakin", "Rey", "Luke", "Obi-Wan"][idx]
+                        return (
+                          <div key={idx} className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group/pin z-20" style={{ left: `${msPct}%` }}>
+                            <div className={`w-2.5 h-2.5 rounded-full border transition-all cursor-pointer group-hover/pin:scale-150 ${
+                              reached 
+                                ? 'bg-emerald-500 border-white' 
+                                : isGoal 
+                                  ? 'bg-rose-500 border-white ring-2 ring-rose-400 shadow-sm' 
+                                  : 'bg-slate-800 border-slate-600'
+                            }`} />
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/pin:flex flex-col items-center pointer-events-none z-40">
+                              <div className="bg-slate-900 text-white text-[9px] font-mono px-2 py-0.5 rounded shadow-xl whitespace-nowrap border border-slate-700">
+                                <span className="font-bold">{tierName} ({ms}):</span> {reached ? "✓ Reached" : `${Math.max(0, ms - currentVal)} more`}
+                              </div>
+                              <div className="w-1.5 h-1.5 bg-slate-900 rotate-45 -mt-0.5" />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="text-[10px] font-mono mt-1.5 flex justify-between items-center">
+                      {isMet ? (
+                        <span className="text-emerald-400 font-bold">✓ Target Met</span>
+                      ) : isZero ? (
+                        <span className="text-slate-500">0 written • Inactive</span>
+                      ) : (
+                        <span className="text-slate-400">Need <strong className="text-rose-400 font-bold">{neededIps} IPS</strong> or <span className="text-slate-300">${Math.round(neededPc/1000)}k PC</span></span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Ivan Metric */}
+              {(() => {
+                const maxVal = 75 // Obi-Wan max
+                const targetVal = rebelStatus.nextTier.targets.ivanNlItems
+                const currentVal = rebelStatus.ivanNlItems
+                const isZero = currentVal === 0
+                const isMet = currentVal >= targetVal
+                const pctOfMax = Math.min(100, Math.round((currentVal / maxVal) * 100))
+                const needed = Math.max(0, targetVal - currentVal)
+                const milestones = [25, 45, 65, 75]
+
+                return (
+                  <div className={`p-3 rounded-xl border transition-all ${
+                    isZero 
+                      ? 'opacity-40 hover:opacity-100 bg-white/[0.02] border-white/5' 
+                      : isMet 
+                        ? 'opacity-100 bg-emerald-950/20 border-emerald-500/30' 
+                        : 'opacity-100 bg-white/[0.04] border-white/10'
+                  }`}>
+                    <div className="flex justify-between items-end text-xs font-bold uppercase tracking-wider mb-2">
+                      <span className={`flex items-center gap-1.5 ${isZero ? 'text-slate-500' : isMet ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        <Home className="w-3.5 h-3.5"/> Ivan
+                      </span>
+                      <span className="font-mono">
+                        <strong className={isZero ? 'text-slate-500' : 'text-white'}>{currentVal}</strong>
+                        <span className="text-slate-500 font-normal"> / {targetVal}</span>
+                      </span>
+                    </div>
+
+                    {/* Progress track with milestone markers */}
+                    <div className="relative h-2 bg-black/60 rounded-full overflow-visible border border-white/5 my-2.5">
+                      <div className={`h-full rounded-full transition-all duration-1000 ${
+                        isMet 
+                          ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]' 
+                          : isZero 
+                            ? 'bg-slate-700' 
+                            : 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.8)]'
+                      }`} style={{ width: `${pctOfMax}%` }} />
+
+                      {!isZero && milestones.map((ms, idx) => {
+                        const msPct = (ms / maxVal) * 100
+                        const reached = currentVal >= ms
+                        const isGoal = targetVal === ms
+                        const tierName = ["Anakin", "Rey", "Luke", "Obi-Wan"][idx]
+                        return (
+                          <div key={idx} className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group/pin z-20" style={{ left: `${msPct}%` }}>
+                            <div className={`w-2.5 h-2.5 rounded-full border transition-all cursor-pointer group-hover/pin:scale-150 ${
+                              reached 
+                                ? 'bg-emerald-500 border-white' 
+                                : isGoal 
+                                  ? 'bg-amber-500 border-white ring-2 ring-amber-400 shadow-sm' 
+                                  : 'bg-slate-800 border-slate-600'
+                            }`} />
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/pin:flex flex-col items-center pointer-events-none z-40">
+                              <div className="bg-slate-900 text-white text-[9px] font-mono px-2 py-0.5 rounded shadow-xl whitespace-nowrap border border-slate-700">
+                                <span className="font-bold">{tierName} ({ms}):</span> {reached ? "✓ Reached" : `${Math.max(0, ms - currentVal)} more`}
+                              </div>
+                              <div className="w-1.5 h-1.5 bg-slate-900 rotate-45 -mt-0.5" />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="text-[10px] font-mono mt-1.5 flex justify-between items-center">
+                      {isMet ? (
+                        <span className="text-emerald-400 font-bold">✓ Target Met</span>
+                      ) : isZero ? (
+                        <span className="text-slate-500">0 written • Inactive</span>
+                      ) : (
+                        <span className="text-slate-400">Need <strong className="text-amber-400 font-bold">{needed}</strong> for {rebelStatus.nextTier.character}</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
 
             </div>
           ) : (
@@ -675,17 +891,6 @@ export default function AgentDashboardPage() {
                <div className="text-slate-400 text-xs mt-1">You have dominated the 2026 Rebel Rewards program.</div>
              </div>
           )}
-
-          <div className="relative z-10 shrink-0">
-            <Link
-              href="/rebel-rewards"
-              className="group flex flex-col items-center justify-center p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-blue-600 transition-all cursor-pointer h-full"
-            >
-              <Target className="w-5 h-5 text-slate-400 group-hover:text-white mb-2" />
-              <span className="text-[10px] font-bold text-slate-400 group-hover:text-white uppercase tracking-widest">Full</span>
-              <span className="text-[10px] font-bold text-slate-400 group-hover:text-white uppercase tracking-widest">Roster</span>
-            </Link>
-          </div>
         </div>
       )}
 
@@ -724,16 +929,16 @@ export default function AgentDashboardPage() {
                   {sc.unit === "$" && "$"}
                   {sc.unit === "%" 
                     ? `${(sc.value * 100).toFixed(1)}%` 
-                    : sc.unit === "min" 
-                      ? formatMinutes(sc.value) 
+                    : sc.metric === "talk_time_seconds" || sc.unit === "min"
+                      ? formatSeconds(sc.value) 
                       : sc.value.toLocaleString()}
                 </div>
                 {sc.unit !== "%" && (
                   <div className="text-[10px] font-mono text-slate-400 mt-1">
                     Avg: <strong className="text-slate-600">
-                      {sc.unit === "min" ? formatMinutes(Math.round(sc.dailyAvg)) : sc.dailyAvg}/d
+                      {sc.metric === "talk_time_seconds" || sc.unit === "min" ? formatSeconds(Math.round(sc.dailyAvg)) : sc.dailyAvg}/d
                     </strong> • <span className="text-slate-500">
-                      {sc.unit === "min" ? formatMinutes(Math.round(sc.weeklyAvg)) : sc.weeklyAvg}/w
+                      {sc.metric === "talk_time_seconds" || sc.unit === "min" ? formatSeconds(Math.round(sc.weeklyAvg)) : sc.weeklyAvg}/w
                     </span>
                   </div>
                 )}
