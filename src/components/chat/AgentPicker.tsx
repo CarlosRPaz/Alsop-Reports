@@ -41,6 +41,7 @@ export default function AgentPicker({ onSelect }: AgentPickerProps) {
         .from('agents')
         .select('*')
         .eq('active', true)
+        .eq('report_visible', true)
         .order('name', { ascending: true })
 
       if (!error && data) {

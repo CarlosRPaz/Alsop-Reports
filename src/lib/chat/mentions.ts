@@ -185,12 +185,13 @@ export async function resolveMentionTargets(
     .map((m) => m.target)
   const hasEveryone = mentions.some((m) => m.type === 'everyone')
 
-  // If @Everyone, just fetch all active agents
+  // If @Everyone, just fetch all active, report-visible agents
   if (hasEveryone) {
     const { data } = await supabase
       .from('agents')
       .select('id')
       .eq('active', true)
+      .eq('report_visible', true)
 
     for (const a of data ?? []) agentIdSet.add(a.id)
     return [...agentIdSet]
@@ -202,6 +203,7 @@ export async function resolveMentionTargets(
       .from('agents')
       .select('id')
       .eq('active', true)
+      .eq('report_visible', true)
       .in('team', needsTeamQuery)
 
     for (const a of data ?? []) agentIdSet.add(a.id)
@@ -213,6 +215,7 @@ export async function resolveMentionTargets(
       .from('agents')
       .select('id')
       .eq('active', true)
+      .eq('report_visible', true)
       .in('role', needsRoleQuery)
 
     for (const a of data ?? []) agentIdSet.add(a.id)
@@ -224,6 +227,7 @@ export async function resolveMentionTargets(
       .from('agents')
       .select('id')
       .eq('active', true)
+      .eq('report_visible', true)
       .in('office', needsOfficeQuery)
 
     for (const a of data ?? []) agentIdSet.add(a.id)

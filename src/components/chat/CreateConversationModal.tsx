@@ -95,6 +95,7 @@ export default function CreateConversationModal({
         .from('agents')
         .select('*')
         .eq('active', true)
+        .eq('report_visible', true)
         .neq('id', currentAgent.id)
         .order('name', { ascending: true })
 
