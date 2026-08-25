@@ -570,7 +570,7 @@ export default function AgentDashboardPage() {
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img 
-                src={`/images/starwars/${rebelStatus.highestTier === 'none' ? 'anakin' : rebelStatus.highestTier}.png`} 
+                src={`/images/starwars/${rebelStatus.highestTier === 'none' ? 'padawan' : rebelStatus.highestTier}.png`} 
                 alt="Jedi Rank" 
                 className="h-[88%] w-auto max-w-none object-contain object-bottom filter drop-shadow-[0_10px_15px_rgba(0,0,0,0.9)] transition-transform duration-300 hover:scale-105"
               />

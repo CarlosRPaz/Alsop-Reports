@@ -144,7 +144,8 @@ export default function RebelRewardsPage() {
   const characterImages: Record<string, string> = {
     anakin: "/images/starwars/anakin.png", rey: "/images/starwars/rey.png",
     luke: "/images/starwars/luke.png", obiwan: "/images/starwars/obiwan.png",
-    yoda: "/images/starwars/yoda.png",
+    yoda: "/images/starwars/yoda.png", padawan: "/images/starwars/padawan.png",
+    none: "/images/starwars/padawan.png",
   }
 
   // Saber-based colors
@@ -403,7 +404,7 @@ export default function RebelRewardsPage() {
               {/* Character watermark */}
               <div className="absolute right-0 top-0 h-full w-40 opacity-[0.08] pointer-events-none flex items-end justify-end overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={characterImages[selectedAgent.highestTier === "none" ? "anakin" : selectedAgent.highestTier]} alt="" className="h-full w-auto object-contain" />
+                <img src={characterImages[selectedAgent.highestTier === "none" ? "padawan" : selectedAgent.highestTier]} alt="" className="h-full w-auto object-contain" />
               </div>
               <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
