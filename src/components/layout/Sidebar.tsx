@@ -309,7 +309,7 @@ export function Sidebar() {
             if (Object.keys(pagePerms).length === 0) return true
             // Check if the agent's team is allowed
             const allowed = pagePerms[item.pageKey]
-            if (!allowed) return true // page not in permissions table = visible
+            if (!allowed || allowed.length === 0) return true // page not in permissions table or empty = visible
             return allowed.includes(currentAgent?.team || '')
           }).map((item) => {
             const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
@@ -498,7 +498,7 @@ export function Sidebar() {
             if (Object.keys(pagePerms).length === 0) return true
             // Check if the agent's team is allowed
             const allowed = pagePerms[item.pageKey]
-            if (!allowed) return true // page not in permissions table = visible
+            if (!allowed || allowed.length === 0) return true // page not in permissions table or empty = visible
             return allowed.includes(currentAgent?.team || '')
           }).map((item) => {
             const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))

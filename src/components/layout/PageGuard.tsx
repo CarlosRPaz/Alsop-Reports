@@ -61,6 +61,12 @@ export function PageGuard({ pageKey, children }: PageGuardProps) {
           return
         }
 
+        // Empty allowed_teams means everyone has access (no restriction configured)
+        if (!perm.allowed_teams || perm.allowed_teams.length === 0) {
+          setStatus("allowed")
+          return
+        }
+
         // Check if the agent's team is in the allowed list
         const agentTeam = agent?.team || ""
         if (perm.allowed_teams.includes(agentTeam)) {
