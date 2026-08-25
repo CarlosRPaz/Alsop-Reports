@@ -29,6 +29,7 @@ export async function getUnlinkedAgents(): Promise<UnlinkedAgent[]> {
     .from("agents")
     .select("id, name, team, office, role, email, auth_user_id")
     .eq("active", true)
+    .eq("report_visible", true)
     .is("auth_user_id", null)
     .order("name")
 
