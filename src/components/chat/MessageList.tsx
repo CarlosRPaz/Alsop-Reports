@@ -79,26 +79,60 @@ export default function MessageList({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [showScrollButton, setShowScrollButton] = useState(false)
   const [userScrolledUp, setUserScrolledUp] = useState(false)
+  const isInitialLoadRef = useRef(true)
 
-  const scrollToBottom = useCallback((smooth = true) => {
+  const scrollToBottom = useCallback((smooth = false) => {
+    if (scrollContainerRef.current) {
+      if (smooth) {
+        scrollContainerRef.current.scrollTo({
+          top: scrollContainerRef.current.scrollHeight,
+          behavior: 'smooth',
+        })
+      } else {
+        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+      }
+    }
     bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' })
     setShowScrollButton(false)
     setUserScrolledUp(false)
   }, [])
 
-  // Auto scroll to bottom on new messages (unless user scrolled up)
+  // Snap to bottom immediately when messages finish loading or conversation loads
   useEffect(() => {
-    if (!userScrolledUp) {
-      scrollToBottom(messages.length > 1)
+    if (!isLoading && messages.length > 0) {
+      // Instant snap to bottom on initial render
+      scrollToBottom(false)
+
+      // Double-check after image/font layout reflows settle
+      const timer1 = setTimeout(() => scrollToBottom(false), 50)
+      const timer2 = setTimeout(() => scrollToBottom(false), 150)
+      return () => {
+        clearTimeout(timer1)
+        clearTimeout(timer2)
+      }
     }
-  }, [messages.length, userScrolledUp, scrollToBottom])
+  }, [isLoading, scrollToBottom])
+
+  // When new messages are received while already viewing, smoothly scroll if user hasn't scrolled up
+  useEffect(() => {
+    if (isInitialLoadRef.current) {
+      if (!isLoading && messages.length > 0) {
+        isInitialLoadRef.current = false
+      }
+      return
+    }
+
+    if (!userScrolledUp && !isLoading && messages.length > 0) {
+      scrollToBottom(true)
+    }
+  }, [messages.length, isLoading, userScrolledUp, scrollToBottom])
 
   // Track scroll position
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current
     if (!el) return
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    const isNearBottom = distanceFromBottom < 100
+    const isNearBottom = distanceFromBottom < 80
     setShowScrollButton(!isNearBottom)
     setUserScrolledUp(!isNearBottom)
   }, [])

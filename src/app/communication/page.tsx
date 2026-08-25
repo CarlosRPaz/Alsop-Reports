@@ -472,6 +472,7 @@ export default function CommunicationHub() {
               />
 
               <MessageList
+                key={selectedConversation.id}
                 messages={messages}
                 currentAgentId={currentAgent.id}
                 isLoading={isLoadingMessages}
