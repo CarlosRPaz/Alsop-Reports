@@ -209,7 +209,7 @@ export function WeeklyManualModal({ isOpen, onClose, weekStartStr, weekLabel, ag
             ))}
           </div>
           <label className="flex items-center gap-2 cursor-pointer group">
-            <span className="text-slate-600 font-medium group-hover:text-slate-900 transition-colors">Show Service/CSR</span>
+            <span className="text-slate-600 font-medium group-hover:text-slate-900 transition-colors">Show CSR</span>
             <div className="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" className="sr-only peer" checked={showService} onChange={(e) => setShowService(e.target.checked)} />
               <div className="w-7 h-4 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
