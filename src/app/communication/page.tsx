@@ -465,6 +465,7 @@ export default function CommunicationHub() {
                 currentAgentId={currentAgent.id}
                 memberCount={memberCount}
                 pinnedCount={pinnedCount}
+                members={members}
                 onSearchClick={() => {}}
                 onPinnedClick={() => setShowPinnedPanel(prev => !prev)}
                 onSettingsClick={() => {}}

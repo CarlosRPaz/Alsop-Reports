@@ -1,15 +1,17 @@
 'use client'
 
+import { useMemo } from 'react'
 import { Hash, Search, Pin, Settings, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UserPresenceBadge from './UserPresenceBadge'
-import type { Conversation } from './types'
+import type { Conversation, Agent } from './types'
 
 interface ConversationHeaderProps {
   conversation: Conversation
   currentAgentId?: string
   memberCount: number
   pinnedCount: number
+  members?: Agent[]
   onSearchClick: () => void
   onPinnedClick: () => void
   onSettingsClick: () => void
@@ -39,6 +41,7 @@ export default function ConversationHeader({
   currentAgentId,
   memberCount,
   pinnedCount,
+  members = [],
   onSearchClick,
   onPinnedClick,
   onSettingsClick,
@@ -57,8 +60,19 @@ export default function ConversationHeader({
     ? dmMember.agent.name 
     : (conversation.name ?? (isGroup ? 'Group Conversation' : 'Conversation'))
 
+  // Sorted list of member names for hover display
+  const sortedMembers = useMemo(() => {
+    if (!members || members.length === 0) return []
+    return [...members].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  }, [members])
+
+  const memberNamesSummary = useMemo(() => {
+    if (sortedMembers.length === 0) return ''
+    return sortedMembers.map((m) => m.name).join(', ')
+  }, [sortedMembers])
+
   return (
-    <div className="px-4 py-3 border-b border-slate-100 bg-white flex items-center justify-between gap-4 shrink-0">
+    <div className="px-4 py-3 border-b border-slate-100 bg-white flex items-center justify-between gap-4 shrink-0 relative z-20">
       {/* Left side */}
       <div className="flex items-center gap-3 min-w-0">
         {/* Icon / Avatar */}
@@ -103,27 +117,88 @@ export default function ConversationHeader({
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-400 truncate leading-tight mt-0.5">
-            {conversation.description ??
-              (isChannel
-                ? `${memberCount} member${memberCount !== 1 ? 's' : ''}`
-                : isDm
-                  ? 'Direct message'
-                  : `Group · ${memberCount} members`)}
-          </p>
+
+          <div className="relative group/subhead inline-block">
+            <p
+              title={memberNamesSummary ? `Members: ${memberNamesSummary}` : undefined}
+              className="text-xs text-slate-400 truncate leading-tight mt-0.5 hover:text-slate-600 transition-colors cursor-default"
+            >
+              {conversation.description ??
+                (isChannel
+                  ? `${memberCount} member${memberCount !== 1 ? 's' : ''}`
+                  : isDm
+                    ? 'Direct message'
+                    : `Group · ${memberCount} members`)}
+            </p>
+
+            {/* Hover Tooltip on Subtitle */}
+            {!isDm && sortedMembers.length > 0 && (
+              <div className="pointer-events-none absolute left-0 top-full mt-2 hidden group-hover/subhead:flex flex-col z-50 animate-in fade-in-0 zoom-in-95 duration-100">
+                <div className="w-60 bg-slate-900/95 text-white rounded-lg shadow-xl backdrop-blur-sm border border-slate-800 p-2.5 text-xs">
+                  <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800 font-semibold text-slate-300">
+                    <span>Members in #{displayName}</span>
+                    <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-full">{sortedMembers.length}</span>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                    {sortedMembers.map((m) => (
+                      <div key={m.id} className="flex items-center gap-2 py-0.5 text-slate-200">
+                        <span className={cn(
+                          "w-1.5 h-1.5 rounded-full shrink-0",
+                          m.presence === 'online' ? 'bg-emerald-400' :
+                          m.presence === 'away' ? 'bg-amber-400' :
+                          m.presence === 'busy' ? 'bg-rose-400' : 'bg-slate-500'
+                        )} />
+                        <span className="truncate">{m.name}</span>
+                        {m.team && <span className="ml-auto text-[10px] text-slate-400 shrink-0">{m.team}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Right side – actions */}
       <div className="flex items-center gap-1 shrink-0">
-        {/* Member count pill */}
-        <button
-          onClick={onSettingsClick}
-          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
-        >
-          <Users className="w-3.5 h-3.5" />
-          {memberCount}
-        </button>
+        {/* Member count pill with Hover Tooltip Popover */}
+        <div className="relative group/members">
+          <button
+            onClick={onSettingsClick}
+            title={memberNamesSummary ? `Members: ${memberNamesSummary}` : `${memberCount} members`}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors cursor-pointer"
+          >
+            <Users className="w-3.5 h-3.5 text-slate-400" />
+            <span>{memberCount}</span>
+          </button>
+
+          {/* Members List Popover on Hover */}
+          {!isDm && sortedMembers.length > 0 && (
+            <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover/members:flex flex-col z-50 animate-in fade-in-0 zoom-in-95 duration-100">
+              <div className="w-60 bg-slate-900/95 text-white rounded-lg shadow-xl backdrop-blur-sm border border-slate-800 p-2.5 text-xs">
+                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800 font-semibold text-slate-300">
+                  <span>Group Members</span>
+                  <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded-full">{sortedMembers.length}</span>
+                </div>
+                <div className="max-h-56 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                  {sortedMembers.map((m) => (
+                    <div key={m.id} className="flex items-center gap-2 py-0.5 text-slate-200">
+                      <span className={cn(
+                        "w-1.5 h-1.5 rounded-full shrink-0",
+                        m.presence === 'online' ? 'bg-emerald-400' :
+                        m.presence === 'away' ? 'bg-amber-400' :
+                        m.presence === 'busy' ? 'bg-rose-400' : 'bg-slate-500'
+                      )} />
+                      <span className="truncate">{m.name}</span>
+                      {m.team && <span className="ml-auto text-[10px] text-slate-400 shrink-0">{m.team}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Search */}
         <button
