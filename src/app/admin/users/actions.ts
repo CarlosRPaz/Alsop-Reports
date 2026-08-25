@@ -389,10 +389,19 @@ async function syncAgentChannelsInternal(
 
   // Compute target channels
   const targetNames = new Set<string>(['All'])
-  if (team && TEAM_CHANNEL_MAP[team]) targetNames.add(TEAM_CHANNEL_MAP[team])
-  if (office && OFFICE_CHANNEL_MAP[office]) targetNames.add(OFFICE_CHANNEL_MAP[office])
-  if (role === 'admin') targetNames.add('Admin')
-  if (team === 'Managers') targetNames.add('Managers')
+
+  // Support team members get full access to all team and office channels
+  if (team === 'Support') {
+    Object.values(TEAM_CHANNEL_MAP).forEach((ch) => targetNames.add(ch))
+    Object.values(OFFICE_CHANNEL_MAP).forEach((ch) => targetNames.add(ch))
+    targetNames.add('Admin')
+  } else {
+    // Normal agent channel assignment
+    if (team && TEAM_CHANNEL_MAP[team]) targetNames.add(TEAM_CHANNEL_MAP[team])
+    if (office && OFFICE_CHANNEL_MAP[office]) targetNames.add(OFFICE_CHANNEL_MAP[office])
+    if (role === 'admin') targetNames.add('Admin')
+    if (team === 'Managers') targetNames.add('Managers')
+  }
 
   // Fetch all managed channels
   const { data: channels } = await sb
