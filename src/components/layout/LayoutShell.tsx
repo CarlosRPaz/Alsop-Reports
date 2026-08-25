@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/Sidebar"
 import { ToastProvider } from "@/components/ui/Toast"
 import { TabBadge } from "@/components/layout/TabBadge"
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
+import { WelcomeBanner } from "@/components/layout/WelcomeBanner"
 import { ErrorBoundary } from "@/components/layout/ErrorBoundary"
 import { ChatProvider } from "@/lib/chat/chatContext"
 
@@ -44,6 +45,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
         <TabBadge />
         <Sidebar />
         <div className="flex-1 overflow-x-hidden flex flex-col min-h-screen">
+          <WelcomeBanner />
           <Breadcrumbs />
           <div className="flex-1">
             <ErrorBoundary>
