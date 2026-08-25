@@ -366,3 +366,87 @@ export function calculateAgentRebelStatus(
     nextTierProgress,
   }
 }
+
+// ---------------------------------------------------------------------------
+// Contest Name Matcher & Alias Map
+// ---------------------------------------------------------------------------
+
+export const KNOWN_CONTEST_ALIASES: Record<string, string> = {
+  "alex c": "alex",
+  "chris e": "chris",
+  "nancy g": "nancy",
+  "rosario d": "rosie",
+  "rosario": "rosie",
+  "ricardo": "ric becerra",
+  "ric": "ric becerra",
+  "john paul": "john paul dizon",
+  "jennifer": "jennifer martinez",
+}
+
+/**
+ * Checks if a contest sheet name matches a DB agent name (bidirectional, with alias support)
+ */
+export function matchesContestAgent(nameA: string, nameB: string): boolean {
+  if (!nameA || !nameB) return false
+  const a = nameA.toLowerCase().trim()
+  const b = nameB.toLowerCase().trim()
+
+  // 1. Direct exact match
+  if (a === b) return true
+
+  // 2. Direct alias mapping
+  if (KNOWN_CONTEST_ALIASES[a] === b || KNOWN_CONTEST_ALIASES[b] === a) return true
+
+  // 3. Normalized alias check (e.g. "Rosario D" -> "Rosie", check against "Rosie")
+  const aliasA = KNOWN_CONTEST_ALIASES[a] || a
+  const aliasB = KNOWN_CONTEST_ALIASES[b] || b
+  if (aliasA === aliasB) return true
+  if (aliasA.split(" ")[0] === aliasB.split(" ")[0] && aliasA.split(" ")[0].length > 2) return true
+
+  // 4. First name match
+  const firstA = a.split(" ")[0]
+  const firstB = b.split(" ")[0]
+  if (firstA === firstB && firstA.length > 2) return true
+
+  return false
+}
+
+/**
+ * Finds the best DB agent match for a given contest row name
+ */
+export function resolveContestAgentMatch(contestName: string, dbAgents: any[]): any | null {
+  const clean = contestName.toLowerCase().trim()
+
+  // 1. Check known aliases first
+  if (KNOWN_CONTEST_ALIASES[clean]) {
+    const target = KNOWN_CONTEST_ALIASES[clean]
+    const aliasExact = dbAgents.find(a => a.name?.toLowerCase().trim() === target)
+    if (aliasExact) return aliasExact
+    const aliasPartial = dbAgents.find(a => {
+      const dbLower = a.name?.toLowerCase().trim() || ""
+      return dbLower.includes(target) || target.includes(dbLower)
+    })
+    if (aliasPartial) return aliasPartial
+  }
+
+  // 2. Exact match
+  const exact = dbAgents.find(a => a.name?.toLowerCase().trim() === clean)
+  if (exact) return exact
+
+  // 3. First name tiebreak
+  const first = clean.split(" ")[0]
+  const matches = dbAgents.filter(a => a.name?.toLowerCase().trim().split(" ")[0] === first)
+  if (matches.length === 1) return matches[0]
+  if (matches.length > 1) {
+    // Prioritize exact single-word first name match (e.g. "Nancy" over "Nancy Maldonado")
+    const exactFirst = matches.find(a => a.name?.toLowerCase().trim() === first)
+    if (exactFirst) return exactFirst
+    // Prioritize active production agents
+    const prodTeam = matches.find(a => ["Sales", "CSR", "EA"].includes(a.team))
+    if (prodTeam) return prodTeam
+    return matches[0]
+  }
+
+  return null
+}
+

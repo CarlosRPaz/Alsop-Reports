@@ -54,4 +54,10 @@ export const REBEL_REWARDS_2026_SEED: RawRebelAgentRow[] = [
   { name: "Sylvia", autoItems: 18, ips: 0, afsPc: 0, ivanNlItems: 156 },
   { name: "Teyssy", autoItems: 0, ips: 1, afsPc: 3923.36, ivanNlItems: 0 },
   { name: "Zypher", autoItems: 2, ips: 0, afsPc: 0, ivanNlItems: 0 },
+  { name: "Jessie", autoItems: 0, ips: 0, afsPc: 0, ivanNlItems: 0 },
+  { name: "Christine", autoItems: 0, ips: 0, afsPc: 0, ivanNlItems: 0 },
+  { name: "Angelina", autoItems: 0, ips: 0, afsPc: 0, ivanNlItems: 0 },
+  { name: "Hrach", autoItems: 0, ips: 0, afsPc: 0, ivanNlItems: 0 },
+  { name: "Rachel", autoItems: 0, ips: 0, afsPc: 0, ivanNlItems: 0 },
+  { name: "Phoebe Hernandez CCN", autoItems: 0, ips: 0, afsPc: 0, ivanNlItems: 0 },
 ]

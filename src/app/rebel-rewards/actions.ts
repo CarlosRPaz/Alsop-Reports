@@ -3,36 +3,13 @@
 import { unstable_noStore as noStore } from "next/cache"
 import { supabase } from "@/lib/supabaseClient"
 import { REBEL_REWARDS_2026_SEED, RawRebelAgentRow } from "@/lib/rebelRewardsSeed"
-import { calculateAgentRebelStatus, AgentRebelStandings } from "@/lib/rebelRewards"
+import { calculateAgentRebelStatus, AgentRebelStandings, resolveContestAgentMatch } from "@/lib/rebelRewards"
 import * as XLSX from "xlsx"
 
 // In-memory / dynamic cache for uploaded snapshots in current server lifetime
 let customUploadedRows: RawRebelAgentRow[] | null = null
 let customPeriodLabel = "YTD July 2026"
 let customLastUpdated = "2026-07-31"
-
-/**
- * Fuzzy matcher to resolve Excel shortened names to Supabase agents
- */
-function findBestAgentMatch(excelName: string, dbAgents: any[]) {
-  const clean = excelName.toLowerCase().trim()
-  
-  // 1. Exact match
-  const exact = dbAgents.find(a => a.name.toLowerCase().trim() === clean)
-  if (exact) return exact
-
-  // 2. Starts with / first name match (e.g. "Alex C" -> "Alex", "Chris E" -> "Chris", "Nancy G" -> "Nancy")
-  const firstName = clean.split(" ")[0]
-  const startsWith = dbAgents.find(a => {
-    const dbFirst = a.name.toLowerCase().trim().split(" ")[0]
-    return dbFirst === firstName
-  })
-  if (startsWith) return startsWith
-
-  // 3. Substring includes
-  const includes = dbAgents.find(a => a.name.toLowerCase().includes(firstName) || firstName.includes(a.name.toLowerCase()))
-  return includes || null
-}
 
 export async function getRebelRewardsStandings(): Promise<{
   success: boolean
@@ -77,23 +54,25 @@ export async function getRebelRewardsStandings(): Promise<{
     // 2. Compute Rebel standings for each row
     const standings: AgentRebelStandings[] = sourceRows
       .filter(row => {
-        const matchedAgent = findBestAgentMatch(row.name, agentsList)
+        const matchedAgent = resolveContestAgentMatch(row.name, agentsList)
         if (matchedAgent) {
-          // If matched, hide them if they are inactive, hidden, or on Support/Other team
-          if (!matchedAgent.active) return false
-          if (!matchedAgent.report_visible) return false
-          if (["Other", "Support"].includes(matchedAgent.team)) return false
+          // If matched, hide only if explicitly marked inactive or non-agent system
+          if (matchedAgent.active === false) return false
+          if (["Other", "System"].includes(matchedAgent.team)) return false
         }
         return true
       })
       .map(row => {
-        const matchedAgent = findBestAgentMatch(row.name, agentsList)
+        const matchedAgent = resolveContestAgentMatch(row.name, agentsList)
         // Use live YTD auto items from daily uploads if available, otherwise fall back to contest report
         const liveAutoItems = matchedAgent?.id ? liveAutoMap.get(matchedAgent.id) : undefined
         const autoItems = liveAutoItems !== undefined ? liveAutoItems : row.autoItems
 
+        // Use the agent's clean display name from DB if matched (e.g. "Nancy", "Rosie", "Ric Becerra")
+        const displayName = matchedAgent?.name || row.name
+
         return calculateAgentRebelStatus(
-          row.name,
+          displayName,
           autoItems,
           row.ips,
           row.afsPc,

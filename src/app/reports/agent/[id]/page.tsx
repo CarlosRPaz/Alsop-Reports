@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/Badge"
 import { useChat } from "@/lib/chat/chatContext"
 import { Button } from "@/components/ui/Button"
 import { REBEL_REWARDS_2026_SEED } from "@/lib/rebelRewardsSeed"
-import { calculateAgentRebelStatus } from "@/lib/rebelRewards"
+import { calculateAgentRebelStatus, matchesContestAgent } from "@/lib/rebelRewards"
 import {
   ArrowLeft, CalendarDays, Phone, MessageSquare,
   FileBarChart, ShieldCheck, Shield, DollarSign, Trophy, Users, AlertTriangle, AlertCircle, Package, Loader2,
@@ -308,26 +308,22 @@ export default function AgentDashboardPage() {
   const rebelStatus = useMemo(() => {
     if (!data?.agent?.name) return null
     const name = data.agent.name.toLowerCase().trim()
-    const match = REBEL_REWARDS_2026_SEED.find(r => {
-      const rName = r.name.toLowerCase().trim()
-      return rName === name || name.includes(rName.split(" ")[0]) || rName.includes(name.split(" ")[0])
-    })
-    if (!match) return null
+    const match = REBEL_REWARDS_2026_SEED.find(r => matchesContestAgent(r.name, name))
 
     // Use live YTD auto items from daily uploads if available
-    const liveAuto = data.ytdAutoItems !== undefined ? data.ytdAutoItems : match.autoItems
+    const liveAuto = data.ytdAutoItems !== undefined ? data.ytdAutoItems : (match?.autoItems ?? 0)
 
     return calculateAgentRebelStatus(
-      match.name,
+      data.agent.name,
       liveAuto,
-      match.ips,
-      match.afsPc,
-      match.ivanNlItems,
+      match?.ips ?? 0,
+      match?.afsPc ?? 0,
+      match?.ivanNlItems ?? 0,
       {
         agentId: data.agent.id,
         office: data.agent.office || undefined,
         team: data.agent.team || undefined,
-        reyByJune30: match.reyByJune30,
+        reyByJune30: match?.reyByJune30,
       }
     )
   }, [data])
