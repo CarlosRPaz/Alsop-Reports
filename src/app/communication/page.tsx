@@ -68,9 +68,25 @@ export default function CommunicationHub() {
       await autoJoinDefaultChannels(currentAgent.id, currentAgent.team, currentAgent.role)
       const convos = await fetchConversationsForAgent(currentAgent.id)
       setConversations(convos)
-      // Auto-select first conversation if none selected
-      if (!selectedId && convos.length > 0) {
-        setSelectedId(convos[0].id)
+
+      // Check if a specific channel was requested via ?channel=... query param
+      let targetId: string | null = null
+      if (typeof window !== "undefined") {
+        const paramChannel = new URLSearchParams(window.location.search).get("channel")
+        if (paramChannel) {
+          const match = convos.find((c) => c.name?.toLowerCase() === paramChannel.toLowerCase())
+          if (match) {
+            targetId = match.id
+          }
+        }
+      }
+
+      if (targetId) {
+        setSelectedId(targetId)
+      } else if (!selectedId && convos.length > 0) {
+        // Prefer 'All' channel as the default landing channel
+        const allChannel = convos.find((c) => c.name === "All")
+        setSelectedId(allChannel ? allChannel.id : convos[0].id)
       }
     } catch (err) {
       console.error("[CommunicationHub] Failed to load conversations:", err)
