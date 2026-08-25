@@ -56,11 +56,14 @@ export async function getRebelRewardsStandings(): Promise<{
       .filter(row => {
         const matchedAgent = resolveContestAgentMatch(row.name, agentsList)
         if (matchedAgent) {
-          // If matched, hide only if explicitly marked inactive or non-agent system
+          // Hide agent if they are inactive or hidden from the daily reports
           if (matchedAgent.active === false) return false
-          if (["Other", "System"].includes(matchedAgent.team)) return false
+          if (matchedAgent.report_visible === false) return false
+          if (["Other", "System", "Support"].includes(matchedAgent.team)) return false
+          return true
         }
-        return true
+        // If not matched in DB, hide from standings
+        return false
       })
       .map(row => {
         const matchedAgent = resolveContestAgentMatch(row.name, agentsList)
