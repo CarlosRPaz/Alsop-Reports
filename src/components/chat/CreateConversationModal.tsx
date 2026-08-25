@@ -100,7 +100,10 @@ export default function CreateConversationModal({
         .order('name', { ascending: true })
 
       if (!error && data) {
-        setAgents(data as Agent[])
+        const validAgents = (data as Agent[]).filter(
+          a => a.team !== 'System' && a.name.toLowerCase() !== 'other' && a.report_visible !== false && a.active !== false
+        )
+        setAgents(validAgents)
       }
       setIsLoading(false)
     }

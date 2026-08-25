@@ -548,5 +548,15 @@ export async function getConversationMembers(
     throw error
   }
 
-  return (data ?? []) as unknown as ConversationMember[]
+  const raw = (data ?? []) as any[]
+  const filtered = raw.filter(
+    (m) =>
+      m.agent &&
+      m.agent.active !== false &&
+      m.agent.report_visible !== false &&
+      m.agent.team !== 'System' &&
+      m.agent.name?.toLowerCase() !== 'other'
+  )
+
+  return filtered as unknown as ConversationMember[]
 }

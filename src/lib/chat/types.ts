@@ -6,10 +6,11 @@
 export interface Agent {
   id: string
   name: string
-  team: 'Sales' | 'CSR' | 'EA' | 'Managers'
-  office: 'MCM' | 'MB' | 'RC' | 'CH'
-  role: 'admin' | 'agent'
+  team: 'Sales' | 'CSR' | 'EA' | 'Managers' | 'Support' | string
+  office: 'MCM' | 'MB' | 'RC' | 'CH' | string
+  role: 'admin' | 'agent' | string
   active: boolean
+  report_visible?: boolean
   presence: 'online' | 'away' | 'busy' | 'offline'
   avatar_url: string | null
   status_message: string | null
