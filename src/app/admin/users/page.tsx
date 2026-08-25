@@ -30,18 +30,20 @@ export default function UserManagementPage() {
   const [linkedAgents, setLinkedAgents] = useState<UnlinkedAgent[]>([])
   const [loading, setLoading] = useState(true)
 
+  const DEFAULT_PASSWORD = "AlsopAdmin2026!"
+
   // Invite form
   const [mode, setMode] = useState<"existing" | "new">("existing")
   const [selectedAgentId, setSelectedAgentId] = useState("")
   const [newName, setNewName] = useState("")
   const [email, setEmail] = useState("")
-  const [tempPassword, setTempPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
+  const [tempPassword, setTempPassword] = useState(DEFAULT_PASSWORD)
+  const [showPassword, setShowPassword] = useState(true)
   const [inviting, setInviting] = useState(false)
 
   // Reset password
   const [resetAgentId, setResetAgentId] = useState<string | null>(null)
-  const [resetPassword, setResetPassword] = useState("")
+  const [resetPassword, setResetPassword] = useState(DEFAULT_PASSWORD)
   const [resetting, setResetting] = useState(false)
 
   // Feedback
@@ -54,13 +56,8 @@ export default function UserManagementPage() {
   const [pagePerms, setPagePerms] = useState<PagePermission[]>([])
   const [permSaving, setPermSaving] = useState<string | null>(null)
 
-  const generateRandomPassword = () => {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$"
-    let pwd = ""
-    for (let i = 0; i < 10; i++) {
-      pwd += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-    setTempPassword(pwd)
+  const resetToDefaultPassword = () => {
+    setTempPassword(DEFAULT_PASSWORD)
   }
 
   const fetchData = async () => {
@@ -95,7 +92,7 @@ export default function UserManagementPage() {
       setSelectedAgentId("")
       setNewName("")
       setEmail("")
-      setTempPassword("")
+      setTempPassword(DEFAULT_PASSWORD)
       await fetchData()
     }
     setInviting(false)
@@ -108,7 +105,7 @@ export default function UserManagementPage() {
     setFeedback({ type: result.success ? "success" : "error", message: result.message })
     if (result.success) {
       setResetAgentId(null)
-      setResetPassword("")
+      setResetPassword(DEFAULT_PASSWORD)
     }
     setResetting(false)
   }
@@ -269,13 +266,15 @@ export default function UserManagementPage() {
                   <label className="text-xs sm:text-sm font-medium text-slate-700">
                     Temporary Password
                   </label>
-                  <button
-                    type="button"
-                    onClick={generateRandomPassword}
-                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                  >
-                    Generate Random
-                  </button>
+                  {tempPassword !== DEFAULT_PASSWORD && (
+                    <button
+                      type="button"
+                      onClick={resetToDefaultPassword}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Reset to Default
+                    </button>
+                  )}
                 </div>
                 <div className="relative">
                   <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -388,7 +387,7 @@ export default function UserManagementPage() {
                           <Check className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => { setResetAgentId(null); setResetPassword("") }}
+                          onClick={() => { setResetAgentId(null); setResetPassword(DEFAULT_PASSWORD) }}
                           className="p-1 rounded text-slate-400 hover:bg-slate-100"
                           title="Cancel"
                         >
