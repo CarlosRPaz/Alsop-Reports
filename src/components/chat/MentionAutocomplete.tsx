@@ -42,6 +42,7 @@ function getAvatarColor(name: string): string {
 }
 
 const TEAM_GROUPS = ['Sales', 'CSR', 'EA', 'Managers']
+const OFFICE_GROUPS = ['CH', 'MB', 'MCM', 'RC']
 
 export default function MentionAutocomplete({
   query,
@@ -67,6 +68,20 @@ export default function MentionAutocomplete({
             label: `@${team}`,
             insertValue: `@${team}`,
             team,
+          })
+        }
+      })
+    }
+
+    // Office groups
+    if (hasPermission('send_team_mention')) {
+      OFFICE_GROUPS.forEach((office) => {
+        if (office.toLowerCase().includes(q)) {
+          result.push({
+            type: 'team',
+            label: `@${office}`,
+            insertValue: `@${office}`,
+            team: office,
           })
         }
       })

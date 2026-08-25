@@ -402,56 +402,128 @@ export async function archiveConversation(
 // Auto-join default channels
 // ---------------------------------------------------------------------------
 
-/** Canonical channel names that map to teams/roles. */
-const DEFAULT_CHANNEL_MAP: Record<string, { teams?: string[]; roles?: string[] }> = {
-  'All': {},                             // everyone
-  'Sales': { teams: ['Sales'] },
-  'Service': { teams: ['CSR', 'EA'] },
-  'Managers': { teams: ['Managers'] },
-  'Admin': { roles: ['admin'] },
+/** Team → channel name mapping (Support gets no team channel) */
+const TEAM_CHANNEL_MAP: Record<string, string> = {
+  Sales: 'Sales',
+  CSR: 'CSR',
+  EA: 'EA',
+  Managers: 'Managers',
+}
+
+/** Office → channel name mapping */
+const OFFICE_CHANNEL_MAP: Record<string, string> = {
+  CH: 'CH Office',
+  MB: 'MB Office',
+  MCM: 'MCM Office',
+  RC: 'RC Office',
+}
+
+/** All managed channel names (used for isolation / removal logic) */
+const ALL_MANAGED_CHANNEL_NAMES = new Set([
+  'All',
+  ...Object.values(TEAM_CHANNEL_MAP),
+  ...Object.values(OFFICE_CHANNEL_MAP),
+  'Admin',
+])
+
+/**
+ * Sync an agent's default channel memberships based on their team, office, and role.
+ *
+ * 1. Joins the agent to:
+ *    - `All` (everyone)
+ *    - Their team channel (Sales, CSR, EA, or Managers — Support gets none)
+ *    - Their office channel (CH Office, MB Office, MCM Office, or RC Office)
+ *    - `Admin` (if role === 'admin')
+ *
+ * 2. Removes the agent from any other managed team/office channels they don't belong to
+ *    (strict isolation).
+ */
+export async function syncAgentDefaultChannels(
+  agentId: string,
+  team: string,
+  office: string,
+  role: string,
+): Promise<void> {
+  // Determine which channels this agent should belong to
+  const targetChannelNames = new Set<string>(['All'])
+
+  // Team channel
+  if (team && TEAM_CHANNEL_MAP[team]) {
+    targetChannelNames.add(TEAM_CHANNEL_MAP[team])
+  }
+
+  // Office channel
+  if (office && OFFICE_CHANNEL_MAP[office]) {
+    targetChannelNames.add(OFFICE_CHANNEL_MAP[office])
+  }
+
+  // Admin channel
+  if (role === 'admin') {
+    targetChannelNames.add('Admin')
+  }
+
+  // Fetch all managed channels from DB
+  const { data: channels } = await supabase
+    .from('chat_conversations')
+    .select('id, name')
+    .in('name', [...ALL_MANAGED_CHANNEL_NAMES])
+    .eq('archived', false)
+
+  if (!channels || channels.length === 0) return
+
+  const channelsByName = new Map(channels.map(c => [c.name, c.id]))
+
+  // Channels to JOIN
+  const joinChannelIds = [...targetChannelNames]
+    .filter(name => channelsByName.has(name))
+    .map(name => channelsByName.get(name)!)
+
+  // Channels to LEAVE (managed channels agent should NOT be in)
+  const leaveChannelNames = [...ALL_MANAGED_CHANNEL_NAMES].filter(name => !targetChannelNames.has(name))
+  const leaveChannelIds = leaveChannelNames
+    .filter(name => channelsByName.has(name))
+    .map(name => channelsByName.get(name)!)
+
+  // Upsert memberships for target channels
+  if (joinChannelIds.length > 0) {
+    const rows = joinChannelIds.map(cid => ({
+      conversation_id: cid,
+      agent_id: agentId,
+      role: 'member' as const,
+    }))
+
+    await supabase
+      .from('chat_conversation_members')
+      .upsert(rows, { onConflict: 'conversation_id,agent_id' })
+  }
+
+  // Remove memberships from channels agent shouldn't be in
+  if (leaveChannelIds.length > 0) {
+    await supabase
+      .from('chat_conversation_members')
+      .delete()
+      .eq('agent_id', agentId)
+      .in('conversation_id', leaveChannelIds)
+  }
 }
 
 /**
- * Auto-join an agent to the default public channels they should belong to
- * based on their team and role.
+ * Legacy alias — calls syncAgentDefaultChannels.
+ * Kept for backward compatibility with existing callers.
  */
 export async function autoJoinDefaultChannels(
   agentId: string,
   team: string,
   role: string,
 ): Promise<void> {
-  const channelNames = Object.entries(DEFAULT_CHANNEL_MAP)
-    .filter(([, rule]) => {
-      // If no specific teams/roles restriction, everyone gets it
-      const hasTeamRule = rule.teams && rule.teams.length > 0
-      const hasRoleRule = rule.roles && rule.roles.length > 0
+  // Fetch agent's office (not passed by legacy callers)
+  const { data: agent } = await supabase
+    .from('agents')
+    .select('office')
+    .eq('id', agentId)
+    .single()
 
-      if (!hasTeamRule && !hasRoleRule) return true // All
-      if (hasTeamRule && rule.teams!.includes(team)) return true
-      if (hasRoleRule && rule.roles!.includes(role)) return true
-      return false
-    })
-    .map(([name]) => name)
-
-  if (channelNames.length === 0) return
-
-  // Find conversations matching these channel names
-  const { data: channels } = await supabase
-    .from('chat_conversations')
-    .select('id')
-    .in('name', channelNames)
-
-  if (!channels || channels.length === 0) return
-
-  const rows = channels.map((ch) => ({
-    conversation_id: ch.id,
-    agent_id: agentId,
-    role: 'member' as const,
-  }))
-
-  await supabase
-    .from('chat_conversation_members')
-    .upsert(rows, { onConflict: 'conversation_id,agent_id' })
+  await syncAgentDefaultChannels(agentId, team, agent?.office || '', role)
 }
 
 // ---------------------------------------------------------------------------

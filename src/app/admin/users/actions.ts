@@ -121,6 +121,9 @@ export async function inviteExistingAgent(
     return { success: false, message: `Failed to link account: ${updateErr.message}` }
   }
 
+  // Sync agent into their correct team/office channels
+  await syncAgentChannelsInternal(supabase, agentId)
+
   return {
     success: true,
     message: `${agent.name} can now log in with ${email}`,
@@ -334,4 +337,108 @@ export async function updatePagePermission(
     return { success: false, message: `Failed to update: ${error.message}` }
   }
   return { success: true, message: `Permissions updated for ${pageKey}.` }
+}
+
+// ---------------------------------------------------------------------------
+// Channel sync (team + office + role → managed channel memberships)
+// ---------------------------------------------------------------------------
+
+/** Team → channel name mapping */
+const TEAM_CHANNEL_MAP: Record<string, string> = {
+  Sales: 'Sales',
+  CSR: 'CSR',
+  EA: 'EA',
+  Managers: 'Managers',
+}
+
+/** Office → channel name mapping */
+const OFFICE_CHANNEL_MAP: Record<string, string> = {
+  CH: 'CH Office',
+  MB: 'MB Office',
+  MCM: 'MCM Office',
+  RC: 'RC Office',
+}
+
+const ALL_MANAGED_CHANNEL_NAMES = [
+  'All',
+  ...Object.values(TEAM_CHANNEL_MAP),
+  ...Object.values(OFFICE_CHANNEL_MAP),
+  'Admin',
+]
+
+/**
+ * Internal: sync an agent's managed channel memberships using the given
+ * Supabase client (works with admin client in server actions).
+ */
+async function syncAgentChannelsInternal(
+  sb: ReturnType<typeof createSupabaseAdmin>,
+  agentId: string,
+): Promise<void> {
+  // Fetch agent's team, office, role
+  const { data: agent } = await sb
+    .from('agents')
+    .select('team, office, role')
+    .eq('id', agentId)
+    .single()
+
+  if (!agent) return
+
+  const team = agent.team || ''
+  const office = agent.office || ''
+  const role = agent.role || ''
+
+  // Compute target channels
+  const targetNames = new Set<string>(['All'])
+  if (team && TEAM_CHANNEL_MAP[team]) targetNames.add(TEAM_CHANNEL_MAP[team])
+  if (office && OFFICE_CHANNEL_MAP[office]) targetNames.add(OFFICE_CHANNEL_MAP[office])
+  if (role === 'admin') targetNames.add('Admin')
+  if (team === 'Managers') targetNames.add('Managers')
+
+  // Fetch all managed channels
+  const { data: channels } = await sb
+    .from('chat_conversations')
+    .select('id, name')
+    .in('name', ALL_MANAGED_CHANNEL_NAMES)
+    .eq('archived', false)
+
+  if (!channels || channels.length === 0) return
+
+  const channelsByName = new Map(channels.map((c: { name: string; id: string }) => [c.name, c.id]))
+
+  // Join target channels
+  const joinIds = [...targetNames]
+    .filter(n => channelsByName.has(n))
+    .map(n => channelsByName.get(n)!)
+
+  if (joinIds.length > 0) {
+    await sb
+      .from('chat_conversation_members')
+      .upsert(
+        joinIds.map(cid => ({ conversation_id: cid, agent_id: agentId, role: 'member' })),
+        { onConflict: 'conversation_id,agent_id' },
+      )
+  }
+
+  // Leave channels agent shouldn't be in
+  const leaveIds = ALL_MANAGED_CHANNEL_NAMES
+    .filter(n => !targetNames.has(n) && channelsByName.has(n))
+    .map(n => channelsByName.get(n)!)
+
+  if (leaveIds.length > 0) {
+    await sb
+      .from('chat_conversation_members')
+      .delete()
+      .eq('agent_id', agentId)
+      .in('conversation_id', leaveIds)
+  }
+}
+
+/**
+ * Public server action: sync an agent's channel memberships.
+ * Called from the admin agents page after editing team/office.
+ */
+export async function syncAgentChannels(agentId: string): Promise<void> {
+  await requireAdmin()
+  const supabase = createSupabaseAdmin()
+  await syncAgentChannelsInternal(supabase, agentId)
 }

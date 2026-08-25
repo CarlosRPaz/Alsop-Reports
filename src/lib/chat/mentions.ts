@@ -15,6 +15,9 @@ const TEAM_MENTIONS = ['Sales', 'CSR', 'EA', 'Managers'] as const
 /** Role names that can be @-mentioned */
 const ROLE_MENTIONS = ['Admin'] as const
 
+/** Office codes that can be @-mentioned */
+const OFFICE_MENTIONS = ['CH', 'MB', 'MCM', 'RC'] as const
+
 // ---------------------------------------------------------------------------
 // Parse mentions from message text
 // ---------------------------------------------------------------------------
@@ -28,6 +31,10 @@ const ROLE_MENTIONS = ['Admin'] as const
  *   @CSR           → team mention
  *   @EA            → team mention
  *   @Managers      → team mention
+ *   @CH            → office mention
+ *   @MB            → office mention
+ *   @MCM           → office mention
+ *   @RC            → office mention
  *   @Admin         → role mention
  *   @Everyone      → everyone mention
  *
@@ -67,6 +74,18 @@ export function parseMentions(
       if (!seen.has(`team:${teamMatch}`)) {
         mentions.push({ type: 'team', target: teamMatch })
         seen.add(`team:${teamMatch}`)
+      }
+      continue
+    }
+
+    // @OfficeName (CH, MB, MCM, RC)
+    const officeMatch = OFFICE_MENTIONS.find(
+      (o) => o.toLowerCase() === raw.toLowerCase(),
+    )
+    if (officeMatch) {
+      if (!seen.has(`office:${officeMatch}`)) {
+        mentions.push({ type: 'office', target: officeMatch })
+        seen.add(`office:${officeMatch}`)
       }
       continue
     }
@@ -154,13 +173,16 @@ export async function resolveMentionTargets(
     }
   }
 
-  // Batch team/role/everyone queries
+  // Batch team/role/office/everyone queries
   const needsTeamQuery = mentions
     .filter((m) => m.type === 'team')
     .map((m) => m.target)
   const needsRoleQuery = mentions
     .filter((m) => m.type === 'role')
     .map((m) => m.target.toLowerCase()) // DB stores lowercase roles
+  const needsOfficeQuery = mentions
+    .filter((m) => m.type === 'office')
+    .map((m) => m.target)
   const hasEveryone = mentions.some((m) => m.type === 'everyone')
 
   // If @Everyone, just fetch all active agents
@@ -192,6 +214,17 @@ export async function resolveMentionTargets(
       .select('id')
       .eq('active', true)
       .in('role', needsRoleQuery)
+
+    for (const a of data ?? []) agentIdSet.add(a.id)
+  }
+
+  // Office queries
+  if (needsOfficeQuery.length > 0) {
+    const { data } = await supabase
+      .from('agents')
+      .select('id')
+      .eq('active', true)
+      .in('office', needsOfficeQuery)
 
     for (const a of data ?? []) agentIdSet.add(a.id)
   }

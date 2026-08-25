@@ -133,7 +133,7 @@ export interface SendMessageInput {
 // Mentions
 // ---------------------------------------------------------------------------
 
-export type MentionType = 'agent' | 'team' | 'role' | 'everyone'
+export type MentionType = 'agent' | 'team' | 'office' | 'role' | 'everyone'
 
 export interface ParsedMention {
   type: MentionType

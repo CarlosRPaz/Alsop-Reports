@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react"
 import { supabase } from "@/lib/supabaseClient"
+import { syncAgentChannels } from "@/app/admin/users/actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
@@ -186,6 +187,9 @@ export default function AgentManagement() {
           meeting_time: editForm.meeting_time || null,
         })
         .eq("id", editingId)
+
+      // Sync channel memberships for new team/office
+      syncAgentChannels(editingId).catch(console.error)
 
       // Optimistic update
       setAgents((prev) =>
