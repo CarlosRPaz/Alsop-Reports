@@ -446,7 +446,7 @@ export function Sidebar() {
       {/* Desktop Sidebar (Rendered unchanged, but hidden on mobile) */}
       <aside 
         className={cn(
-          "bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 h-screen sticky top-0 hidden md:flex flex-col z-10 transition-all duration-300 shrink-0",
+          "bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 h-screen sticky top-0 hidden md:flex flex-col z-30 transition-all duration-300 shrink-0",
           isExpanded ? "w-64" : "w-16"
         )}
       >
