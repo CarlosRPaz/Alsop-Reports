@@ -71,8 +71,15 @@ export async function getRebelRewardsStandings(): Promise<{
         const liveAutoItems = matchedAgent?.id ? liveAutoMap.get(matchedAgent.id) : undefined
         const autoItems = liveAutoItems !== undefined ? liveAutoItems : row.autoItems
 
-        // Use the agent's clean display name from DB if matched (e.g. "Nancy", "Rosie", "Ric Becerra")
-        const displayName = matchedAgent?.name || row.name
+        // Use the agent's clean display name from DB if matched (e.g. "Nancy G", "Rosie", "Ric Becerra")
+        let displayName = matchedAgent?.name || row.name
+        if (
+          displayName.toLowerCase() === "nancy" ||
+          row.name?.toLowerCase() === "nancy g" ||
+          (matchedAgent?.name?.toLowerCase() === "nancy" && matchedAgent?.team === "CSR")
+        ) {
+          displayName = "Nancy G"
+        }
 
         return calculateAgentRebelStatus(
           displayName,
