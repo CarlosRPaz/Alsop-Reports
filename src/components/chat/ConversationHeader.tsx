@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { Hash, Search, Pin, Settings, Users, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UserPresenceBadge from './UserPresenceBadge'
+import UserHoverCard from './UserHoverCard'
 import type { Conversation, Agent } from './types'
 
 interface ConversationHeaderProps {
@@ -131,12 +132,20 @@ export default function ConversationHeader({
         {/* Name & description */}
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-[15px] font-bold text-slate-900 truncate leading-tight">
-              {isChannel && (
-                <span className="text-slate-400 font-normal mr-0.5">#</span>
-              )}
-              {displayName}
-            </h2>
+            {isDm && dmMember?.agent ? (
+              <UserHoverCard agent={dmMember.agent} side="bottom">
+                <h2 className="text-[15px] font-bold text-slate-900 truncate leading-tight hover:text-blue-600 cursor-pointer transition-colors">
+                  {displayName}
+                </h2>
+              </UserHoverCard>
+            ) : (
+              <h2 className="text-[15px] font-bold text-slate-900 truncate leading-tight">
+                {isChannel && (
+                  <span className="text-slate-400 font-normal mr-0.5">#</span>
+                )}
+                {displayName}
+              </h2>
+            )}
             {isDm && dmMember?.agent && (
               <span className="text-xs text-slate-400 font-medium capitalize">
                 {dmMember.agent.presence}

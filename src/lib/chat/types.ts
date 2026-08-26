@@ -104,7 +104,7 @@ export interface Message {
   created_at: string
   updated_at: string
   // Enriched
-  sender?: Pick<Agent, 'id' | 'name' | 'avatar_url' | 'role' | 'team' | 'status_message' | 'presence'>
+  sender?: Pick<Agent, 'id' | 'name' | 'office' | 'avatar_url' | 'role' | 'team' | 'status_message' | 'presence'>
   reactions?: ReactionGroup[]
   parent_preview?: MessagePreview | null
 }

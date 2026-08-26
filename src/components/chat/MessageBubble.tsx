@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import { useChat } from '@/lib/chat/chatContext'
 import type { Message, Reaction, Agent } from './types'
 import UserPresenceBadge from './UserPresenceBadge'
+import UserHoverCard from './UserHoverCard'
 
 interface MessageBubbleProps {
   message: Message
@@ -326,23 +327,25 @@ export default function MessageBubble({
       <div className={cn('flex gap-3 px-4', isGrouped ? 'pl-[60px]' : '')}>
         {/* Avatar with presence status dot overlay */}
         {!isGrouped && (
-          <div className="relative shrink-0 mt-0.5 w-8 h-8">
-            <div
-              className={cn(
-                'w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold select-none',
-                getAvatarColor(senderName)
+          <UserHoverCard agent={message.sender || { name: senderName }} side="top">
+            <div className="relative shrink-0 mt-0.5 w-8 h-8 cursor-pointer group/avatar">
+              <div
+                className={cn(
+                  'w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold select-none transition-transform group-hover/avatar:scale-105',
+                  getAvatarColor(senderName)
+                )}
+              >
+                {senderName.charAt(0).toUpperCase()}
+              </div>
+              {message.sender?.presence && (
+                <UserPresenceBadge
+                  status={message.sender.presence}
+                  size="sm"
+                  className="absolute -bottom-0.5 -right-0.5 ring-[2px] ring-white dark:ring-slate-900"
+                />
               )}
-            >
-              {senderName.charAt(0).toUpperCase()}
             </div>
-            {message.sender?.presence && (
-              <UserPresenceBadge
-                status={message.sender.presence}
-                size="sm"
-                className="absolute -bottom-0.5 -right-0.5 ring-[2px] ring-white"
-              />
-            )}
-          </div>
+          </UserHoverCard>
         )}
 
         {/* Content */}
@@ -350,9 +353,11 @@ export default function MessageBubble({
           {/* Name + status + timestamp (only on first in group) */}
           {!isGrouped && (
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-              <span className="text-[13px] font-bold text-slate-800">
-                {senderName}
-              </span>
+              <UserHoverCard agent={message.sender || { name: senderName }} side="top">
+                <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 hover:underline cursor-pointer transition-colors">
+                  {senderName}
+                </span>
+              </UserHoverCard>
               
               {/* Premium Inline Status Badge */}
               {statusInfo.text && (

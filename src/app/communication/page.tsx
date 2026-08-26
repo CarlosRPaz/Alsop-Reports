@@ -163,7 +163,7 @@ export default function CommunicationHub() {
             promises.push(
               supabase
                 .from('agents')
-                .select('id, name, avatar_url, role, team, status_message, presence')
+                .select('id, name, office, avatar_url, role, team, status_message, presence')
                 .eq('id', enriched.sender_id)
                 .single()
                 .then(({ data: senderAgent }) => {

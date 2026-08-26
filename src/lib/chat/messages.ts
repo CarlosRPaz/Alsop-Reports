@@ -28,7 +28,7 @@ export async function fetchMessages(
     .select(
       `
       *,
-      sender:agents!chat_messages_sender_id_fkey(id, name, avatar_url, role, team, status_message, presence),
+      sender:agents!chat_messages_sender_id_fkey(id, name, office, avatar_url, role, team, status_message, presence),
       reactions:chat_message_reactions(id, agent_id, emoji, created_at, agents(id, name))
     `,
     )
@@ -138,7 +138,7 @@ export async function sendMessage(data: SendMessageInput): Promise<Message> {
     .select(
       `
       *,
-      sender:agents!chat_messages_sender_id_fkey(id, name, avatar_url, role, team, status_message, presence)
+      sender:agents!chat_messages_sender_id_fkey(id, name, office, avatar_url, role, team, status_message, presence)
     `,
     )
     .single()
@@ -250,7 +250,7 @@ export async function getPinnedMessages(
     .select(
       `
       *,
-      sender:agents!chat_messages_sender_id_fkey(id, name, avatar_url, role, team, status_message, presence)
+      sender:agents!chat_messages_sender_id_fkey(id, name, office, avatar_url, role, team, status_message, presence)
     `,
     )
     .eq('conversation_id', conversationId)
