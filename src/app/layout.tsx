@@ -6,8 +6,8 @@ import { LayoutShell } from "@/components/layout/LayoutShell";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "DSR Command Center",
-  description: "Live dashboard for agent performance",
+  title: "Alsop Reports",
+  description: "Live dashboard for agent performance and communication",
 };
 
 export default function RootLayout({

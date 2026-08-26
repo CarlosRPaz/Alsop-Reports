@@ -35,6 +35,13 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 // Context shape
 // ---------------------------------------------------------------------------
 
+export interface LatestMessageAlert {
+  senderName: string
+  convoName: string
+  content: string
+  timestamp: number
+}
+
 export interface ChatContextValue {
   /** The currently signed-in agent, or `null` while loading / signed out. */
   currentAgent: Agent | null
@@ -52,6 +59,8 @@ export interface ChatContextValue {
   unreadCounts: Record<string, number>
   /** Re-fetch unread counts from the server. */
   refreshUnreadCounts: () => Promise<void>
+  /** Latest incoming message alert details for tab title notifications. */
+  latestMessageAlert: LatestMessageAlert | null
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null)
@@ -71,6 +80,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [permissions, setPermissions] = useState<Record<string, boolean>>({})
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
+  const [latestMessageAlert, setLatestMessageAlert] = useState<LatestMessageAlert | null>(null)
 
   // Keep a ref to the presence heartbeat interval so we can clear it on
   // unmount or sign-out.
@@ -259,6 +269,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               console.error('Failed to resolve notification metadata:', err)
             }
 
+            // Update tab alert state
+            setLatestMessageAlert({
+              senderName,
+              convoName,
+              content: msg.content,
+              timestamp: Date.now(),
+            })
+
             // Trigger native Desktop Notification (works across browser tabs & desktop windows)
             sendDesktopNotification(
               convoName,
@@ -365,6 +383,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       hasPermission,
       unreadCounts,
       refreshUnreadCounts,
+      latestMessageAlert,
     }),
     [
       currentAgent,
@@ -375,6 +394,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       hasPermission,
       unreadCounts,
       refreshUnreadCounts,
+      latestMessageAlert,
     ],
   )
 
