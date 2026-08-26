@@ -34,6 +34,7 @@ import MessageList from "@/components/chat/MessageList"
 import MessageComposer from "@/components/chat/MessageComposer"
 import CreateConversationModal from "@/components/chat/CreateConversationModal"
 import PinnedMessagesPanel from "@/components/chat/PinnedMessagesPanel"
+import ConversationSettingsModal from "@/components/chat/ConversationSettingsModal"
 import { updatePresence } from "@/lib/chat/realtime"
 import { MessageSquare } from "lucide-react"
 
@@ -50,6 +51,7 @@ export default function CommunicationHub() {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
   const [isLoadingConversations, setIsLoadingConversations] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [createModalDefaultTab, setCreateModalDefaultTab] = useState<'dm' | 'group' | 'channel'>('dm')
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [editingMessage, setEditingMessage] = useState<string | null>(null)
@@ -468,7 +470,7 @@ export default function CommunicationHub() {
                 members={members}
                 onSearchClick={() => {}}
                 onPinnedClick={() => setShowPinnedPanel(prev => !prev)}
-                onSettingsClick={() => {}}
+                onSettingsClick={() => setShowSettingsModal(true)}
               />
 
               <MessageList
@@ -570,6 +572,31 @@ export default function CommunicationHub() {
           }
         }}
       />
+
+      {/* Conversation / Channel Settings Modal */}
+      {showSettingsModal && selectedConversation && (
+        <ConversationSettingsModal
+          conversation={selectedConversation}
+          currentAgent={currentAgent}
+          isOpen={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
+          onConversationUpdated={(updatedConv) => {
+            setConversations((prev) =>
+              prev.map((c) => (c.id === updatedConv.id ? { ...c, ...updatedConv } : c))
+            )
+          }}
+          onMembersUpdated={async () => {
+            if (selectedId) {
+              const memberData = await getConversationMembers(selectedId)
+              const agentMembers = memberData
+                .filter((m) => m.agent)
+                .map((m) => m.agent as Agent)
+              setMembers(agentMembers)
+              setMemberCount(memberData.length)
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

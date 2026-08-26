@@ -426,17 +426,37 @@ const ALL_MANAGED_CHANNEL_NAMES = new Set([
   'Admin',
 ])
 
+function matchesOfficeChannel(ch: { name: string | null; description?: string | null }, officeCode: string): boolean {
+  if (!officeCode) return false
+  const code = officeCode.toUpperCase().trim()
+  const name = (ch.name || '').toLowerCase()
+  const desc = (ch.description || '').toLowerCase()
+
+  if (code === 'CH') {
+    return name === 'ch office' || name === 'ch' || name.includes('chula') || desc.includes('chula')
+  }
+  if (code === 'MB') {
+    return name === 'mb office' || name === 'mb' || name.includes('morena') || desc.includes('morena')
+  }
+  if (code === 'MCM') {
+    return name === 'mcm office' || name === 'mcm' || name.includes('mission center') || desc.includes('mission center')
+  }
+  if (code === 'RC') {
+    return name === 'rc office' || name === 'rc' || name.includes('rancho') || desc.includes('rancho')
+  }
+  return name.includes(code.toLowerCase())
+}
+
 /**
  * Sync an agent's default channel memberships based on their team, office, and role.
  *
  * 1. Joins the agent to:
  *    - `All` (everyone)
  *    - Their team channel (Sales, CSR, EA, or Managers — Support gets none)
- *    - Their office channel (CH Office, MB Office, MCM Office, or RC Office)
+ *    - Their office channel (CH Office / Chula Vista, MB Office / Morena, MCM Office / Mission Center, or RC Office / Rancho)
  *    - `Admin` (if role === 'admin')
  *
- * 2. Removes the agent from any other managed team/office channels they don't belong to
- *    (strict isolation).
+ * 2. Removes the agent from other team/office channels if they don't belong (isolation).
  */
 export async function syncAgentDefaultChannels(
   agentId: string,
@@ -444,56 +464,76 @@ export async function syncAgentDefaultChannels(
   office: string,
   role: string,
 ): Promise<void> {
-  // Determine which channels this agent should belong to
-  const targetChannelNames = new Set<string>(['All'])
-
-  // Support, Managers, and Admins get full access to all team and office channels
-  if (team === 'Support' || team === 'Managers' || role === 'admin') {
-    Object.values(TEAM_CHANNEL_MAP).forEach((ch) => targetChannelNames.add(ch))
-    Object.values(OFFICE_CHANNEL_MAP).forEach((ch) => targetChannelNames.add(ch))
-    if (role === 'admin' || team === 'Managers') {
-      targetChannelNames.add('Admin')
-    }
-  } else {
-    // Normal agent channel assignment
-    if (team && TEAM_CHANNEL_MAP[team]) {
-      targetChannelNames.add(TEAM_CHANNEL_MAP[team])
-    }
-
-    if (office && OFFICE_CHANNEL_MAP[office]) {
-      targetChannelNames.add(OFFICE_CHANNEL_MAP[office])
-    }
-
-    if (role === 'admin') {
-      targetChannelNames.add('Admin')
-    }
-  }
-
-  // Fetch all managed channels from DB
+  // Fetch all active channels from DB
   const { data: channels } = await supabase
     .from('chat_conversations')
-    .select('id, name')
-    .in('name', [...ALL_MANAGED_CHANNEL_NAMES])
+    .select('id, name, type, description')
+    .in('type', ['channel', 'private_channel'])
     .eq('archived', false)
 
   if (!channels || channels.length === 0) return
 
-  const channelsByName = new Map(channels.map(c => [c.name, c.id]))
+  const targetChannelIds = new Set<string>()
+  const allManagedChannelIds = new Set<string>()
+
+  const isFullAccess = team === 'Support' || team === 'Managers' || role === 'admin'
+
+  for (const ch of channels) {
+    const chName = ch.name || ''
+
+    // 1. "All" channel
+    if (chName.toLowerCase() === 'all') {
+      allManagedChannelIds.add(ch.id)
+      targetChannelIds.add(ch.id)
+      continue
+    }
+
+    // 2. "Admin" channel
+    if (chName.toLowerCase() === 'admin') {
+      allManagedChannelIds.add(ch.id)
+      if (role === 'admin' || team === 'Managers') {
+        targetChannelIds.add(ch.id)
+      }
+      continue
+    }
+
+    // 3. Team channels (Sales, CSR, EA, Managers)
+    const isTeamChannel = Object.values(TEAM_CHANNEL_MAP).some(
+      (t) => t.toLowerCase() === chName.toLowerCase()
+    )
+    if (isTeamChannel) {
+      allManagedChannelIds.add(ch.id)
+      if (isFullAccess || (team && TEAM_CHANNEL_MAP[team]?.toLowerCase() === chName.toLowerCase())) {
+        targetChannelIds.add(ch.id)
+      }
+      continue
+    }
+
+    // 4. Office channels (matches CH / MB / MCM / RC even if renamed)
+    let isOfficeChannel = false
+    for (const offCode of Object.keys(OFFICE_CHANNEL_MAP)) {
+      if (matchesOfficeChannel(ch, offCode)) {
+        isOfficeChannel = true
+        allManagedChannelIds.add(ch.id)
+        if (isFullAccess || office?.toUpperCase() === offCode) {
+          targetChannelIds.add(ch.id)
+        }
+        break
+      }
+    }
+  }
 
   // Channels to JOIN
-  const joinChannelIds = [...targetChannelNames]
-    .filter(name => channelsByName.has(name))
-    .map(name => channelsByName.get(name)!)
+  const joinChannelIds = Array.from(targetChannelIds)
 
   // Channels to LEAVE (managed channels agent should NOT be in)
-  const leaveChannelNames = [...ALL_MANAGED_CHANNEL_NAMES].filter(name => !targetChannelNames.has(name))
-  const leaveChannelIds = leaveChannelNames
-    .filter(name => channelsByName.has(name))
-    .map(name => channelsByName.get(name)!)
+  const leaveChannelIds = Array.from(allManagedChannelIds).filter(
+    (id) => !targetChannelIds.has(id)
+  )
 
   // Upsert memberships for target channels
   if (joinChannelIds.length > 0) {
-    const rows = joinChannelIds.map(cid => ({
+    const rows = joinChannelIds.map((cid) => ({
       conversation_id: cid,
       agent_id: agentId,
       role: 'member' as const,
