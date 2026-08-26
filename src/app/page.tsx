@@ -213,7 +213,7 @@ export default function Home() {
       const { data: goalsData } = await supabase.from("kpi_goals").select("*");
       setGoals(goalsData || []);
 
-      // 2. Fetch active + report visible production agents details for filtering
+      // 2. Fetch active + report visible agents details for filtering
       const { data: activeAgents } = await supabase
         .from("agents")
         .select("id, name, office, team")
@@ -242,8 +242,7 @@ export default function Home() {
       }
 
       setAllActiveAgents(activeAgents || []);
-      const validMetrics = allMetrics.filter((m: any) => m.agents?.team !== "Support");
-      setMetrics(validMetrics);
+      setMetrics(allMetrics);
 
       // 4. Fetch last synced timestamp
       const { data: latestRow } = await supabase
