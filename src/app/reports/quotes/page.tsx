@@ -403,6 +403,11 @@ export default function QuotesPage() {
 
     return data.agents
       .filter(a => {
+        // Exclude Managers and Support from individual breakdown table
+        if (a.team === "Managers" || a.team === "Support") return false
+        // Exclude on-leave and archived agents
+        if (a.report_visible === false || a.active === false) return false
+
         if (filters.offices.length > 0) {
           // Map DB office names to filter abbreviations
           const officeMap: Record<string, string> = {
@@ -441,7 +446,7 @@ export default function QuotesPage() {
 
   // ── Sorting ──
   const sortedRows = useMemo(() => {
-    const rows = computedRows.filter(r => r.report_visible && r.active && r.team !== "Managers")
+    const rows = computedRows.filter(r => r.report_visible && r.active && r.team !== "Managers" && r.team !== "Support")
     const dir = sortDir === "asc" ? 1 : -1
 
     rows.sort((a, b) => {
@@ -724,7 +729,7 @@ export default function QuotesPage() {
   }
 
   const availableAgents = useMemo(() =>
-    data?.agents.filter(a => a.report_visible).map(a => a.name).sort() || [], [data])
+    data?.agents.filter(a => a.report_visible && a.active && a.team !== "Managers" && a.team !== "Support").map(a => a.name).sort() || [], [data])
 
   const isStale = useMemo(() => {
     if (!data) return false

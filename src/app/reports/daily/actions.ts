@@ -38,6 +38,7 @@ export async function getDailyData(dateStr: string) {
       .eq("report_date", dateStr)
       .eq("agents.report_visible", true)
       .eq("agents.active", true)
+      .not("agents.team", "in", '("Managers","Support")')
       .order("created_at", { ascending: false })
 
     if (metricsErr) {
@@ -93,19 +94,19 @@ export async function getDailyData(dateStr: string) {
     const lastMonthItems = prevKPI.totals.nb_auto_items
 
     // Backfill: ensure all active + report-visible production agents are represented
-    // (Managers and on-leave agents are excluded from individual standup table rows).
+    // (Managers, Support, and on-leave agents are excluded from individual standup table rows).
     const { data: allActiveAgents } = await supabase
       .from("agents")
       .select("id, name, team, office, meeting_time, report_visible, active")
       .eq("active", true)
       .eq("report_visible", true)
-      .neq("team", "Managers")
+      .not("team", "in", '("Managers","Support")')
 
-    const nonManagerMetrics = (metrics || []).filter(
-      (m: any) => m.agents?.team !== "Managers"
+    const productionMetrics = (metrics || []).filter(
+      (m: any) => m.agents?.team !== "Managers" && m.agents?.team !== "Support"
     )
-    const existingIds = new Set(nonManagerMetrics.map((m: any) => m.agent_id))
-    const backfilled = [...nonManagerMetrics]
+    const existingIds = new Set(productionMetrics.map((m: any) => m.agent_id))
+    const backfilled = [...productionMetrics]
     for (const agent of (allActiveAgents || [])) {
       if (!existingIds.has(agent.id)) {
         backfilled.push({
@@ -329,6 +330,7 @@ export async function getDailyInsights(dateStr: string) {
         .lte("report_date", dateStr)
         .eq("agents.report_visible", true)
         .eq("agents.active", true)
+        .not("agents.team", "in", '("Managers","Support")')
         .order("report_date", { ascending: true })
         .range(from, to)
     )

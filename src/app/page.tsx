@@ -219,7 +219,7 @@ export default function Home() {
         .select("id, name, office, team")
         .eq("active", true)
         .eq("report_visible", true)
-        .neq("team", "Managers");
+        .not("team", "in", '("Managers","Support")');
 
       // 3. Paginate to get ALL daily_metrics in the date range for active + visible agents
       let allMetrics: any[] = [];

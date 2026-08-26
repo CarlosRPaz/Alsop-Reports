@@ -100,6 +100,7 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
       .lte("report_date", weekEndStr)
       .eq("agents.active", true)
       .eq("agents.report_visible", true)
+      .not("agents.team", "in", '("Managers","Support")')
 
     // 2. Fetch weekly manual metrics for this week
     const { data: weeklyManual } = await supabase
@@ -182,13 +183,13 @@ export async function getWeeklyData(weekStartStr: string, weekEndStr: string) {
 
     // ── Aggregate daily rows into per-agent weekly totals ──
     // Pre-populate agentMap with active/visible production agents
-    // (Managers and on-leave agents are excluded from individual weekly table rows).
+    // (Managers, Support, and on-leave agents are excluded from individual weekly table rows).
     const { data: allActiveAgents } = await supabase
       .from("agents")
       .select("id, name, team, office, meeting_time, report_visible, active")
       .eq("active", true)
       .eq("report_visible", true)
-      .neq("team", "Managers")
+      .not("team", "in", '("Managers","Support")')
 
     const agentMap: Record<string, any> = {}
 

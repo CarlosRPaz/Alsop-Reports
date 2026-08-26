@@ -143,6 +143,7 @@ export async function getAllAgents(): Promise<{ success: boolean; data?: AgentIn
       .select("id, name, team, office, role, active, report_visible")
       .eq("active", true)
       .eq("report_visible", true)
+      .not("team", "in", '("Managers","Support")')
       .order("name")
 
     if (error) throw error

@@ -100,12 +100,13 @@ export async function getHeatmapData(
   try {
     noStore()
 
-    // 1. Fetch active, visible agents
+    // 1. Fetch active, visible production agents (excluding Managers and Support)
     const { data: agents, error: agentsErr } = await supabase
       .from("agents")
       .select("id, name, office, team")
       .eq("active", true)
       .eq("report_visible", true)
+      .not("team", "in", '("Managers","Support")')
       .order("name")
 
     if (agentsErr) throw agentsErr

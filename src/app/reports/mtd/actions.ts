@@ -52,6 +52,7 @@ export async function getMTDData(year: number, month: number) {
         .lte("report_date", endDate)
         .eq("agents.active", true)
         .eq("agents.report_visible", true)
+        .not("agents.team", "in", '("Managers","Support")')
         .range(from, to)
     )
 
@@ -152,13 +153,13 @@ export async function getMTDData(year: number, month: number) {
 
     // ── Aggregate daily rows into per-agent monthly totals ──
     // Pre-populate agentMap with active/visible production agents
-    // (Managers and on-leave agents are excluded from individual MTD table rows).
+    // (Managers, Support, and on-leave agents are excluded from individual MTD table rows).
     const { data: allActiveAgents } = await supabase
       .from("agents")
       .select("id, name, team, office, meeting_time, report_visible, active")
       .eq("active", true)
       .eq("report_visible", true)
-      .neq("team", "Managers")
+      .not("team", "in", '("Managers","Support")')
 
     const agentMap: Record<string, any> = {}
 
@@ -342,11 +343,12 @@ export async function getPriorMonthComparison(year: number, month: number) {
     const rows = await fetchAllRows((from, to) =>
       supabase
         .from("daily_metrics")
-        .select("agent_id, nb_auto_items, prem_premium, quotes, agents!inner(active, report_visible)")
+        .select("agent_id, nb_auto_items, prem_premium, quotes, agents!inner(active, report_visible, team)")
         .gte("report_date", prevStartDate)
         .lte("report_date", prevEndDate)
         .eq("agents.active", true)
         .eq("agents.report_visible", true)
+        .not("agents.team", "in", '("Support")')
         .range(from, to)
     )
 
