@@ -242,7 +242,8 @@ export default function Home() {
       }
 
       setAllActiveAgents(activeAgents || []);
-      setMetrics(allMetrics);
+      const validMetrics = allMetrics.filter((m: any) => m.agents?.team !== "Support");
+      setMetrics(validMetrics);
 
       // 4. Fetch last synced timestamp
       const { data: latestRow } = await supabase

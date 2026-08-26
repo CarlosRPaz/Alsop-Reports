@@ -10,7 +10,7 @@ import {
   Plus, Edit2, Check, X,
   Search, ChevronDown, ChevronRight,
   Users, Save, Loader2, UserPlus,
-  Shield, ShieldCheck,
+  Shield, ShieldCheck, Info,
   BookOpen, Sparkles
 } from "lucide-react"
 
@@ -838,9 +838,14 @@ export default function AgentManagement() {
 
           {/* Team Scope Matrix */}
           <div className="border-t border-slate-800 pt-5">
-            <h3 className="text-sm font-bold text-blue-300 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <Shield className="w-4 h-4" /> Team Scopes & Department Boundaries
-            </h3>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
+              <h3 className="text-sm font-bold text-blue-300 uppercase tracking-wider flex items-center gap-2">
+                <Shield className="w-4 h-4" /> Team Scopes & Department Boundaries
+              </h3>
+              <span className="text-[11px] text-amber-300 font-medium">
+                ⚡ Teams are the only factor that controls report visibility
+              </span>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -884,19 +889,22 @@ export default function AgentManagement() {
                   <tr>
                     <td className="py-2.5 pr-3 font-bold text-white">Support</td>
                     <td className="py-2.5 px-3 text-slate-500">Hidden</td>
-                    <td className="py-2.5 px-3 text-slate-500">No Production</td>
+                    <td className="py-2.5 px-3 text-rose-400"><strong>Excluded</strong></td>
                     <td className="py-2.5 px-3 text-slate-500">Excluded</td>
                     <td className="py-2.5 px-3 text-slate-400">Full Access to All Channels</td>
                   </tr>
-                  <tr>
-                    <td className="py-2.5 pr-3 font-bold text-white">Admin</td>
-                    <td className="py-2.5 px-3 text-slate-500">Hidden</td>
-                    <td className="py-2.5 px-3 text-slate-500">No Production</td>
-                    <td className="py-2.5 px-3 text-slate-500">Excluded</td>
-                    <td className="py-2.5 px-3 text-indigo-300">Full Admin & Moderation Access</td>
-                  </tr>
                 </tbody>
               </table>
+            </div>
+
+            {/* Note on Admin Role */}
+            <div className="mt-4 p-3 bg-slate-800/60 rounded-lg border border-slate-700/60 text-[11px] text-slate-300 space-y-1">
+              <div className="font-bold text-indigo-300 flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5" /> Note on Admin Role vs. Teams:
+              </div>
+              <p className="text-slate-400 leading-relaxed">
+                The <strong>Admin role</strong> grants full permissions to manage agents, edit settings, and moderate chats. <strong>Role does not affect report visibility</strong> — visibility is determined strictly by the agent&apos;s assigned Team and Status.
+              </p>
             </div>
           </div>
         </CardContent>

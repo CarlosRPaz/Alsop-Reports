@@ -142,11 +142,14 @@ export async function getQuotesData(
     const holidaySet = new Set((holidays || []).map(h => h.holiday_date))
 
     // Aggregate per agent + find the most recent date with data + sum items
+    const agentTeamMap = new Map((agents || []).map(a => [a.id, a.team]))
     const agentQuotes: Record<string, { quotes: number; nb: number; items: number }> = {}
     let lastDataDate = startDate
     let mtdItems = 0
     if (metrics) {
       for (const m of metrics) {
+        if (agentTeamMap.get(m.agent_id) === "Support") continue
+
         if (!agentQuotes[m.agent_id]) {
           agentQuotes[m.agent_id] = { quotes: 0, nb: 0, items: 0 }
         }

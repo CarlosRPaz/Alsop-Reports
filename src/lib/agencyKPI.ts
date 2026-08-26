@@ -60,7 +60,7 @@ export async function getAgencyKPITotals(
   const rows = await fetchAllRows((from, to) =>
     supabase
       .from("daily_metrics")
-      .select("agent_id, nb_auto_items, prem_premium, items, nb_count, nb_auto_count, quotes, quotes_deduped, agents(office)")
+      .select("agent_id, nb_auto_items, prem_premium, items, nb_count, nb_auto_count, quotes, quotes_deduped, agents(office, team)")
       .gte("report_date", startDate)
       .lte("report_date", endDate)
       .range(from, to)
@@ -82,6 +82,10 @@ export async function getAgencyKPITotals(
   const perAgentPremium: Record<string, number> = {}
 
   for (const row of rows) {
+    // Exclude Support team from agency totals
+    const team = (row.agents as any)?.team
+    if (team === "Support") continue
+
     const autoItems = row.nb_auto_items || 0
     const premium = Number(row.prem_premium) || 0
 
