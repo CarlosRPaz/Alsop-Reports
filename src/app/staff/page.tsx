@@ -15,8 +15,9 @@ export default function StaffPage() {
       try {
         const { data } = await supabase
           .from("agents")
-          .select("id, name, email, phone, office, team, role, active")
+          .select("id, name, email, phone, office, team, role, active, report_visible")
           .eq("active", true)
+          .eq("report_visible", true)
           .order("name", { ascending: true })
         setAgents(data || [])
       } catch (err) {
@@ -41,7 +42,7 @@ export default function StaffPage() {
             Our Wonderful Agency Staff Directory
           </h1>
           <p className="text-sm font-semibold text-slate-900 max-w-xl leading-relaxed">
-            We&apos;re currently polishing up this space with office info, direct lines, helpful phone numbers, and extensions! 🚧✨ In the meantime, here&apos;s our active team roster.
+            We&apos;re currently polishing up this space with office info, direct lines, helpful phone numbers, and extensions! 🚧✨
           </p>
         </div>
 
