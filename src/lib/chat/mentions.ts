@@ -48,71 +48,45 @@ export function parseMentions(
   const mentions: ParsedMention[] = []
   const seen = new Set<string>() // de-duplicate
 
-  // Regex captures the word(s) after @, supporting multi-word names like
-  // "John Smith" by greedily matching capitalized words.
-  // We process longest matches first so "@John Smith" isn't split.
-  const mentionRegex = /@(\w[\w\s]*\w|\w+)/g
-  let match: RegExpExecArray | null
+  // Build target candidates sorted by longest name first (so "Alex C" matches before "Alex")
+  const allTargets: {
+    name: string
+    type: MentionType
+    agent_id?: string
+  }[] = [
+    { name: 'Everyone', type: 'everyone' as const },
+    { name: 'all', type: 'everyone' as const },
+    ...TEAM_MENTIONS.map((t) => ({ name: t, type: 'team' as const })),
+    ...OFFICE_MENTIONS.map((o) => ({ name: o, type: 'office' as const })),
+    ...ROLE_MENTIONS.map((r) => ({ name: r, type: 'role' as const })),
+    ...members.map((m) => ({ name: m.name, type: 'agent' as const, agent_id: m.id })),
+  ].sort((a, b) => b.name.length - a.name.length)
 
-  while ((match = mentionRegex.exec(content)) !== null) {
-    const raw = match[1].trim()
-
-    // @Everyone
-    if (raw.toLowerCase() === 'everyone') {
-      if (!seen.has('everyone')) {
-        mentions.push({ type: 'everyone', target: 'Everyone' })
-        seen.add('everyone')
+  // Find all @ occurrences
+  for (let i = 0; i < content.length; i++) {
+    if (content[i] === '@') {
+      const rest = content.slice(i + 1)
+      for (const target of allTargets) {
+        const targetLen = target.name.length
+        const candidate = rest.slice(0, targetLen)
+        if (candidate.toLowerCase() === target.name.toLowerCase()) {
+          const nextChar = rest[targetLen]
+          // Word boundary or punctuation or end of string
+          if (!nextChar || /\s|[.,!?;:)\-\n]/.test(nextChar)) {
+            const key = target.type === 'agent' ? `agent:${target.agent_id}` : `${target.type}:${target.name.toLowerCase()}`
+            if (!seen.has(key)) {
+              mentions.push({
+                type: target.type,
+                target: target.name,
+                agent_id: target.agent_id,
+              })
+              seen.add(key)
+            }
+            i += targetLen
+            break
+          }
+        }
       }
-      continue
-    }
-
-    // @TeamName
-    const teamMatch = TEAM_MENTIONS.find(
-      (t) => t.toLowerCase() === raw.toLowerCase(),
-    )
-    if (teamMatch) {
-      if (!seen.has(`team:${teamMatch}`)) {
-        mentions.push({ type: 'team', target: teamMatch })
-        seen.add(`team:${teamMatch}`)
-      }
-      continue
-    }
-
-    // @OfficeName (CH, MB, MCM, RC)
-    const officeMatch = OFFICE_MENTIONS.find(
-      (o) => o.toLowerCase() === raw.toLowerCase(),
-    )
-    if (officeMatch) {
-      if (!seen.has(`office:${officeMatch}`)) {
-        mentions.push({ type: 'office', target: officeMatch })
-        seen.add(`office:${officeMatch}`)
-      }
-      continue
-    }
-
-    // @RoleName
-    const roleMatch = ROLE_MENTIONS.find(
-      (r) => r.toLowerCase() === raw.toLowerCase(),
-    )
-    if (roleMatch) {
-      if (!seen.has(`role:${roleMatch}`)) {
-        mentions.push({ type: 'role', target: roleMatch })
-        seen.add(`role:${roleMatch}`)
-      }
-      continue
-    }
-
-    // @AgentName (match against conversation members)
-    const agentMatch = members.find(
-      (m) => m.name.toLowerCase() === raw.toLowerCase(),
-    )
-    if (agentMatch && !seen.has(`agent:${agentMatch.id}`)) {
-      mentions.push({
-        type: 'agent',
-        target: agentMatch.name,
-        agent_id: agentMatch.id,
-      })
-      seen.add(`agent:${agentMatch.id}`)
     }
   }
 

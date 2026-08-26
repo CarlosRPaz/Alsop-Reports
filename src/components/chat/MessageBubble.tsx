@@ -13,7 +13,8 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Message, Reaction } from './types'
+import { useChat } from '@/lib/chat/chatContext'
+import type { Message, Reaction, Agent } from './types'
 import UserPresenceBadge from './UserPresenceBadge'
 
 interface MessageBubbleProps {
@@ -96,15 +97,34 @@ function formatReactionTooltip(r: Reaction, currentAgentId: string): string {
   return `${sortedNames.slice(0, 3).join(', ')}, and ${remaining} other${remaining > 1 ? 's' : ''}`
 }
 
+const KNOWN_MULTI_WORD_MENTIONS = [
+  'Alex C',
+  'Chris E',
+  'Nancy G',
+  'Rosario D',
+  'John Paul',
+  'Ric Becerra',
+]
+
+function escapeRegExp(string: string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 /**
  * Renders message content with inline markdown and mentions.
  * Supports: **bold**, *italic*, `code`, @Mentions, URLs
  */
-function renderContent(content: string): React.ReactNode[] {
-  // Split by patterns: **bold**, *italic*, `code`, @Name, URLs
+function renderContent(content: string, currentAgent?: Agent | null): React.ReactNode[] {
   const parts: React.ReactNode[] = []
-  const regex =
-    /(\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|(@\w[\w\s]*\w)|https?:\/\/[^\s<]+)/g
+  
+  // Multi-word mention targets or single word mention targets
+  const multiWordPattern = KNOWN_MULTI_WORD_MENTIONS.map((m) => escapeRegExp(m)).join('|')
+  const mentionPattern = `@(?:${multiWordPattern}|[a-zA-Z0-9_]+)`
+
+  const regex = new RegExp(
+    `(\\*\\*(.+?)\\*\\*|\\*(.+?)\\*|\`([^\`]+)\`|(${mentionPattern})|https?:\\/\\/[^\\s<]+)`,
+    'g'
+  )
 
   let lastIndex = 0
   let match: RegExpExecArray | null
@@ -136,17 +156,32 @@ function renderContent(content: string): React.ReactNode[] {
       parts.push(
         <code
           key={match.index}
-          className="bg-slate-100 text-pink-600 px-1 py-0.5 rounded text-[13px] font-mono"
+          className="bg-slate-100 text-pink-600 px-1 py-0.5 rounded text-[13px] font-mono dark:bg-slate-800 dark:text-pink-400"
         >
           {match[4]}
         </code>
       )
     } else if (full.startsWith('@')) {
-      // @Mention
+      // @Mention — only the exact target name is highlighted as a blue pill
+      const targetName = full.slice(1).toLowerCase()
+      const isTargetingMe = currentAgent && (
+        currentAgent.name.toLowerCase() === targetName ||
+        targetName === 'everyone' ||
+        targetName === 'all' ||
+        currentAgent.team?.toLowerCase() === targetName ||
+        currentAgent.office?.toLowerCase() === targetName ||
+        (currentAgent.role === 'admin' && targetName === 'admin')
+      )
+
       parts.push(
         <span
           key={match.index}
-          className="text-blue-600 font-semibold bg-blue-50 px-1 rounded cursor-pointer hover:bg-blue-100 transition-colors"
+          className={cn(
+            'font-semibold rounded px-1.5 py-0.5 inline-flex items-center gap-0.5 transition-colors select-none text-[13px]',
+            isTargetingMe
+              ? 'bg-blue-600 text-white font-bold shadow-xs'
+              : 'bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50'
+          )}
         >
           {full}
         </span>
@@ -159,7 +194,7 @@ function renderContent(content: string): React.ReactNode[] {
           href={full}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-0.5"
+          className="text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-0.5 dark:text-blue-400"
         >
           {full.length > 50 ? full.slice(0, 50) + '…' : full}
           <ExternalLink className="w-3 h-3 inline shrink-0" />
@@ -191,11 +226,37 @@ export default function MessageBubble({
   const [showActions, setShowActions] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
 
+  let currentAgent: Agent | null = null
+  try {
+    const chat = useChat()
+    currentAgent = chat.currentAgent
+  } catch {
+    // optional fallback outside provider
+  }
+
   const isOwn = message.sender_id === currentAgentId
   const isAdmin = hasPermission('admin')
   const senderName = message.sender?.name ?? 'Unknown'
 
   const statusInfo = useMemo(() => parseStatusMessage(message.sender?.status_message ?? null), [message.sender?.status_message])
+
+  // Check if current user is @mentioned in this message
+  const isMentioned = useMemo(() => {
+    if (!currentAgent || !message.content || message.is_deleted || message.is_system) return false
+    const name = currentAgent.name.toLowerCase()
+    const team = currentAgent.team?.toLowerCase()
+    const office = currentAgent.office?.toLowerCase()
+    const role = currentAgent.role?.toLowerCase()
+    const text = message.content.toLowerCase()
+
+    const directMention = new RegExp(`@${escapeRegExp(name)}\\b`, 'i').test(text)
+    const everyoneMention = /@(everyone|all)\b/i.test(text)
+    const teamMention = team ? new RegExp(`@${escapeRegExp(team)}\\b`, 'i').test(text) : false
+    const officeMention = office ? new RegExp(`@${escapeRegExp(office)}\\b`, 'i').test(text) : false
+    const roleMention = role === 'admin' ? /@admin\b/i.test(text) : false
+
+    return directMention || everyoneMention || teamMention || officeMention || roleMention
+  }, [currentAgent, message.content, message.is_deleted, message.is_system])
 
   // System messages
   if (message.is_system) {
@@ -222,9 +283,11 @@ export default function MessageBubble({
     <div
       id={`message-${message.id}`}
       className={cn(
-        'group relative flex flex-col transition-colors duration-150',
+        'group relative flex flex-col transition-all duration-150',
         isGrouped ? 'py-0.5' : 'py-1.5',
-        'hover:bg-slate-50/80'
+        isMentioned
+          ? 'bg-amber-500/[0.08] dark:bg-amber-500/[0.14] border-l-[3px] border-amber-400 dark:border-amber-500 hover:bg-amber-500/[0.12] -ml-2 pl-2'
+          : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
       )}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => {
@@ -324,8 +387,8 @@ export default function MessageBubble({
           )}
 
           {/* Message text */}
-          <div className="text-sm text-slate-800 leading-relaxed break-words whitespace-pre-wrap">
-            {renderContent(message.content)}
+          <div className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed break-words whitespace-pre-wrap">
+            {renderContent(message.content, currentAgent)}
             {message.is_edited && (
               <span className="text-[11px] text-slate-400 ml-1">(edited)</span>
             )}
