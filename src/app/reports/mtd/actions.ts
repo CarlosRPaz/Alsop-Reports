@@ -151,13 +151,14 @@ export async function getMTDData(year: number, month: number) {
     )
 
     // ── Aggregate daily rows into per-agent monthly totals ──
-    // Pre-populate agentMap with ALL active/visible agents so new agents
-    // (who have no daily_metrics rows yet) still appear in the report.
+    // Pre-populate agentMap with active/visible production agents
+    // (Managers and on-leave agents are excluded from individual MTD table rows).
     const { data: allActiveAgents } = await supabase
       .from("agents")
       .select("id, name, team, office, meeting_time, report_visible, active")
       .eq("active", true)
       .eq("report_visible", true)
+      .neq("team", "Managers")
 
     const agentMap: Record<string, any> = {}
 

@@ -441,7 +441,7 @@ export default function QuotesPage() {
 
   // ── Sorting ──
   const sortedRows = useMemo(() => {
-    const rows = computedRows.filter(r => r.report_visible && r.active)
+    const rows = computedRows.filter(r => r.report_visible && r.active && r.team !== "Managers")
     const dir = sortDir === "asc" ? 1 : -1
 
     rows.sort((a, b) => {

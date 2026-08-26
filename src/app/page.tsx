@@ -213,12 +213,13 @@ export default function Home() {
       const { data: goalsData } = await supabase.from("kpi_goals").select("*");
       setGoals(goalsData || []);
 
-      // 2. Fetch active + report visible agents details for filtering
+      // 2. Fetch active + report visible production agents details for filtering
       const { data: activeAgents } = await supabase
         .from("agents")
         .select("id, name, office, team")
         .eq("active", true)
-        .eq("report_visible", true);
+        .eq("report_visible", true)
+        .neq("team", "Managers");
 
       // 3. Paginate to get ALL daily_metrics in the date range for active + visible agents
       let allMetrics: any[] = [];

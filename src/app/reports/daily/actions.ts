@@ -92,16 +92,20 @@ export async function getDailyData(dateStr: string) {
     const prevKPI = await getAgencyKPITotals(prevFirstOfMonth, prevLastOfMonth)
     const lastMonthItems = prevKPI.totals.nb_auto_items
 
-    // Backfill: ensure all active + report-visible agents are represented,
-    // even if they have no daily_metrics row for this date yet.
+    // Backfill: ensure all active + report-visible production agents are represented
+    // (Managers and on-leave agents are excluded from individual standup table rows).
     const { data: allActiveAgents } = await supabase
       .from("agents")
       .select("id, name, team, office, meeting_time, report_visible, active")
       .eq("active", true)
       .eq("report_visible", true)
+      .neq("team", "Managers")
 
-    const existingIds = new Set((metrics || []).map((m: any) => m.agent_id))
-    const backfilled = [...(metrics || [])]
+    const nonManagerMetrics = (metrics || []).filter(
+      (m: any) => m.agents?.team !== "Managers"
+    )
+    const existingIds = new Set(nonManagerMetrics.map((m: any) => m.agent_id))
+    const backfilled = [...nonManagerMetrics]
     for (const agent of (allActiveAgents || [])) {
       if (!existingIds.has(agent.id)) {
         backfilled.push({

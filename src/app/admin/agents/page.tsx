@@ -7,9 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
 import {
-  Plus, Edit2, Check, X, UserMinus,
-  Eye, EyeOff, Search, ChevronDown, ChevronRight,
-  Users, Save, Loader2, UserPlus
+  Plus, Edit2, Check, X,
+  Search, ChevronDown, ChevronRight,
+  Users, Save, Loader2, UserPlus,
+  Shield, ShieldCheck,
+  BookOpen, Sparkles
 } from "lucide-react"
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
@@ -39,13 +41,24 @@ interface Agent {
   updated_at: string
 }
 
+interface ChatPermission {
+  id: string
+  permission_key: string
+  description: string | null
+  allowed_roles: string[]
+  allowed_teams: string[]
+  updated_at?: string
+}
+
+type AgentStatus = "active" | "on_leave" | "archived"
 type StatusFilter = "all" | "active" | "on_leave" | "archived"
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
 const MEETING_TIMES = ["8:50 AM", "9:00 AM", "9:10 AM", "9:20 AM", "9:30 AM", "9:40 AM", "9:50 AM"]
 const OFFICES = ["MCM", "MB", "RC", "CH"]
-const TEAMS = ["Sales", "CSR", "EA"]
+const TEAMS = ["Sales", "CSR", "EA", "Managers", "Support"]
+const ALL_PERMISSION_TEAMS = ["Sales", "CSR", "EA", "Managers", "Support"]
 
 const VARIANT_FIELDS: { key: keyof SystemVariants; label: string }[] = [
   { key: "full_name",   label: "Full Name" },
@@ -62,18 +75,29 @@ const EMPTY_NEW_AGENT = {
   office: "",
   team: "",
   meeting_time: "",
+  status: "active" as AgentStatus,
   system_variants: {} as SystemVariants,
+}
+
+function getAgentStatus(agent: Pick<Agent, "active" | "report_visible">): AgentStatus {
+  if (!agent.active) return "archived"
+  if (!agent.report_visible) return "on_leave"
+  return "active"
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 
 export default function AgentManagement() {
   const [agents, setAgents] = useState<Agent[]>([])
+  const [permissions, setPermissions] = useState<ChatPermission[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingPermissions, setLoadingPermissions] = useState(false)
+  const [savingPermKey, setSavingPermKey] = useState<string | null>(null)
 
   // UI state
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
+  const [teamFilter, setTeamFilter] = useState<string>("all")
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Partial<Agent>>({})
@@ -87,26 +111,38 @@ export default function AgentManagement() {
   const [newAgent, setNewAgent] = useState(EMPTY_NEW_AGENT)
   const [savingNew, setSavingNew] = useState(false)
 
-  // Saving visibility toggle
-  const [togglingVisibility, setTogglingVisibility] = useState<string | null>(null)
-
   // ── Data Fetching ───────────────────────────────────────────────────────────
 
   const fetchAgents = useCallback(async () => {
     setLoading(true)
     const { data } = await supabase.from("agents").select("*").order("name")
-    // Default report_visible to true if column doesn't exist yet
-    const agents = ((data as Agent[]) || []).map(a => ({
+    const agentsList = ((data as Agent[]) || []).map(a => ({
       ...a,
       report_visible: a.report_visible ?? true,
     }))
-    setAgents(agents)
+    setAgents(agentsList)
     setLoading(false)
+  }, [])
+
+  const fetchPermissions = useCallback(async () => {
+    setLoadingPermissions(true)
+    try {
+      const { data } = await supabase
+        .from("chat_permissions")
+        .select("*")
+        .order("permission_key", { ascending: true })
+      if (data) setPermissions(data as ChatPermission[])
+    } catch (err) {
+      console.error("Failed to load permissions:", err)
+    } finally {
+      setLoadingPermissions(false)
+    }
   }, [])
 
   useEffect(() => {
     fetchAgents()
-  }, [fetchAgents])
+    fetchPermissions()
+  }, [fetchAgents, fetchPermissions])
 
   // ── Filtering ───────────────────────────────────────────────────────────────
 
@@ -122,6 +158,11 @@ export default function AgentManagement() {
       result = result.filter((a) => !a.active)
     }
 
+    // Team filter
+    if (teamFilter !== "all") {
+      result = result.filter((a) => a.team === teamFilter)
+    }
+
     // Search
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
@@ -129,7 +170,7 @@ export default function AgentManagement() {
     }
 
     return result
-  }, [agents, statusFilter, searchQuery])
+  }, [agents, statusFilter, teamFilter, searchQuery])
 
   // ── Counts for filter tabs ──────────────────────────────────────────────────
 
@@ -139,13 +180,6 @@ export default function AgentManagement() {
     on_leave: agents.filter((a) => a.active && !a.report_visible).length,
     archived: agents.filter((a) => !a.active).length,
   }), [agents])
-
-  // ── Variant helpers ─────────────────────────────────────────────────────────
-
-  const variantCount = (agent: Agent): number => {
-    if (!agent.system_variants) return 0
-    return Object.values(agent.system_variants).filter((v) => v && String(v).trim() !== "").length
-  }
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
@@ -165,6 +199,7 @@ export default function AgentManagement() {
       team: agent.team,
       office: agent.office,
       active: agent.active,
+      report_visible: agent.report_visible,
       meeting_time: agent.meeting_time,
     })
   }
@@ -184,6 +219,7 @@ export default function AgentManagement() {
           team: editForm.team,
           office: editForm.office,
           active: editForm.active,
+          report_visible: editForm.report_visible,
           meeting_time: editForm.meeting_time || null,
         })
         .eq("id", editingId)
@@ -198,34 +234,36 @@ export default function AgentManagement() {
       setEditingId(null)
       setEditForm({})
     } catch (e) {
-      console.error(e)
+      console.error("Failed to save agent edit:", e)
     }
   }
 
-  const toggleArchive = async (id: string, currentActive: boolean) => {
-    try {
-      const newActive = !currentActive
-      await supabase.from("agents").update({ active: newActive }).eq("id", id)
-      setAgents((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, active: newActive } : a))
-      )
-    } catch (e) {
-      console.error(e)
+  const handleStatusChange = async (agentId: string, newStatus: AgentStatus) => {
+    let newActive = true
+    let newReportVisible = true
+    if (newStatus === "on_leave") {
+      newActive = true
+      newReportVisible = false
+    } else if (newStatus === "archived") {
+      newActive = false
+      newReportVisible = false
     }
-  }
 
-  const toggleVisibility = async (agent: Agent) => {
-    setTogglingVisibility(agent.id)
-    const newVisible = !agent.report_visible
     try {
-      await supabase.from("agents").update({ report_visible: newVisible }).eq("id", agent.id)
+      await supabase
+        .from("agents")
+        .update({ active: newActive, report_visible: newReportVisible })
+        .eq("id", agentId)
+
       setAgents((prev) =>
-        prev.map((a) => (a.id === agent.id ? { ...a, report_visible: newVisible } : a))
+        prev.map((a) =>
+          a.id === agentId
+            ? { ...a, active: newActive, report_visible: newReportVisible }
+            : a
+        )
       )
     } catch (e) {
-      console.error(e)
-    } finally {
-      setTogglingVisibility(null)
+      console.error("Failed to update status:", e)
     }
   }
 
@@ -240,7 +278,7 @@ export default function AgentManagement() {
         prev.map((a) => (a.id === agentId ? { ...a, system_variants: variantDraft } : a))
       )
     } catch (e) {
-      console.error(e)
+      console.error("Failed to save variants:", e)
     } finally {
       setSavingVariants(false)
     }
@@ -250,13 +288,16 @@ export default function AgentManagement() {
     if (!newAgent.name.trim()) return
     setSavingNew(true)
     try {
+      const active = newAgent.status !== "archived"
+      const reportVisible = newAgent.status === "active"
+
       const payload: Record<string, unknown> = {
         name: newAgent.name.trim(),
         office: newAgent.office || null,
         team: newAgent.team || null,
         meeting_time: newAgent.meeting_time || null,
-        active: true,
-        report_visible: true,
+        active,
+        report_visible: reportVisible,
         system_variants: Object.keys(newAgent.system_variants).length > 0
           ? newAgent.system_variants
           : null,
@@ -269,9 +310,57 @@ export default function AgentManagement() {
       setNewAgent(EMPTY_NEW_AGENT)
       setShowNewAgent(false)
     } catch (e) {
-      console.error(e)
+      console.error("Failed to create agent:", e)
     } finally {
       setSavingNew(false)
+    }
+  }
+
+  // ── Permission Toggles ──────────────────────────────────────────────────────
+
+  const togglePermissionRole = async (perm: ChatPermission, role: "admin" | "agent") => {
+    setSavingPermKey(perm.permission_key)
+    const current = perm.allowed_roles || []
+    const updated = current.includes(role)
+      ? current.filter((r) => r !== role)
+      : [...current, role]
+
+    try {
+      await supabase
+        .from("chat_permissions")
+        .update({ allowed_roles: updated, updated_at: new Date().toISOString() })
+        .eq("id", perm.id)
+
+      setPermissions((prev) =>
+        prev.map((p) => (p.id === perm.id ? { ...p, allowed_roles: updated } : p))
+      )
+    } catch (err) {
+      console.error("Failed to update role permission:", err)
+    } finally {
+      setSavingPermKey(null)
+    }
+  }
+
+  const togglePermissionTeam = async (perm: ChatPermission, team: string) => {
+    setSavingPermKey(perm.permission_key)
+    const current = perm.allowed_teams || []
+    const updated = current.includes(team)
+      ? current.filter((t) => t !== team)
+      : [...current, team]
+
+    try {
+      await supabase
+        .from("chat_permissions")
+        .update({ allowed_teams: updated, updated_at: new Date().toISOString() })
+        .eq("id", perm.id)
+
+      setPermissions((prev) =>
+        prev.map((p) => (p.id === perm.id ? { ...p, allowed_teams: updated } : p))
+      )
+    } catch (err) {
+      console.error("Failed to update team permission:", err)
+    } finally {
+      setSavingPermKey(null)
     }
   }
 
@@ -283,20 +372,25 @@ export default function AgentManagement() {
     return "bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100"
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
-
   return (
-    <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-4 sm:space-y-6">
+    <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-8">
       {/* ── Header ───────────────────────────────────────────────────────── */}
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-100">Agent Management</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-100">
+              Agent & Permissions Management
+            </h1>
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
+              Admin Control
+            </Badge>
+          </div>
           <p className="text-slate-500 text-xs sm:text-sm mt-1">
-            Manage names, offices, teams, system name variants, and report visibility.
+            Manage agent statuses, team assignments, system name variants, and chat permissions.
           </p>
         </div>
         <Button
-          className="bg-blue-600 hover:bg-blue-500 text-white shrink-0"
+          className="bg-blue-600 hover:bg-blue-500 text-white shrink-0 shadow-xs"
           onClick={() => setShowNewAgent(true)}
         >
           <Plus className="w-4 h-4 mr-2" /> New Agent
@@ -306,14 +400,14 @@ export default function AgentManagement() {
       {/* ── New Agent Form (inline card) ─────────────────────────────────── */}
       {showNewAgent && (
         <Card className="border-blue-200 shadow-md">
-          <CardHeader className="pb-4">
+          <CardHeader className="pb-4 border-b border-slate-100 dark:border-slate-800">
             <CardTitle className="flex items-center gap-2 text-blue-700">
               <UserPlus className="w-5 h-5" />
               Create New Agent
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
               {/* Name */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wider">
@@ -321,7 +415,7 @@ export default function AgentManagement() {
                 </label>
                 <input
                   type="text"
-                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                   placeholder="Agent name"
                   value={newAgent.name}
                   onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })}
@@ -333,7 +427,7 @@ export default function AgentManagement() {
                   Office
                 </label>
                 <select
-                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                   value={newAgent.office}
                   onChange={(e) => setNewAgent({ ...newAgent, office: e.target.value })}
                 >
@@ -349,7 +443,7 @@ export default function AgentManagement() {
                   Team
                 </label>
                 <select
-                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                   value={newAgent.team}
                   onChange={(e) => setNewAgent({ ...newAgent, team: e.target.value })}
                 >
@@ -359,13 +453,28 @@ export default function AgentManagement() {
                   ))}
                 </select>
               </div>
+              {/* Status */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wider">
+                  Status
+                </label>
+                <select
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  value={newAgent.status}
+                  onChange={(e) => setNewAgent({ ...newAgent, status: e.target.value as AgentStatus })}
+                >
+                  <option value="active">Active</option>
+                  <option value="on_leave">On Leave</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </div>
               {/* Meeting Time */}
               <div>
                 <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 uppercase tracking-wider">
                   Meeting Time
                 </label>
                 <select
-                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                   value={newAgent.meeting_time}
                   onChange={(e) => setNewAgent({ ...newAgent, meeting_time: e.target.value })}
                 >
@@ -377,7 +486,7 @@ export default function AgentManagement() {
               </div>
             </div>
 
-            {/* Optional variant fields in new agent form */}
+            {/* Optional variant fields */}
             <details className="mb-4 group">
               <summary className="text-xs font-semibold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-700 transition-colors select-none">
                 System Name Variants (optional)
@@ -388,7 +497,7 @@ export default function AgentManagement() {
                     <label className="block text-xs text-slate-500 mb-1">{vf.label}</label>
                     <input
                       type="text"
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-900 shadow-sm focus:ring-2 focus:ring-blue-400 outline-none transition"
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-900 shadow-xs focus:ring-2 focus:ring-blue-400 outline-none transition"
                       placeholder={vf.label}
                       value={newAgent.system_variants[vf.key] || ""}
                       onChange={(e) =>
@@ -430,22 +539,35 @@ export default function AgentManagement() {
         </Card>
       )}
 
-      {/* ── Search & Filters ─────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        {/* Search */}
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search agents..."
-            className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+      {/* ── Search & Filter Controls ─────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+        {/* Search & Team Filter */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search agents..."
+              className="w-full bg-white border border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          <select
+            value={teamFilter}
+            onChange={(e) => setTeamFilter(e.target.value)}
+            className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-xs outline-none cursor-pointer"
+          >
+            <option value="all">All Teams</option>
+            {TEAMS.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
         </div>
 
         {/* Status Filter Tabs */}
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1 w-full md:w-auto overflow-x-auto">
           {([
             { key: "all",      label: "All" },
             { key: "active",   label: "Active" },
@@ -455,33 +577,33 @@ export default function AgentManagement() {
             <button
               key={tab.key}
               onClick={() => setStatusFilter(tab.key)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
                 statusFilter === tab.key
-                  ? "bg-white text-slate-900 dark:bg-slate-700 dark:text-slate-100 shadow-sm"
+                  ? "bg-white text-slate-900 dark:bg-slate-700 dark:text-slate-100 shadow-xs"
                   : "text-slate-500 dark:text-slate-400 hover:text-slate-700"
               }`}
             >
               {tab.label}
-              <span className="ml-1.5 text-[10px] text-slate-400">{counts[tab.key]}</span>
+              <span className="ml-1.5 text-[10px] text-slate-400 font-mono">({counts[tab.key]})</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── Agent Table ──────────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-2">
+      {/* ── Agent Table Card ─────────────────────────────────────────────── */}
+      <Card className="shadow-xs">
+        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-slate-400" />
-              Agency Roster
+            <CardTitle className="flex items-center gap-2 text-base font-bold text-slate-800 dark:text-slate-100">
+              <Users className="w-5 h-5 text-blue-600" />
+              Agency Agent Roster
             </CardTitle>
             <span className="text-xs text-slate-400">
-              {filteredAgents.length} agent{filteredAgents.length !== 1 && "s"}
+              Showing {filteredAgents.length} of {agents.length} agent{agents.length !== 1 && "s"}
             </span>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {loading ? (
             <div className="flex justify-center p-12">
               <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 dark:border-blue-400" />
@@ -489,48 +611,49 @@ export default function AgentManagement() {
           ) : filteredAgents.length === 0 ? (
             <div className="text-center py-12 text-slate-400">
               <Users className="w-10 h-10 mx-auto mb-3 opacity-40" />
-              <p className="text-sm">No agents found</p>
+              <p className="text-sm">No agents match current filters</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700">
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 w-8" />
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Name</th>
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Office</th>
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Team</th>
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Meeting</th>
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 text-center">Variants</th>
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 text-center">Visible</th>
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Status</th>
-                    <th className="py-2.5 px-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 text-right">Actions</th>
+                  <tr className="bg-slate-50/75 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 w-8" />
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Name</th>
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Office</th>
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Team</th>
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Meeting</th>
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 text-center">Variants</th>
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Status</th>
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                   {filteredAgents.map((agent) => {
                     const isEditing = editingId === agent.id
                     const isExpanded = expandedId === agent.id
-                    const vCount = variantCount(agent)
+                    const currentStatus = getAgentStatus(agent)
+                    const vCount = agent.system_variants
+                      ? Object.values(agent.system_variants).filter((v) => v && String(v).trim() !== "").length
+                      : 0
 
                     return (
                       <AgentRow
                         key={agent.id}
                         agent={agent}
+                        currentStatus={currentStatus}
                         isEditing={isEditing}
                         isExpanded={isExpanded}
                         vCount={vCount}
                         editForm={editForm}
                         variantDraft={variantDraft}
                         savingVariants={savingVariants}
-                        togglingVisibility={togglingVisibility}
                         rowClasses={getRowClasses(agent)}
                         onToggleExpand={() => toggleExpand(agent)}
                         onStartEdit={() => startEdit(agent)}
                         onCancelEdit={cancelEdit}
                         onSaveEdit={saveEdit}
-                        onToggleArchive={() => toggleArchive(agent.id, agent.active)}
-                        onToggleVisibility={() => toggleVisibility(agent)}
+                        onStatusChange={(status) => handleStatusChange(agent.id, status)}
                         onEditFormChange={setEditForm}
                         onVariantDraftChange={setVariantDraft}
                         onSaveVariants={() => saveVariants(agent.id)}
@@ -543,6 +666,241 @@ export default function AgentManagement() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Permissions Management Section ──────────────────────────────── */}
+      <Card className="shadow-xs border-indigo-100 dark:border-slate-800">
+        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-indigo-50/40 dark:bg-slate-800/40">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base font-bold text-indigo-950 dark:text-indigo-200">
+                <ShieldCheck className="w-5 h-5 text-indigo-600" />
+                Communication & Feature Permissions
+              </CardTitle>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Configure which roles and teams have access to sensitive actions in Communication Hub.
+              </p>
+            </div>
+            <Badge variant="outline" className="bg-white dark:bg-slate-900 text-indigo-700 border-indigo-200 text-xs w-fit">
+              Live Realtime Access
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loadingPermissions ? (
+            <div className="flex justify-center p-8">
+              <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/75 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                    <th className="py-3 px-4 text-[11px] uppercase tracking-wider font-bold text-slate-500">Permission Action</th>
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 text-center">Admin</th>
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 text-center">Agent</th>
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 text-center">Sales</th>
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 text-center">CSR</th>
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 text-center">EA</th>
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 text-center">Managers</th>
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 text-center">Support</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-sm">
+                  {permissions.map((perm) => {
+                    const isSaving = savingPermKey === perm.permission_key
+                    const hasAdmin = perm.allowed_roles?.includes("admin")
+                    const hasAgent = perm.allowed_roles?.includes("agent")
+
+                    return (
+                      <tr key={perm.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-slate-900 dark:text-slate-100">
+                            {perm.description || perm.permission_key}
+                          </div>
+                          <div className="font-mono text-[10px] text-slate-400">
+                            {perm.permission_key}
+                          </div>
+                        </td>
+
+                        {/* Admin Role Toggle */}
+                        <td className="py-3 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={hasAdmin}
+                            disabled={isSaving}
+                            onChange={() => togglePermissionRole(perm, "admin")}
+                            className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                          />
+                        </td>
+
+                        {/* Agent Role Toggle */}
+                        <td className="py-3 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={hasAgent}
+                            disabled={isSaving}
+                            onChange={() => togglePermissionRole(perm, "agent")}
+                            className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                          />
+                        </td>
+
+                        {/* Teams Toggles */}
+                        {ALL_PERMISSION_TEAMS.map((teamName) => {
+                          const hasTeam = perm.allowed_teams?.includes(teamName)
+                          return (
+                            <td key={teamName} className="py-3 px-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={hasTeam}
+                                disabled={isSaving}
+                                onChange={() => togglePermissionTeam(perm, teamName)}
+                                className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                              />
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── System Rules & Team Reference Matrix ─────────────────────────── */}
+      <Card className="shadow-xs border-slate-200 dark:border-slate-800 bg-slate-900 text-slate-100">
+        <CardHeader className="pb-3 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-amber-400" />
+            <CardTitle className="text-base font-bold text-white">
+              System Rules & Roles Reference Matrix
+            </CardTitle>
+          </div>
+          <p className="text-xs text-slate-400">
+            Authoritative reference guide for Team boundaries, Status lifecycles, and Data reporting rules.
+          </p>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6 space-y-6">
+          {/* Status Rules */}
+          <div>
+            <h3 className="text-sm font-bold text-amber-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" /> Agent Status Rules & Data Retention
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div className="bg-slate-800/80 p-3.5 rounded-xl border border-emerald-500/30">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                  <span className="font-bold text-emerald-300 text-sm">Active</span>
+                </div>
+                <p className="text-slate-300 mb-2 leading-relaxed">
+                  Currently active working employee.
+                </p>
+                <ul className="space-y-1 text-slate-400">
+                  <li>• Visible in all Daily Standup & MTD report tables.</li>
+                  <li>• Counts in Agency-wide totals (Calls, Quotes, Items, Premium).</li>
+                  <li>• Full Communication Hub presence & channel participation.</li>
+                </ul>
+              </div>
+
+              <div className="bg-slate-800/80 p-3.5 rounded-xl border border-amber-500/30">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                  <span className="font-bold text-amber-300 text-sm">On Leave</span>
+                </div>
+                <p className="text-slate-300 mb-2 leading-relaxed">
+                  Temporarily on leave (maternity, medical, sabbatical).
+                </p>
+                <ul className="space-y-1 text-slate-400">
+                  <li>• <strong>Hidden</strong> from individual Daily, MTD, and Quotes tables.</li>
+                  <li>• <strong>ALL historical data counts in Agency Totals</strong>.</li>
+                  <li>• Hidden from chat member pickers and mention dropdowns.</li>
+                </ul>
+              </div>
+
+              <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-600/50">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
+                  <span className="font-bold text-slate-300 text-sm">Archived</span>
+                </div>
+                <p className="text-slate-300 mb-2 leading-relaxed">
+                  Former employee who has left the agency.
+                </p>
+                <ul className="space-y-1 text-slate-400">
+                  <li>• <strong>Hidden across the entire site</strong> (tables, portal, pickers).</li>
+                  <li>• <strong>ALL historical metrics stay counted in Agency Totals</strong>.</li>
+                  <li>• Preserves past scorecard accuracy and YTD agency numbers.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Team Scope Matrix */}
+          <div className="border-t border-slate-800 pt-5">
+            <h3 className="text-sm font-bold text-blue-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <Shield className="w-4 h-4" /> Team Scopes & Department Boundaries
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400">
+                    <th className="py-2 pr-3 font-semibold">Team</th>
+                    <th className="py-2 px-3 font-semibold">Report Tables</th>
+                    <th className="py-2 px-3 font-semibold">Agency Totals</th>
+                    <th className="py-2 px-3 font-semibold">Rebel Rewards</th>
+                    <th className="py-2 px-3 font-semibold">Chat Channel Access</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                  <tr>
+                    <td className="py-2.5 pr-3 font-bold text-white">Sales</td>
+                    <td className="py-2.5 px-3 text-emerald-400">Visible</td>
+                    <td className="py-2.5 px-3 text-emerald-400">Included</td>
+                    <td className="py-2.5 px-3 text-emerald-400">Participating</td>
+                    <td className="py-2.5 px-3 text-slate-400">#Sales, #All, Office Channel</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 pr-3 font-bold text-white">CSR</td>
+                    <td className="py-2.5 px-3 text-emerald-400">Visible</td>
+                    <td className="py-2.5 px-3 text-emerald-400">Included</td>
+                    <td className="py-2.5 px-3 text-emerald-400">Participating</td>
+                    <td className="py-2.5 px-3 text-slate-400">#CSR, #All, Office Channel</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 pr-3 font-bold text-white">EA</td>
+                    <td className="py-2.5 px-3 text-emerald-400">Visible</td>
+                    <td className="py-2.5 px-3 text-emerald-400">Included</td>
+                    <td className="py-2.5 px-3 text-emerald-400">Participating</td>
+                    <td className="py-2.5 px-3 text-slate-400">#EA, #All, Office Channel</td>
+                  </tr>
+                  <tr className="bg-blue-950/30">
+                    <td className="py-2.5 pr-3 font-bold text-blue-300">Managers</td>
+                    <td className="py-2.5 px-3 text-amber-400">Hidden from table</td>
+                    <td className="py-2.5 px-3 text-emerald-400">Included</td>
+                    <td className="py-2.5 px-3 text-emerald-400"><strong>Participating (Ranked)</strong></td>
+                    <td className="py-2.5 px-3 text-blue-300"><strong>All Channels (#Sales, #CSR, #EA, #Managers, all Offices)</strong></td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 pr-3 font-bold text-white">Support</td>
+                    <td className="py-2.5 px-3 text-slate-500">Hidden</td>
+                    <td className="py-2.5 px-3 text-slate-500">No Production</td>
+                    <td className="py-2.5 px-3 text-slate-500">Excluded</td>
+                    <td className="py-2.5 px-3 text-slate-400">Full Access to All Channels</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 pr-3 font-bold text-white">Admin</td>
+                    <td className="py-2.5 px-3 text-slate-500">Hidden</td>
+                    <td className="py-2.5 px-3 text-slate-500">No Production</td>
+                    <td className="py-2.5 px-3 text-slate-500">Excluded</td>
+                    <td className="py-2.5 px-3 text-indigo-300">Full Admin & Moderation Access</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -551,33 +909,31 @@ export default function AgentManagement() {
 
 interface AgentRowProps {
   agent: Agent
+  currentStatus: AgentStatus
   isEditing: boolean
   isExpanded: boolean
   vCount: number
   editForm: Partial<Agent>
   variantDraft: SystemVariants
   savingVariants: boolean
-  togglingVisibility: string | null
   rowClasses: string
   onToggleExpand: () => void
   onStartEdit: () => void
   onCancelEdit: () => void
   onSaveEdit: () => void
-  onToggleArchive: () => void
-  onToggleVisibility: () => void
+  onStatusChange: (status: AgentStatus) => void
   onEditFormChange: (form: Partial<Agent>) => void
   onVariantDraftChange: (draft: SystemVariants) => void
   onSaveVariants: () => void
 }
 
 function AgentRow({
-  agent, isEditing, isExpanded, vCount, editForm,
-  variantDraft, savingVariants, togglingVisibility, rowClasses,
+  agent, currentStatus, isEditing, isExpanded, vCount, editForm,
+  variantDraft, savingVariants, rowClasses,
   onToggleExpand, onStartEdit, onCancelEdit, onSaveEdit,
-  onToggleArchive, onToggleVisibility,
-  onEditFormChange, onVariantDraftChange, onSaveVariants,
+  onStatusChange, onEditFormChange, onVariantDraftChange, onSaveVariants,
 }: AgentRowProps) {
-  const inputClasses = "w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+  const inputClasses = "w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm text-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 shadow-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
   const selectClasses = inputClasses
 
   return (
@@ -586,7 +942,6 @@ function AgentRow({
       <tr
         className={`${rowClasses} hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer group`}
         onClick={(e) => {
-          // Don't toggle expand when clicking buttons or inputs
           const target = e.target as HTMLElement
           if (target.closest("button") || target.closest("input") || target.closest("select")) return
           onToggleExpand()
@@ -614,7 +969,7 @@ function AgentRow({
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className={`font-semibold ${agent.active ? "" : "line-through decoration-slate-300"}`}>
+            <span className={`font-semibold ${agent.active ? "" : "line-through decoration-slate-300 text-slate-400"}`}>
               {agent.name}
             </span>
           )}
@@ -656,7 +1011,13 @@ function AgentRow({
           ) : agent.team ? (
             <Badge
               variant={agent.active ? "outline" : "default"}
-              className={!agent.active ? "bg-slate-100 text-slate-400 border-none dark:bg-slate-700 dark:text-slate-500" : ""}
+              className={
+                agent.team === "Managers"
+                  ? "bg-blue-50 text-blue-700 border-blue-200 font-semibold"
+                  : !agent.active
+                  ? "bg-slate-100 text-slate-400 border-none"
+                  : ""
+              }
             >
               {agent.team}
             </Badge>
@@ -700,44 +1061,24 @@ function AgentRow({
           </Badge>
         </td>
 
-        {/* Visible toggle */}
-        <td className="py-2.5 px-3 text-center">
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggleVisibility()
-            }}
-            disabled={togglingVisibility === agent.id}
-            className={`inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all ${
-              agent.report_visible
-                ? "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                : "text-slate-300 hover:bg-slate-100 hover:text-slate-500 dark:hover:bg-slate-800"
-            }`}
-            title={agent.report_visible ? "Visible in reports" : "Hidden from reports"}
-          >
-            {togglingVisibility === agent.id ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : agent.report_visible ? (
-              <Eye className="w-4 h-4" />
-            ) : (
-              <EyeOff className="w-4 h-4" />
-            )}
-          </button>
-        </td>
-
-        {/* Status badge */}
+        {/* 3-State Status Selector */}
         <td className="py-2.5 px-3">
-          {agent.active ? (
-            !agent.report_visible ? (
-              <Badge variant="warning">On Leave</Badge>
-            ) : (
-              <Badge variant="success">Active</Badge>
-            )
-          ) : (
-            <Badge variant="default" className="bg-slate-100 text-slate-500 border border-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600">
-              Archived
-            </Badge>
-          )}
+          <select
+            value={currentStatus}
+            onChange={(e) => onStatusChange(e.target.value as AgentStatus)}
+            onClick={(e) => e.stopPropagation()}
+            className={`text-xs font-semibold rounded-md px-2 py-1 border transition-all cursor-pointer outline-none ${
+              currentStatus === "active"
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                : currentStatus === "on_leave"
+                ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
+            }`}
+          >
+            <option value="active">Active</option>
+            <option value="on_leave">On Leave</option>
+            <option value="archived">Archived</option>
+          </select>
         </td>
 
         {/* Actions */}
@@ -772,19 +1113,6 @@ function AgentRow({
               >
                 <Edit2 className="w-3.5 h-3.5" />
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => { e.stopPropagation(); onToggleArchive() }}
-                className={
-                  agent.active
-                    ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-                    : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                }
-                title={agent.active ? "Archive agent" : "Restore agent"}
-              >
-                {agent.active ? <UserMinus className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-              </Button>
             </div>
           )}
         </td>
@@ -793,7 +1121,7 @@ function AgentRow({
       {/* ── Expanded Variant Editor ────────────────────────────────────────── */}
       {isExpanded && (
         <tr>
-          <td colSpan={9} className="bg-slate-50/80 border-b border-slate-200 dark:bg-slate-800/60 dark:border-slate-700">
+          <td colSpan={8} className="bg-slate-50/80 border-b border-slate-200 dark:bg-slate-800/60 dark:border-slate-700">
             <div className="px-6 py-5">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -801,7 +1129,7 @@ function AgentRow({
                     System Name Variants
                   </h4>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Names used across different systems for {agent.name}
+                    Names used across different external sync sources for {agent.name}
                   </p>
                 </div>
                 <Button
@@ -827,7 +1155,7 @@ function AgentRow({
                     </label>
                     <input
                       type="text"
-                      className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 shadow-sm focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none transition placeholder:text-slate-300 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100"
+                      className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 shadow-xs focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none transition placeholder:text-slate-300 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100"
                       placeholder={`Enter ${vf.label.toLowerCase()} name`}
                       value={variantDraft[vf.key] || ""}
                       onChange={(e) =>

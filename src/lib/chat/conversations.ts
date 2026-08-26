@@ -447,11 +447,13 @@ export async function syncAgentDefaultChannels(
   // Determine which channels this agent should belong to
   const targetChannelNames = new Set<string>(['All'])
 
-  // Support team members get full access to all team and office channels
-  if (team === 'Support') {
+  // Support, Managers, and Admins get full access to all team and office channels
+  if (team === 'Support' || team === 'Managers' || role === 'admin') {
     Object.values(TEAM_CHANNEL_MAP).forEach((ch) => targetChannelNames.add(ch))
     Object.values(OFFICE_CHANNEL_MAP).forEach((ch) => targetChannelNames.add(ch))
-    targetChannelNames.add('Admin')
+    if (role === 'admin' || team === 'Managers') {
+      targetChannelNames.add('Admin')
+    }
   } else {
     // Normal agent channel assignment
     if (team && TEAM_CHANNEL_MAP[team]) {
