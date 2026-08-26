@@ -497,9 +497,18 @@ export async function syncAgentDefaultChannels(
       continue
     }
 
-    // 3. Team channels (Sales, CSR, EA, Managers)
-    const isTeamChannel = Object.values(TEAM_CHANNEL_MAP).some(
-      (t) => t.toLowerCase() === chName.toLowerCase()
+    // 3. "Managers" channel — STRICT: ONLY team === 'Managers' (even if role === 'admin' or team === 'Support')
+    if (chName.toLowerCase() === 'managers') {
+      allManagedChannelIds.add(ch.id)
+      if (team === 'Managers') {
+        targetChannelIds.add(ch.id)
+      }
+      continue
+    }
+
+    // 4. Team channels (Sales, CSR, EA)
+    const isTeamChannel = ['sales', 'csr', 'ea'].some(
+      (t) => t === chName.toLowerCase()
     )
     if (isTeamChannel) {
       allManagedChannelIds.add(ch.id)

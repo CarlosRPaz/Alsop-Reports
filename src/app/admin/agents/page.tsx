@@ -891,7 +891,7 @@ export default function AgentManagement() {
                     <td className="py-2.5 px-3 text-slate-500">Hidden</td>
                     <td className="py-2.5 px-3 text-rose-400"><strong>Excluded</strong></td>
                     <td className="py-2.5 px-3 text-slate-500">Excluded</td>
-                    <td className="py-2.5 px-3 text-slate-400">Full Access to All Channels</td>
+                    <td className="py-2.5 px-3 text-slate-400">All Channels except #Managers (Managers Only)</td>
                   </tr>
                 </tbody>
               </table>
@@ -903,7 +903,7 @@ export default function AgentManagement() {
                 <Info className="w-3.5 h-3.5" /> Note on Admin Role vs. Teams:
               </div>
               <p className="text-slate-400 leading-relaxed">
-                The <strong>Admin role</strong> grants full permissions to manage agents, edit settings, and moderate chats. <strong>Role does not affect report visibility</strong> — visibility is determined strictly by the agent&apos;s assigned Team and Status.
+                The <strong>Admin role</strong> grants permissions to manage agents, edit settings, and moderate chats. <strong>Role does not affect report visibility</strong> — visibility is determined strictly by Team and Status. Furthermore, the <strong>#Managers channel is strictly exclusive to the Managers team</strong> (users outside the Managers team, regardless of Admin role or Support team, do not have access).
               </p>
             </div>
           </div>
