@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser"
-import { Loader2, AlertCircle, Eye, EyeOff, CheckCircle } from "lucide-react"
+import { Loader2, AlertCircle, Eye, EyeOff, CheckCircle, BarChart3, ShieldCheck } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 export default function LoginPage() {
@@ -133,16 +133,15 @@ export default function LoginPage() {
       <div className="relative w-full max-w-md px-4">
         {/* Logo / Brand */}
         <div className="text-center mb-8 flex flex-col items-center">
-          <div className="mb-4">
-            <svg viewBox="0 0 100 100" className="w-16 h-16" style={{ fill: '#0033a0' }} aria-hidden="true">
-              <path fillRule="evenodd" clipRule="evenodd" d="M 17.5 90 L 57.5 10 L 82.5 10 L 82.5 90 L 64.5 90 L 64.5 65 L 48 65 L 35.5 90 Z M 53 55 L 64.5 32 L 64.5 55 Z" />
-            </svg>
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20 mb-4">
+            <BarChart3 className="w-7 h-7 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight leading-tight">
             Alsop and Associates<br />Insurance Agency
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 font-medium">
-            Alsop Reports Hub
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 font-medium flex items-center justify-center gap-1.5">
+            <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            Internal Performance Hub
           </p>
         </div>
 
@@ -155,21 +154,21 @@ export default function LoginPage() {
                 Sign in
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-                Please speak to an admin for your credentials and for access to the site.
+                Enter your agency account credentials to access your dashboard.
               </p>
 
               <form onSubmit={handleLogin} className="space-y-4">
                 {/* Email */}
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-slate-700 dark:text-slate-350 mb-1.5">
-                    Email
+                    Work Email
                   </label>
                   <input
                     id="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@allstate.com"
+                    placeholder="agent@company.com"
                     required
                     autoFocus
                     autoComplete="email"
@@ -264,7 +263,7 @@ export default function LoginPage() {
                     type="email"
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
-                    placeholder="you@allstate.com"
+                    placeholder="agent@company.com"
                     required
                     autoFocus
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
@@ -399,7 +398,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-xs text-slate-400 mt-6">
-          This is an internal portal. Contact your admin for access.
+          This is an internal agency portal. Contact your admin for access.
         </p>
       </div>
     </div>
