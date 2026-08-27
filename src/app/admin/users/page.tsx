@@ -30,20 +30,18 @@ export default function UserManagementPage() {
   const [linkedAgents, setLinkedAgents] = useState<UnlinkedAgent[]>([])
   const [loading, setLoading] = useState(true)
 
-  const DEFAULT_PASSWORD = "AlsopAdmin2026!"
-
   // Invite form
   const [mode, setMode] = useState<"existing" | "new">("existing")
   const [selectedAgentId, setSelectedAgentId] = useState("")
   const [newName, setNewName] = useState("")
   const [email, setEmail] = useState("")
-  const [tempPassword, setTempPassword] = useState(DEFAULT_PASSWORD)
-  const [showPassword, setShowPassword] = useState(true)
+  const [tempPassword, setTempPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [inviting, setInviting] = useState(false)
 
   // Reset password
   const [resetAgentId, setResetAgentId] = useState<string | null>(null)
-  const [resetPassword, setResetPassword] = useState(DEFAULT_PASSWORD)
+  const [resetPassword, setResetPassword] = useState("")
   const [resetting, setResetting] = useState(false)
 
   // Feedback
@@ -55,10 +53,6 @@ export default function UserManagementPage() {
   // Page access permissions
   const [pagePerms, setPagePerms] = useState<PagePermission[]>([])
   const [permSaving, setPermSaving] = useState<string | null>(null)
-
-  const resetToDefaultPassword = () => {
-    setTempPassword(DEFAULT_PASSWORD)
-  }
 
   const fetchData = async () => {
     setLoading(true)
@@ -92,7 +86,7 @@ export default function UserManagementPage() {
       setSelectedAgentId("")
       setNewName("")
       setEmail("")
-      setTempPassword(DEFAULT_PASSWORD)
+      setTempPassword("")
       await fetchData()
     }
     setInviting(false)
@@ -105,7 +99,7 @@ export default function UserManagementPage() {
     setFeedback({ type: result.success ? "success" : "error", message: result.message })
     if (result.success) {
       setResetAgentId(null)
-      setResetPassword(DEFAULT_PASSWORD)
+      setResetPassword("")
     }
     setResetting(false)
   }
@@ -255,7 +249,7 @@ export default function UserManagementPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="agent@company.com"
+                    placeholder="agent@allstate.com"
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                   />
                 </div>
@@ -266,15 +260,6 @@ export default function UserManagementPage() {
                   <label className="text-xs sm:text-sm font-medium text-slate-700">
                     Temporary Password
                   </label>
-                  {tempPassword !== DEFAULT_PASSWORD && (
-                    <button
-                      type="button"
-                      onClick={resetToDefaultPassword}
-                      className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                    >
-                      Reset to Default
-                    </button>
-                  )}
                 </div>
                 <div className="relative">
                   <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -387,7 +372,7 @@ export default function UserManagementPage() {
                           <Check className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => { setResetAgentId(null); setResetPassword(DEFAULT_PASSWORD) }}
+                          onClick={() => { setResetAgentId(null); setResetPassword("") }}
                           className="p-1 rounded text-slate-400 hover:bg-slate-100"
                           title="Cancel"
                         >
