@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/Badge"
 import { useChat } from "@/lib/chat/chatContext"
 import { Button } from "@/components/ui/Button"
 import { REBEL_REWARDS_2026_SEED } from "@/lib/rebelRewardsSeed"
-import { calculateAgentRebelStatus, matchesContestAgent } from "@/lib/rebelRewards"
+import { calculateAgentRebelStatus, matchesContestAgent, REBEL_TIERS } from "@/lib/rebelRewards"
 import {
   ArrowLeft, CalendarDays, Phone, MessageSquare,
   FileBarChart, ShieldCheck, Shield, DollarSign, Trophy, Users, AlertTriangle, AlertCircle, Package, Loader2,
@@ -578,65 +578,81 @@ export default function AgentDashboardPage() {
             </div>
 
             {/* Status & Goals */}
-            <div className="text-center sm:text-left space-y-2 flex-1 min-w-0">
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-900/60 text-blue-400 border border-blue-500/30">
-                  <Sparkles className="w-3 h-3 text-blue-400" /> Jedi Telemetry
-                </div>
-                <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-slate-300 bg-white/5 border border-white/10">
-                  Current: <strong className="text-white capitalize">{rebelStatus.highestTier === "none" ? "Padawan" : rebelStatus.highestTier}</strong>
-                </div>
-              </div>
+            {(() => {
+              const currentTierName = rebelStatus.highestTier === "none"
+                ? "Padawan"
+                : (REBEL_TIERS.find(t => t.id === rebelStatus.highestTier)?.name || rebelStatus.highestTier)
 
-              <div>
-                <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-white uppercase tracking-wider drop-shadow-md">
-                  {rebelStatus.nextTier ? `Pursuing ${rebelStatus.nextTier.name}` : "Grand Jedi Master"}
-                </h3>
-                {rebelStatus.nextTier && (
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Goal Prize: <span className="font-semibold text-emerald-400">{rebelStatus.nextTier.prizeText} Bounty</span> • <span className="font-mono text-slate-400">{rebelStatus.nextTier.ruleText}</span>
-                  </p>
-                )}
-              </div>
-
-              {/* Checklist Badges for Next Goal */}
-              {rebelStatus.nextTier && (() => {
-                const ntId = rebelStatus.nextTier.id
-                const tierData = (rebelStatus as any)[ntId]
-                const autoHit = tierData?.autoHit || false
-                const afsHit = tierData?.afsHit || false
-                const ivanHit = tierData?.ivanHit || false
-                const hitsCount = (autoHit ? 1 : 0) + (afsHit ? 1 : 0) + (ivanHit ? 1 : 0)
-                const required = rebelStatus.nextTier.requiredHits
-                const isAllMet = hitsCount >= required
-
-                return (
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 pt-0.5">
-                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
-                      isAllMet ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/10 text-slate-300 border border-white/10'
-                    }`}>
-                      {hitsCount}/{required} Met
-                    </span>
-                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${autoHit ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/5 text-slate-500 border border-white/5'}`}>
-                      Auto {autoHit ? '✓' : '✗'}
-                    </span>
-                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${afsHit ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/5 text-slate-500 border border-white/5'}`}>
-                      AFS {afsHit ? '✓' : '✗'}
-                    </span>
-                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${ivanHit ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/5 text-slate-500 border border-white/5'}`}>
-                      Ivan {ivanHit ? '✓' : '✗'}
-                    </span>
+              return (
+                <div className="text-center sm:text-left space-y-2 flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-900/60 text-blue-400 border border-blue-500/30">
+                      <Sparkles className="w-3 h-3 text-blue-400" /> Jedi Telemetry
+                    </div>
+                    <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-slate-300 bg-white/5 border border-white/10">
+                      Status: <strong className="text-white capitalize">Active Rank</strong>
+                    </div>
                   </div>
-                )
-              })()}
 
-              {rebelStatus.totalPayout > 0 && (
-                <div className="inline-flex items-center gap-2 bg-black/50 border border-emerald-500/30 rounded-xl px-3 py-1 text-emerald-400 shadow-inner mt-1">
-                  <div className="text-[9px] font-bold uppercase tracking-widest opacity-80 leading-none">Bounty:</div>
-                  <div className="text-base font-black font-mono leading-none">${rebelStatus.totalPayout.toLocaleString()}</div>
+                  <div>
+                    <h3 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-wider drop-shadow-md">
+                      {currentTierName}
+                    </h3>
+                    {rebelStatus.nextTier ? (
+                      <p className="text-xs sm:text-sm text-slate-400 mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-x-2 gap-y-0.5">
+                        <span>Pursuing <strong className="text-blue-400 font-bold">{rebelStatus.nextTier.name}</strong></span>
+                        <span className="text-slate-600">•</span>
+                        <span className="font-semibold text-emerald-400">{rebelStatus.nextTier.prizeText} Bounty</span>
+                        <span className="text-slate-600">•</span>
+                        <span className="font-mono text-slate-400">{rebelStatus.nextTier.ruleText}</span>
+                      </p>
+                    ) : (
+                      <p className="text-xs sm:text-sm text-amber-400 font-semibold mt-1">
+                        Grand Jedi Master • All Milestones Achieved
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Checklist Badges for Next Goal */}
+                  {rebelStatus.nextTier && (() => {
+                    const ntId = rebelStatus.nextTier.id
+                    const tierData = (rebelStatus as any)[ntId]
+                    const autoHit = tierData?.autoHit || false
+                    const afsHit = tierData?.afsHit || false
+                    const ivanHit = tierData?.ivanHit || false
+                    const hitsCount = (autoHit ? 1 : 0) + (afsHit ? 1 : 0) + (ivanHit ? 1 : 0)
+                    const required = rebelStatus.nextTier.requiredHits
+                    const isAllMet = hitsCount >= required
+
+                    return (
+                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 pt-0.5">
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                          isAllMet ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/10 text-slate-300 border border-white/10'
+                        }`}>
+                          {hitsCount}/{required} Met
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${autoHit ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/5 text-slate-500 border border-white/5'}`}>
+                          Auto {autoHit ? '✓' : '✗'}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${afsHit ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/5 text-slate-500 border border-white/5'}`}>
+                          AFS {afsHit ? '✓' : '✗'}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${ivanHit ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/5 text-slate-500 border border-white/5'}`}>
+                          Ivan {ivanHit ? '✓' : '✗'}
+                        </span>
+                      </div>
+                    )
+                  })()}
+
+                  {rebelStatus.totalPayout > 0 && (
+                    <div className="inline-flex items-center gap-2 bg-black/50 border border-emerald-500/30 rounded-xl px-3 py-1 text-emerald-400 shadow-inner mt-1">
+                      <div className="text-[9px] font-bold uppercase tracking-widest opacity-80 leading-none">Bounty:</div>
+                      <div className="text-base font-black font-mono leading-none">${rebelStatus.totalPayout.toLocaleString()}</div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              )
+            })()}
           </div>
 
           {/* Right: Data Targets with Multi-Tier Milestone Pins */}
