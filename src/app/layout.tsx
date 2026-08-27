@@ -6,8 +6,8 @@ import { LayoutShell } from "@/components/layout/LayoutShell";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Alsop Reports",
-  description: "Live dashboard for agent performance and communication",
+  title: "DSR Command Center",
+  description: "Live dashboard for agent performance",
 };
 
 export default function RootLayout({
@@ -25,3 +25,5 @@ export default function RootLayout({
     </html>
   );
 }
+
+// Updated workspace identity trigger
