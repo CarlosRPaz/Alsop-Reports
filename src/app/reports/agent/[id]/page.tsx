@@ -548,13 +548,13 @@ export default function AgentDashboardPage() {
 
       {/* ── Rebel Rewards Jedi Milestone Tracker Card (High-End Dark Theme) ── */}
       {rebelStatus && (
-        <div className="relative overflow-hidden rounded-2xl p-6 md:p-8 shadow-2xl border flex flex-col lg:flex-row items-center gap-8 bg-[#030712] border-blue-500/30">
+        <div className="relative overflow-hidden rounded-2xl p-4 sm:p-6 md:p-8 shadow-2xl border flex flex-col xl:flex-row items-stretch xl:items-center gap-6 md:gap-8 bg-[#030712] border-blue-500/30">
           {/* Background effects */}
           <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] -translate-y-1/2 pointer-events-none" />
           <div className="absolute top-1/2 right-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-[100px] -translate-y-1/2 pointer-events-none" />
 
           {/* Left: Portrait & Status */}
-          <div className="flex flex-col sm:flex-row items-center gap-6 relative z-10 w-full lg:w-auto">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 relative z-10 w-full xl:w-auto xl:max-w-[420px] shrink-0">
             {/* Portrait Box — centered full-body character artwork */}
             <div className={`relative w-28 h-36 md:w-32 md:h-44 rounded-2xl flex items-end justify-center border bg-gradient-to-b overflow-hidden shrink-0 shadow-lg
               ${rebelStatus.highestTier === 'none' ? 'from-slate-800 to-slate-950 border-slate-700' :
@@ -578,7 +578,7 @@ export default function AgentDashboardPage() {
             </div>
 
             {/* Status & Goals */}
-            <div className="text-center sm:text-left space-y-2 flex-1">
+            <div className="text-center sm:text-left space-y-2 flex-1 min-w-0">
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-900/60 text-blue-400 border border-blue-500/30">
                   <Sparkles className="w-3 h-3 text-blue-400" /> Jedi Telemetry
@@ -589,7 +589,7 @@ export default function AgentDashboardPage() {
               </div>
 
               <div>
-                <h3 className="text-2xl md:text-3xl font-black text-white uppercase tracking-wider drop-shadow-md">
+                <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-white uppercase tracking-wider drop-shadow-md">
                   {rebelStatus.nextTier ? `Pursuing ${rebelStatus.nextTier.name}` : "Grand Jedi Master"}
                 </h3>
                 {rebelStatus.nextTier && (
@@ -641,7 +641,7 @@ export default function AgentDashboardPage() {
 
           {/* Right: Data Targets with Multi-Tier Milestone Pins */}
           {rebelStatus.nextTier ? (
-            <div className="flex-1 w-full lg:w-auto bg-black/40 border border-white/5 rounded-2xl p-4 sm:p-5 relative z-10 grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            <div className="w-full xl:flex-1 bg-black/40 border border-white/5 rounded-2xl p-3.5 sm:p-5 relative z-10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-3.5">
               
               {/* Auto Metric */}
               {(() => {
@@ -655,18 +655,18 @@ export default function AgentDashboardPage() {
                 const milestones = [120, 240, 360, 500]
 
                 return (
-                  <div className={`p-3 rounded-xl border transition-all ${
+                  <div className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between min-w-0 ${
                     isZero 
                       ? 'opacity-40 hover:opacity-100 bg-white/[0.02] border-white/5' 
                       : isMet 
                         ? 'opacity-100 bg-emerald-950/20 border-emerald-500/30' 
                         : 'opacity-100 bg-white/[0.04] border-white/10'
                   }`}>
-                    <div className="flex justify-between items-end text-xs font-bold uppercase tracking-wider mb-2">
-                      <span className={`flex items-center gap-1.5 ${isZero ? 'text-slate-500' : isMet ? 'text-emerald-400' : 'text-blue-400'}`}>
+                    <div className="flex justify-between items-center text-xs font-bold uppercase tracking-wider mb-2 gap-1.5 flex-wrap">
+                      <span className={`flex items-center gap-1.5 shrink-0 ${isZero ? 'text-slate-500' : isMet ? 'text-emerald-400' : 'text-blue-400'}`}>
                         <Car className="w-3.5 h-3.5"/> Auto
                       </span>
-                      <span className="font-mono">
+                      <span className="font-mono shrink-0">
                         <strong className={isZero ? 'text-slate-500' : 'text-white'}>{currentVal}</strong>
                         <span className="text-slate-500 font-normal"> / {targetVal}</span>
                       </span>
@@ -707,7 +707,7 @@ export default function AgentDashboardPage() {
                       })}
                     </div>
 
-                    <div className="text-[10px] font-mono mt-1.5 flex justify-between items-center">
+                    <div className="text-[10px] font-mono mt-1.5 flex justify-between items-center gap-1 flex-wrap">
                       {isMet ? (
                         <span className="text-emerald-400 font-bold">✓ Target Met</span>
                       ) : isZero ? (
@@ -736,18 +736,18 @@ export default function AgentDashboardPage() {
                 const milestones = [1, 3, 5, 10]
 
                 return (
-                  <div className={`p-3 rounded-xl border transition-all ${
+                  <div className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between min-w-0 ${
                     isZero 
                       ? 'opacity-40 hover:opacity-100 bg-white/[0.02] border-white/5' 
                       : isMet 
                         ? 'opacity-100 bg-emerald-950/20 border-emerald-500/30' 
                         : 'opacity-100 bg-white/[0.04] border-white/10'
                   }`}>
-                    <div className="flex justify-between items-end text-xs font-bold uppercase tracking-wider mb-2">
-                      <span className={`flex items-center gap-1.5 ${isZero ? 'text-slate-500' : isMet ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <div className="flex justify-between items-center text-xs font-bold uppercase tracking-wider mb-2 gap-1.5 flex-wrap">
+                      <span className={`flex items-center gap-1.5 shrink-0 ${isZero ? 'text-slate-500' : isMet ? 'text-emerald-400' : 'text-rose-400'}`}>
                         <Heart className="w-3.5 h-3.5"/> AFS
                       </span>
-                      <span className="font-mono">
+                      <span className="font-mono shrink-0">
                         <strong className={isZero ? 'text-slate-500' : 'text-white'}>{currentVal}</strong>
                         <span className="text-slate-500 font-normal"> / {targetVal}</span>
                         {rebelStatus.afsPc > 0 && <span className="text-slate-400 text-[10px] ml-1">(${Math.round(rebelStatus.afsPc/1000)}k)</span>}
@@ -789,7 +789,7 @@ export default function AgentDashboardPage() {
                       })}
                     </div>
 
-                    <div className="text-[10px] font-mono mt-1.5 flex justify-between items-center">
+                    <div className="text-[10px] font-mono mt-1.5 flex justify-between items-center gap-1 flex-wrap">
                       {isMet ? (
                         <span className="text-emerald-400 font-bold">✓ Target Met</span>
                       ) : isZero ? (
@@ -814,18 +814,18 @@ export default function AgentDashboardPage() {
                 const milestones = [25, 45, 65, 75]
 
                 return (
-                  <div className={`p-3 rounded-xl border transition-all ${
+                  <div className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between min-w-0 ${
                     isZero 
                       ? 'opacity-40 hover:opacity-100 bg-white/[0.02] border-white/5' 
                       : isMet 
                         ? 'opacity-100 bg-emerald-950/20 border-emerald-500/30' 
                         : 'opacity-100 bg-white/[0.04] border-white/10'
                   }`}>
-                    <div className="flex justify-between items-end text-xs font-bold uppercase tracking-wider mb-2">
-                      <span className={`flex items-center gap-1.5 ${isZero ? 'text-slate-500' : isMet ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    <div className="flex justify-between items-center text-xs font-bold uppercase tracking-wider mb-2 gap-1.5 flex-wrap">
+                      <span className={`flex items-center gap-1.5 shrink-0 ${isZero ? 'text-slate-500' : isMet ? 'text-emerald-400' : 'text-amber-400'}`}>
                         <Home className="w-3.5 h-3.5"/> Ivan
                       </span>
-                      <span className="font-mono">
+                      <span className="font-mono shrink-0">
                         <strong className={isZero ? 'text-slate-500' : 'text-white'}>{currentVal}</strong>
                         <span className="text-slate-500 font-normal"> / {targetVal}</span>
                       </span>
@@ -866,7 +866,7 @@ export default function AgentDashboardPage() {
                       })}
                     </div>
 
-                    <div className="text-[10px] font-mono mt-1.5 flex justify-between items-center">
+                    <div className="text-[10px] font-mono mt-1.5 flex justify-between items-center gap-1 flex-wrap">
                       {isMet ? (
                         <span className="text-emerald-400 font-bold">✓ Target Met</span>
                       ) : isZero ? (
@@ -1165,8 +1165,8 @@ export default function AgentDashboardPage() {
                     : rawValue.toLocaleString()
 
                   return (
-                    <td className={`py-[3px] px-1.5 text-[13.5px] font-mono font-bold text-right ${extraBorder}`}>
-                      <div className="inline-flex items-center justify-end gap-1 w-full">
+                    <td className={`py-[3px] px-1.5 text-[13.5px] font-mono font-bold text-center ${extraBorder}`}>
+                      <div className="inline-flex items-center justify-center gap-1 w-full">
                         {meetsGoal ? (
                           <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-100 font-extrabold px-1.5 py-0.5 rounded border border-emerald-300 dark:border-emerald-700/60 shadow-xs">
                             {formattedText}
@@ -1217,8 +1217,8 @@ export default function AgentDashboardPage() {
                     {renderCell("calls", item.calls || 0, callsTrend, bdr("calls"))}
                     {renderCell("inbound", item.inbound || 0)}
                     {renderCell("outbound", item.outbound || 0)}
-                    <td className="py-[3px] px-1.5 text-[13.5px] font-mono font-bold text-right">
-                      <div className="inline-flex items-center justify-end gap-1 w-full">
+                    <td className="py-[3px] px-1.5 text-[13.5px] font-mono font-bold text-center">
+                      <div className="inline-flex items-center justify-center gap-1 w-full">
                         {talkMeetsGoal ? (
                           <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-950 dark:text-emerald-100 font-extrabold px-1.5 py-0.5 rounded border border-emerald-300 dark:border-emerald-700/60 shadow-xs">
                             {formatTime(rawSeconds)}

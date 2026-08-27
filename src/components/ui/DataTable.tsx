@@ -259,10 +259,10 @@ export function DataTable({
                             isSortable && "hover:text-blue-600 dark:hover:text-blue-300"
                           )}
                           style={{ 
-                            transform: "rotate(-55deg)", 
+                            transform: "rotate(-50deg)", 
                             transformOrigin: "bottom left",
-                            bottom: "4px",
-                            left: "20px",
+                            bottom: "6px",
+                            left: "50%",
                           }}
                         >
                           {col.label}
