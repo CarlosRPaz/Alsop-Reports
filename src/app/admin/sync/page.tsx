@@ -94,7 +94,7 @@ const DATA_SOURCES: DataSource[] = [
     key: "leads", label: "Lead Pipeline", system: "DeerDama", icon: Zap, color: "orange",
     uploadTypes: [],
     filePatterns: [],
-    howToGet: "Enter via the Enter Lead Data modal on the Daily Report page — Automated run only available on Charlie's local computer",
+    howToGet: "Enter via the Enter Lead Data modal on the Daily Report page — or run automated scrape from local server",
     isAutomatic: true,
   },
 ]
@@ -663,9 +663,8 @@ export default function DataSyncPage() {
               <div className="flex-grow space-y-2">
                 <p className="text-sm font-semibold text-orange-800">Lead Pipeline automation failed</p>
                 <p className="text-xs text-orange-700">
-                  This automation can <span className="font-bold">only</span> run on Charlie&apos;s local computer. 
-                  It requires a browser to scrape data from DeerDama (Ricochet). 
-                  If you&apos;re not on Charlie&apos;s machine, the automation will always fail.
+                  This automation runs on your local computer. It requires a browser (Playwright) to scrape data from DeerDama (Ricochet). 
+                  If the automation encounters an issue, ensure your Ricochet credentials are configured in <code>excel-report-automation/config/config.json</code>.
                 </p>
                 <p className="text-xs text-orange-700">
                   Instead, you can <span className="font-semibold">manually enter lead data</span> using the button below.
@@ -1032,10 +1031,9 @@ function SourceCard({
             )}
             <Button onClick={() => {
               if (window.confirm(
-                "⚠️ This automation can ONLY run on Charlie's local computer.\n\n" +
-                "It launches a browser to scrape data from DeerDama (Ricochet). " +
-                "Running this from any other machine will fail.\n\n" +
-                "Are you sure you're on Charlie's computer?"
+                "⚡ Run Lead Pipeline Auto-Scraper?\n\n" +
+                "This will launch a local browser automation to log in to DeerDama (Ricochet), download the latest LeadSwami snapshot, and sync to Supabase.\n\n" +
+                "Do you want to proceed?"
               )) {
                 onAutoScrape?.(source.key)
               }
@@ -1104,7 +1102,7 @@ function SourceCard({
       {source.isAutomatic && (
         <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-950/40 border-t border-amber-100 dark:border-amber-900/50 text-[10px] text-amber-700 dark:text-amber-300">
           <Monitor className="w-3 h-3 shrink-0" />
-          <span><span className="font-semibold">Localhost only</span> — Charlie&apos;s computer</span>
+          <span><span className="font-semibold">Localhost only</span> — Runs local browser scraper</span>
         </div>
       )}
     </div>
