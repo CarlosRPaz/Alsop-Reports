@@ -324,10 +324,10 @@ export default function MessageBubble({
       )}
 
       {/* Message Row */}
-      <div className={cn('flex gap-3 px-4', isGrouped ? 'pl-[60px]' : '')}>
+      <div className={cn('flex items-start gap-3 px-4', isGrouped ? 'pl-[60px]' : '')}>
         {/* Avatar with presence status dot overlay */}
         {!isGrouped && (
-          <UserHoverCard agent={message.sender || { name: senderName }} side="top">
+          <UserHoverCard agent={message.sender || { name: senderName }} side="top" className="shrink-0 self-start">
             <div className="relative shrink-0 mt-0.5 w-8 h-8 cursor-pointer group/avatar">
               <div
                 className={cn(

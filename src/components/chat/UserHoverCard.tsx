@@ -90,7 +90,7 @@ export default function UserHoverCard({
   return (
     <div
       ref={containerRef}
-      className={cn('relative inline-flex items-center', className)}
+      className={cn('relative inline-flex', className)}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
