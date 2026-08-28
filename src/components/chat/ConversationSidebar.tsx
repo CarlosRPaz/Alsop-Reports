@@ -283,7 +283,7 @@ export default function ConversationSidebar({
                   key={conv.id}
                   onClick={() => onSelect(conv.id)}
                   className={cn(
-                    'group/item w-full flex items-start gap-2.5 px-3 py-2 rounded-md text-sm transition-all duration-200',
+                    'group/item w-full flex items-start text-left gap-2.5 px-3 py-2 rounded-md text-sm transition-all duration-200',
                     isSelected
                       ? 'bg-blue-50 text-blue-700 font-semibold ring-1 ring-blue-600/10'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
@@ -312,8 +312,8 @@ export default function ConversationSidebar({
                   </div>
 
                   {/* Name + subtitle */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex-1 min-w-0 text-left">
+                    <div className="flex items-center gap-1.5 text-left">
                       <span className="truncate text-left leading-tight">{displayName}</span>
                       {conv.type === 'group_dm' && conv.members && conv.members.length > 0 && (
                         <span className="shrink-0 text-[10px] font-medium text-slate-400 bg-slate-100 rounded px-1 py-px leading-tight">
@@ -323,14 +323,14 @@ export default function ConversationSidebar({
                     </div>
                     {/* Subtitle: member names for groups, last message for DMs */}
                     {conv.type === 'group_dm' && conv.members && conv.members.length > 0 ? (
-                      <p className="text-[11px] text-slate-400 truncate mt-0.5 font-normal leading-tight">
+                      <p className="text-[11px] text-slate-400 truncate mt-0.5 font-normal leading-tight text-left">
                         {conv.members
                           .filter((m) => m.agent_id !== currentAgent.id)
                           .map((m) => m.agent?.name?.split(' ')[0] ?? '?')
                           .join(', ')}
                       </p>
                     ) : conv.last_message ? (
-                      <p className="text-[11px] text-slate-400 truncate mt-0.5 font-normal leading-tight">
+                      <p className="text-[11px] text-slate-400 truncate mt-0.5 font-normal leading-tight text-left">
                         {getMessagePreviewText(conv.last_message.content)}
                       </p>
                     ) : null}
