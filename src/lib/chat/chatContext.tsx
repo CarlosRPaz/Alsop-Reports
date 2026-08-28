@@ -108,6 +108,50 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const manualStatusRef = useRef<'online' | 'away' | 'busy'>('online')
   // Keep a ref to the current agent ID for use in beforeunload/visibilitychange
   const agentIdRef = useRef<string | null>(null)
+  const tabIdRef = useRef<string>(
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2)
+  )
+
+  const registerActiveTab = useCallback((agentId: string) => {
+    try {
+      const key = `active_tabs_${agentId}`
+      const raw = localStorage.getItem(key)
+      const tabs: Record<string, number> = raw ? JSON.parse(raw) : {}
+      const now = Date.now()
+      tabs[tabIdRef.current] = now
+      // Clean up dead tabs older than 30s
+      for (const [id, time] of Object.entries(tabs)) {
+        if (now - time > 30000) {
+          delete tabs[id]
+        }
+      }
+      localStorage.setItem(key, JSON.stringify(tabs))
+    } catch {}
+  }, [])
+
+  const unregisterTabAndCountRemaining = useCallback((agentId: string): number => {
+    try {
+      const key = `active_tabs_${agentId}`
+      const raw = localStorage.getItem(key)
+      const tabs: Record<string, number> = raw ? JSON.parse(raw) : {}
+      delete tabs[tabIdRef.current]
+      const now = Date.now()
+      let count = 0
+      for (const [id, time] of Object.entries(tabs)) {
+        if (now - time <= 30000) {
+          count++
+        } else {
+          delete tabs[id]
+        }
+      }
+      localStorage.setItem(key, JSON.stringify(tabs))
+      return count
+    } catch {
+      return 0
+    }
+  }, [])
 
   // -----------------------------------------------------------------------
   // Realtime Global Presence Subscription for all agents
@@ -154,7 +198,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               },
             }))
 
-            if (agentIdRef.current === updated.id) {
+            if (agentIdRef.current && agentIdRef.current === updated.id) {
+              const currentAgentId = agentIdRef.current
+              // If an external event or closed tab beacon marked this agent as offline in the DB,
+              // but THIS tab is currently open and active:
+              // Immediately re-assert our active presence so this open tab never gets knocked offline!
+              if (updated.presence === 'offline') {
+                const activeStatus = manualStatusRef.current || 'online'
+                updatePresence(currentAgentId, activeStatus).catch(() => {})
+                setCurrentAgent(prev => prev ? { ...prev, presence: activeStatus } : null)
+                return
+              }
               setCurrentAgent(prev => prev ? { ...prev, ...updated } : null)
             }
           }
@@ -260,9 +314,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      setCurrentAgent(agent as Agent)
+      // Preserve busy or away if currently set on agent, otherwise bring online
+      const initialStatus = (agent.presence === 'busy' || agent.presence === 'away') ? agent.presence : 'online'
+      manualStatusRef.current = initialStatus
+      registerActiveTab(agentId)
+
+      setCurrentAgent({ ...agent, presence: initialStatus } as Agent)
       agentIdRef.current = agentId
-      manualStatusRef.current = 'online'
 
       // Request browser desktop notification permissions silently
       requestDesktopPermission().catch(() => {})
@@ -281,11 +339,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const isAutoAwayRef = { current: false }
 
       // Set presence to initial active status (defaults to online)
-      await updatePresence(agentId, manualStatusRef.current || 'online')
+      await updatePresence(agentId, initialStatus)
 
-      // Start presence heartbeat (every 20s)
+      // Start presence heartbeat (every 15s)
       if (heartbeatRef.current) clearInterval(heartbeatRef.current)
       heartbeatRef.current = setInterval(() => {
+        registerActiveTab(agentId)
         const now = Date.now()
         const idleMs = now - lastActivityTimeRef.current
 
@@ -299,13 +358,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           updatePresenceHeartbeat(agentId, 'away').catch(() => {})
         } else {
           // Active on site: keep current status
-          updatePresenceHeartbeat(agentId, manualStatusRef.current).catch(() => {})
+          updatePresenceHeartbeat(agentId, manualStatusRef.current || 'online').catch(() => {})
         }
-      }, 20_000)
+      }, 15_000)
 
       // User activity listeners: when active again after auto-away, restore to Online
       let lastThrottle = 0
       const handleUserActivity = () => {
+        registerActiveTab(agentId)
         const now = Date.now()
         if (now - lastThrottle < 2000) return
         lastThrottle = now
@@ -323,10 +383,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const ACTIVITY_EVENTS = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll', 'click']
       ACTIVITY_EVENTS.forEach(ev => window.addEventListener(ev, handleUserActivity, { passive: true }))
 
-      // When tab/site actually closes or navigates away, send offline beacon
+      // When tab/site actually closes, send offline beacon ONLY IF this is the last open tab for this user
       const handleSiteExit = () => {
         if (agentIdRef.current) {
-          sendPresenceOfflineBeacon(agentIdRef.current)
+          const remainingTabs = unregisterTabAndCountRemaining(agentIdRef.current)
+          if (remainingTabs === 0) {
+            sendPresenceOfflineBeacon(agentIdRef.current)
+          }
         }
       }
       window.addEventListener('pagehide', handleSiteExit)
