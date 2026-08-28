@@ -128,8 +128,11 @@ const IMAGE_CDN_DOMAINS = [
 
 function isImageUrl(url: string): boolean {
   if (IMAGE_EXTENSIONS.test(url)) return true
+  if (url.startsWith('data:image/')) return true
   try {
-    const hostname = new URL(url).hostname.toLowerCase()
+    const parsed = new URL(url)
+    const hostname = parsed.hostname.toLowerCase()
+    if (parsed.pathname.includes('/storage/v1/object/public/chat-media/')) return true
     return IMAGE_CDN_DOMAINS.some(domain => hostname === domain || hostname.endsWith('.' + domain))
   } catch {
     return false
@@ -184,7 +187,7 @@ function renderContent(content: string, currentAgent?: Agent | null): React.Reac
   const mentionPattern = `@(?:${multiWordPattern}|[a-zA-Z0-9_]+)`
 
   const regex = new RegExp(
-    `(\\*\\*(.+?)\\*\\*|\\*(.+?)\\*|\`([^\`]+)\`|(${mentionPattern})|https?:\\/\\/[^\\s<]+)`,
+    `(\\*\\*(.+?)\\*\\*|\\*(.+?)\\*|\`([^\`]+)\`|(${mentionPattern})|https?:\\/\\/[^\\s<]+|data:image\\/[^\\s<]+)`,
     'g'
   )
 
@@ -248,9 +251,9 @@ function renderContent(content: string, currentAgent?: Agent | null): React.Reac
           {full}
         </span>
       )
-    } else if (full.startsWith('http')) {
+    } else if (full.startsWith('http') || full.startsWith('data:image/')) {
       // 1. Check for GIF platform view pages (tenor.com/view, giphy.com/gifs)
-      const embedUrl = getGifEmbedUrl(full)
+      const embedUrl = full.startsWith('http') ? getGifEmbedUrl(full) : null
       if (embedUrl && embedUrl !== full) {
         // Render as iframe embed for view pages
         parts.push(

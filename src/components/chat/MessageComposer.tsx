@@ -7,10 +7,12 @@ import {
   useEffect,
   type KeyboardEvent,
   type ChangeEvent,
+  type ClipboardEvent,
 } from 'react'
-import { Send, X, ChevronDown, AlertTriangle, AlertCircle } from 'lucide-react'
+import { Send, X, ChevronDown, AlertTriangle, AlertCircle, Loader2, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import MentionAutocomplete from './MentionAutocomplete'
+import GifPicker from './GifPicker'
 import type { Agent, Message } from './types'
 
 interface MessageComposerProps {
@@ -53,7 +55,9 @@ export default function MessageComposer({
   const [content, setContent] = useState('')
   const [priority, setPriority] = useState<PriorityLevel>('normal')
   const [isSending, setIsSending] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
   const [showPriority, setShowPriority] = useState(false)
+  const [showGifPicker, setShowGifPicker] = useState(false)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -73,17 +77,18 @@ export default function MessageComposer({
 
   const handleSend = useCallback(async () => {
     const text = content.trim()
-    if (!text || isSending) return
+    if (!text || isSending || isUploading) return
 
     setIsSending(true)
     try {
       await onSend(text, replyTo?.id, priority)
       setContent('')
       setPriority('normal')
+      setShowGifPicker(false)
     } finally {
       setIsSending(false)
     }
-  }, [content, isSending, onSend, replyTo, priority])
+  }, [content, isSending, isUploading, onSend, replyTo, priority])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -98,6 +103,78 @@ export default function MessageComposer({
     [handleSend, mentionQuery]
   )
 
+  /**
+   * Handle pasting images/GIFs from Windows "Win + ." or clipboard files / HTML
+   */
+  const handlePaste = useCallback(
+    async (e: ClipboardEvent<HTMLTextAreaElement>) => {
+      const clipboardData = e.clipboardData
+      if (!clipboardData) return
+
+      // 1. Check for image files / blobs (Windows Win+. GIF picker pastes image blobs)
+      let imageFile: File | null = null
+
+      if (clipboardData.files && clipboardData.files.length > 0) {
+        for (let i = 0; i < clipboardData.files.length; i++) {
+          const file = clipboardData.files[i]
+          if (file.type.startsWith('image/')) {
+            imageFile = file
+            break
+          }
+        }
+      }
+
+      if (!imageFile && clipboardData.items) {
+        for (let i = 0; i < clipboardData.items.length; i++) {
+          const item = clipboardData.items[i]
+          if (item.type.startsWith('image/')) {
+            imageFile = item.getAsFile()
+            if (imageFile) break
+          }
+        }
+      }
+
+      if (imageFile) {
+        e.preventDefault()
+        setIsUploading(true)
+        try {
+          const formData = new FormData()
+          formData.append('file', imageFile)
+
+          const res = await fetch('/api/chat/upload', {
+            method: 'POST',
+            body: formData,
+          })
+
+          if (res.ok) {
+            const data = await res.json()
+            if (data.url) {
+              setContent((prev) => (prev ? `${prev.trim()} ${data.url}` : data.url))
+            }
+          }
+        } catch (err) {
+          console.error('Failed to upload pasted GIF/image:', err)
+        } finally {
+          setIsUploading(false)
+        }
+        return
+      }
+
+      // 2. Check for HTML snippet with <img src="..."> (some browsers paste Tenor GIFs as HTML)
+      const html = clipboardData.getData('text/html')
+      if (html) {
+        const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i)
+        if (imgMatch && imgMatch[1] && (imgMatch[1].startsWith('http') || imgMatch[1].startsWith('data:image/'))) {
+          e.preventDefault()
+          const src = imgMatch[1]
+          setContent((prev) => (prev ? `${prev.trim()} ${src}` : src))
+          return
+        }
+      }
+    },
+    []
+  )
+
   const handleChange = useCallback(
     (e: ChangeEvent<HTMLTextAreaElement>) => {
       const val = e.target.value
@@ -110,7 +187,6 @@ export default function MessageComposer({
 
       if (atMatch) {
         setMentionQuery(atMatch[1])
-        // Calculate position (approximate)
         const rect = e.target.getBoundingClientRect()
         setMentionPosition({
           top: rect.top,
@@ -132,7 +208,6 @@ export default function MessageComposer({
       setContent(newBefore + textAfter)
       setMentionQuery(null)
 
-      // Refocus and set cursor
       setTimeout(() => {
         const el = textareaRef.current
         if (el) {
@@ -145,10 +220,18 @@ export default function MessageComposer({
     [content]
   )
 
+  const handleGifSelect = useCallback((gifUrl: string) => {
+    setContent((prev) => (prev ? `${prev.trim()} ${gifUrl}` : gifUrl))
+    setShowGifPicker(false)
+    setTimeout(() => {
+      textareaRef.current?.focus()
+    }, 0)
+  }, [])
+
   const canSendUrgent = hasPermission('send_urgent_messages')
 
   return (
-    <div className="border-t border-slate-100 bg-white">
+    <div className="relative border-t border-slate-100 bg-white">
       {/* Reply preview */}
       {replyTo && (
         <div className="px-4 pt-3 pb-0">
@@ -171,78 +254,124 @@ export default function MessageComposer({
       )}
 
       {/* Input area */}
-      <div className="p-4">
-        <div className="flex items-end gap-3 bg-slate-50 border border-slate-200 rounded-xl p-2 focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400 transition-all">
+      <div className="p-3 sm:p-4">
+        {/* Uploading indicator */}
+        {isUploading && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg bg-pink-50 border border-pink-100 px-3 py-1.5 text-xs text-pink-700 font-medium animate-pulse">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-pink-600" />
+            <span>Processing and uploading pasted GIF...</span>
+          </div>
+        )}
+
+        <div className="flex items-end gap-2 sm:gap-3 bg-slate-50 border border-slate-200 rounded-xl p-2 focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400 transition-all">
           <textarea
             ref={textareaRef}
             value={content}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            placeholder="Write a message..."
-            disabled={isSending}
-            className="flex-1 bg-transparent border-none px-3 py-2 text-sm text-slate-900 focus:outline-none resize-none min-h-[40px] max-h-[160px] placeholder:text-slate-400 disabled:opacity-50"
+            onPaste={handlePaste}
+            placeholder="Write a message... (Paste or use Win + . for GIFs)"
+            disabled={isSending || isUploading}
+            className="flex-1 bg-transparent border-none px-2 sm:px-3 py-2 text-sm text-slate-900 focus:outline-none resize-none min-h-[40px] max-h-[160px] placeholder:text-slate-400 disabled:opacity-50"
             rows={1}
           />
 
-          {/* Priority selector */}
-          {canSendUrgent && (
-            <div className="relative shrink-0">
+          {/* Action buttons toolbar */}
+          <div className="flex items-center gap-1 shrink-0 pb-1">
+            {/* Built-in GIF Picker Button */}
+            <div className="relative">
               <button
-                onClick={() => setShowPriority(!showPriority)}
+                type="button"
+                onClick={() => setShowGifPicker(!showGifPicker)}
                 className={cn(
-                  'flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors',
-                  priority === 'normal'
-                    ? 'text-slate-400 hover:text-slate-600 hover:bg-white'
-                    : priority === 'important'
-                      ? 'text-amber-600 bg-amber-50'
-                      : 'text-red-600 bg-red-50'
+                  'flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer',
+                  showGifPicker
+                    ? 'bg-pink-100 text-pink-700 shadow-xs ring-1 ring-pink-200'
+                    : 'text-slate-500 hover:text-pink-600 hover:bg-pink-50'
                 )}
+                title="Insert a GIF (or use Win + .)"
               >
-                {PRIORITY_OPTIONS.find((p) => p.value === priority)?.icon}
-                {priority !== 'normal' && (
-                  <span className="capitalize">{priority}</span>
-                )}
-                <ChevronDown className="w-3 h-3" />
+                <span className="flex h-4 w-4 items-center justify-center rounded bg-pink-500 text-white text-[9px] font-extrabold">
+                  G
+                </span>
+                <span className="hidden sm:inline">GIF</span>
               </button>
 
-              {showPriority && (
-                <div className="absolute bottom-full right-0 mb-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[130px] z-20">
-                  {PRIORITY_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => {
-                        setPriority(opt.value)
-                        setShowPriority(false)
-                      }}
-                      className={cn(
-                        'w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors hover:bg-slate-50',
-                        priority === opt.value ? 'font-medium' : '',
-                        opt.color
-                      )}
-                    >
-                      {opt.icon}
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
+              {/* GIF Picker Dropdown */}
+              {showGifPicker && (
+                <GifPicker
+                  onSelect={handleGifSelect}
+                  onClose={() => setShowGifPicker(false)}
+                />
               )}
             </div>
-          )}
 
-          {/* Send button */}
-          <button
-            onClick={handleSend}
-            disabled={!content.trim() || isSending}
-            className={cn(
-              'rounded-lg px-4 h-10 flex items-center gap-2 text-sm font-semibold transition-all shrink-0',
-              content.trim() && !isSending
-                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm active:scale-[0.97]'
-                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+            {/* Priority selector */}
+            {canSendUrgent && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowPriority(!showPriority)}
+                  className={cn(
+                    'flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer',
+                    priority === 'normal'
+                      ? 'text-slate-400 hover:text-slate-600 hover:bg-white'
+                      : priority === 'important'
+                        ? 'text-amber-600 bg-amber-50'
+                        : 'text-red-600 bg-red-50'
+                  )}
+                  title="Message Priority"
+                >
+                  {PRIORITY_OPTIONS.find((p) => p.value === priority)?.icon}
+                  {priority !== 'normal' && (
+                    <span className="capitalize">{priority}</span>
+                  )}
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+
+                {showPriority && (
+                  <div className="absolute bottom-full right-0 mb-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[130px] z-20">
+                    {PRIORITY_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          setPriority(opt.value)
+                          setShowPriority(false)
+                        }}
+                        className={cn(
+                          'w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors hover:bg-slate-50 cursor-pointer',
+                          priority === opt.value ? 'font-medium' : '',
+                          opt.color
+                        )}
+                      >
+                        {opt.icon}
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
-          >
-            <Send className="w-4 h-4" />
-            Send
-          </button>
+
+            {/* Send button */}
+            <button
+              onClick={handleSend}
+              disabled={!content.trim() || isSending || isUploading}
+              className={cn(
+                'rounded-lg px-3 sm:px-4 h-9 sm:h-10 flex items-center gap-1.5 sm:gap-2 text-sm font-semibold transition-all shrink-0 cursor-pointer',
+                content.trim() && !isSending && !isUploading
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs active:scale-[0.97]'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              )}
+            >
+              {isSending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline">Send</span>
+            </button>
+          </div>
         </div>
 
         {/* Footer hints */}
@@ -253,11 +382,11 @@ export default function MessageComposer({
             </kbd>{' '}
             to send ·{' '}
             <kbd className="font-mono bg-slate-100 border border-slate-200 rounded px-1">
-              Shift+Enter
+              Win + .
             </kbd>{' '}
-            for newline
+            or click <span className="font-semibold text-pink-600">GIF</span>
           </p>
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-slate-400 hidden sm:block">
             <span className="text-slate-300">**bold**</span>{' '}
             <span className="text-slate-300">*italic*</span>{' '}
             <span className="text-slate-300">`code`</span>
