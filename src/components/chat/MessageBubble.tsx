@@ -137,6 +137,42 @@ function isImageUrl(url: string): boolean {
 }
 
 /**
+ * Detect GIF platform "view" pages (tenor.com/view/..., giphy.com/gifs/...)
+ * and return their embed iframe URL, or null if not a GIF page.
+ */
+function getGifEmbedUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname.toLowerCase()
+    const path = parsed.pathname
+
+    // tenor.com/view/some-slug-gif-12345 → iframe embed
+    if (host === 'tenor.com' && path.startsWith('/view/')) {
+      // Extract the numeric ID from the end of the slug
+      const match = path.match(/-(\d+)$/)
+      if (match) return `https://tenor.com/embed/${match[1]}`
+      return `https://tenor.com/embed${path.replace('/view/', '/')}`
+    }
+
+    // tenor.com/bXYzA.gif style short URLs
+    if (host === 'tenor.com' && /^\/[a-zA-Z0-9]+\.gif$/i.test(path)) {
+      return url // These are direct GIF files
+    }
+
+    // giphy.com/gifs/some-slug-abc123 → iframe embed
+    if (host === 'giphy.com' && path.startsWith('/gifs/')) {
+      const slug = path.replace('/gifs/', '')
+      const id = slug.includes('-') ? slug.split('-').pop() : slug
+      return `https://giphy.com/embed/${id}`
+    }
+
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Renders message content with inline markdown, mentions, and media.
  * Supports: **bold**, *italic*, `code`, @Mentions, URLs, inline images/GIFs
  */
@@ -213,8 +249,27 @@ function renderContent(content: string, currentAgent?: Agent | null): React.Reac
         </span>
       )
     } else if (full.startsWith('http')) {
-      // Check if this URL is an image/GIF — render inline
-      if (isImageUrl(full)) {
+      // 1. Check for GIF platform view pages (tenor.com/view, giphy.com/gifs)
+      const embedUrl = getGifEmbedUrl(full)
+      if (embedUrl && embedUrl !== full) {
+        // Render as iframe embed for view pages
+        parts.push(
+          <div key={match.index} className="my-1">
+            <iframe
+              src={embedUrl}
+              className="rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm"
+              width="280"
+              height="220"
+              frameBorder="0"
+              allowFullScreen
+              loading="lazy"
+              title="GIF"
+              style={{ maxWidth: '100%' }}
+            />
+          </div>
+        )
+      } else if (isImageUrl(full) || (embedUrl === full)) {
+        // 2. Direct image/GIF CDN URLs — render inline
         parts.push(
           <a
             key={match.index}
@@ -242,7 +297,7 @@ function renderContent(content: string, currentAgent?: Agent | null): React.Reac
           </a>
         )
       } else {
-        // Regular URL — render as clickable text link
+        // 3. Regular URL — render as clickable text link
         parts.push(
           <a
             key={match.index}

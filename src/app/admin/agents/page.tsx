@@ -37,6 +37,7 @@ interface Agent {
   presence: string | null
   meeting_time: string | null
   report_visible: boolean
+  speaks_spanish: boolean
   created_at: string
   updated_at: string
 }
@@ -201,6 +202,7 @@ export default function AgentManagement() {
       active: agent.active,
       report_visible: agent.report_visible,
       meeting_time: agent.meeting_time,
+      speaks_spanish: agent.speaks_spanish,
     })
   }
 
@@ -221,6 +223,7 @@ export default function AgentManagement() {
           active: editForm.active,
           report_visible: editForm.report_visible,
           meeting_time: editForm.meeting_time || null,
+          speaks_spanish: editForm.speaks_spanish ?? false,
         })
         .eq("id", editingId)
 
@@ -623,6 +626,7 @@ export default function AgentManagement() {
                     <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Office</th>
                     <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Team</th>
                     <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Meeting</th>
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 text-center">🇲🇽</th>
                     <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 text-center">Variants</th>
                     <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Status</th>
                     <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 text-right">Actions</th>
@@ -1052,6 +1056,22 @@ function AgentRow({
             <span className="font-mono text-sm">
               {agent.meeting_time || <span className="text-slate-300">—</span>}
             </span>
+          )}
+        </td>
+
+        {/* Spanish */}
+        <td className="py-2.5 px-3 text-center">
+          {isEditing ? (
+            <label className="flex items-center justify-center cursor-pointer" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="checkbox"
+                checked={editForm.speaks_spanish ?? false}
+                onChange={(e) => onEditFormChange({ ...editForm, speaks_spanish: e.target.checked })}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+            </label>
+          ) : (
+            agent.speaks_spanish ? <span title="Speaks Spanish">🇲🇽</span> : <span className="text-slate-300">—</span>
           )}
         </td>
 

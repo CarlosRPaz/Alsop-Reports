@@ -658,7 +658,7 @@ export default function StaffPage() {
               title="Filter Spanish-speaking agents"
             >
               <span>🇲🇽</span>
-              <span>Español</span>
+              <span>Spanish</span>
             </button>
           )}
         </div>
