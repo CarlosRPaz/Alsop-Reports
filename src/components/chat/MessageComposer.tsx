@@ -46,7 +46,7 @@ const PRIORITY_OPTIONS: { value: PriorityLevel; label: string; icon: React.React
 /**
  * Extracts plain text and image URLs from contentEditable DOM tree
  */
-function extractContentFromDom(node: Node): string {
+function extractContentFromDom(node: Node, isRoot = true): string {
   if (node.nodeType === Node.TEXT_NODE) {
     return node.textContent || ''
   }
@@ -61,10 +61,10 @@ function extractContentFromDom(node: Node): string {
     }
     let text = ''
     for (const child of Array.from(el.childNodes)) {
-      text += extractContentFromDom(child)
+      text += extractContentFromDom(child, false)
     }
-    if (el.tagName === 'DIV' || el.tagName === 'P') {
-      return '\n' + text
+    if ((el.tagName === 'DIV' || el.tagName === 'P') && !isRoot) {
+      return (text.trim() ? '\n' : '') + text
     }
     return text
   }

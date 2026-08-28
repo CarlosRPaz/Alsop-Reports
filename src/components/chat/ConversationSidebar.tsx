@@ -67,6 +67,19 @@ function getDmDisplayName(conversation: Conversation, currentAgentId: string): s
   return conversation.name ?? 'Conversation'
 }
 
+function getMessagePreviewText(content?: string): string {
+  if (!content) return ''
+  const clean = content.replace(/<[^>]*>/g, '').trim()
+  if (!clean) return ''
+  if (clean.startsWith('data:image/') || clean.match(/\.(jpeg|jpg|gif|png|webp)($|\?)/i)) {
+    return '📷 Image'
+  }
+  if (clean.includes('giphy.com') || clean.includes('tenor.com')) {
+    return '🎬 GIF'
+  }
+  return clean.replace(/\s+/g, ' ')
+}
+
 const STATUS_OPTIONS: { value: PresenceStatus; label: string; emoji: string }[] = [
   { value: 'online', label: 'Online', emoji: '🟢' },
   { value: 'away', label: 'Away', emoji: '🟡' },
@@ -318,7 +331,7 @@ export default function ConversationSidebar({
                       </p>
                     ) : conv.last_message ? (
                       <p className="text-[11px] text-slate-400 truncate mt-0.5 font-normal leading-tight">
-                        {conv.last_message.content.substring(0, 60)}
+                        {getMessagePreviewText(conv.last_message.content)}
                       </p>
                     ) : null}
                   </div>
