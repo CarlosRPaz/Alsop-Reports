@@ -25,6 +25,8 @@ import {
 import { playNotificationSound } from './sound'
 import {
   updatePresence,
+  updatePresenceHeartbeat,
+  sendPresenceOfflineBeacon,
   unsubscribeChannel,
   unsubscribeChannels,
   subscribeToAllConversations,
@@ -61,6 +63,8 @@ export interface ChatContextValue {
   refreshUnreadCounts: () => Promise<void>
   /** Latest incoming message alert details for tab title notifications. */
   latestMessageAlert: LatestMessageAlert | null
+  /** Set the agent's presence manually (Away/Busy/Online). Heartbeat won't overwrite manual statuses. */
+  setManualPresence: (status: 'online' | 'away' | 'busy') => Promise<void>
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null)
@@ -86,6 +90,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // unmount or sign-out.
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const globalChannelRef = useRef<RealtimeChannel[]>([])
+  // Track the agent's manually-chosen status so the heartbeat doesn't overwrite it.
+  // 'online' is the default — 'away'/'busy' are manually set by the user.
+  const manualStatusRef = useRef<'online' | 'away' | 'busy'>('online')
+  // Keep a ref to the current agent ID for use in beforeunload/visibilitychange
+  const agentIdRef = useRef<string | null>(null)
 
   // -----------------------------------------------------------------------
   // Hydrate agent from localStorage on mount
@@ -180,6 +189,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
 
       setCurrentAgent(agent as Agent)
+      agentIdRef.current = agentId
+      manualStatusRef.current = 'online'
 
       // Request browser desktop notification permissions silently
       requestDesktopPermission().catch(() => {})
@@ -196,12 +207,52 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // Set presence to online
       await updatePresence(agentId, 'online')
 
-      // Start presence heartbeat (every 60s)
+      // Start presence heartbeat (every 60s) — respects manual status
       if (heartbeatRef.current) clearInterval(heartbeatRef.current)
       heartbeatRef.current = setInterval(
-        () => updatePresence(agentId, 'online'),
+        () => updatePresenceHeartbeat(agentId, manualStatusRef.current),
         60_000,
       )
+
+      // --- Browser lifecycle listeners for accurate offline detection ---
+
+      // Tab close / navigate away: fire-and-forget offline beacon
+      const handleBeforeUnload = () => {
+        sendPresenceOfflineBeacon(agentId)
+      }
+
+      // Tab visibility: set away when hidden for 5+ min, restore when visible
+      let visibilityTimer: ReturnType<typeof setTimeout> | null = null
+      const handleVisibilityChange = () => {
+        if (document.hidden) {
+          // If agent hasn't manually set away/busy, auto-set away after 5 min
+          visibilityTimer = setTimeout(() => {
+            if (manualStatusRef.current === 'online') {
+              updatePresence(agentId, 'away').catch(() => {})
+            }
+          }, 5 * 60 * 1000)
+        } else {
+          // Tab is visible again
+          if (visibilityTimer) {
+            clearTimeout(visibilityTimer)
+            visibilityTimer = null
+          }
+          // Restore to manual status (or online if no manual override)
+          updatePresence(agentId, manualStatusRef.current).catch(() => {})
+        }
+      }
+
+      window.addEventListener('beforeunload', handleBeforeUnload)
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+
+      // Store cleanup functions for unmount
+      const prevCleanup = (window as any).__chatPresenceCleanup
+      if (prevCleanup) prevCleanup()
+      ;(window as any).__chatPresenceCleanup = () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload)
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+        if (visibilityTimer) clearTimeout(visibilityTimer)
+      }
     } catch (err) {
       console.error('[chatContext] Hydration failed:', err)
       localStorage.removeItem(STORAGE_KEY)
@@ -330,6 +381,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       updatePresence(agentId, 'offline').catch(() => {})
     }
 
+    // Cleanup presence lifecycle listeners
+    const presenceCleanup = (window as any).__chatPresenceCleanup
+    if (presenceCleanup) {
+      presenceCleanup()
+      delete (window as any).__chatPresenceCleanup
+    }
+
     // Cleanup
     localStorage.removeItem(STORAGE_KEY)
     if (heartbeatRef.current) {
@@ -341,6 +399,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       globalChannelRef.current = []
     }
 
+    agentIdRef.current = null
+    manualStatusRef.current = 'online'
     setCurrentAgent(null)
     setPermissions({})
     setUnreadCounts({})
@@ -370,6 +430,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [currentAgent])
 
   // -----------------------------------------------------------------------
+  // Manual presence setter — called from sidebar status dropdown
+  // -----------------------------------------------------------------------
+
+  const setManualPresence = useCallback(async (status: 'online' | 'away' | 'busy') => {
+    if (!currentAgent) return
+    manualStatusRef.current = status
+    await updatePresence(currentAgent.id, status)
+    // Update local agent state to reflect the change immediately
+    setCurrentAgent(prev => prev ? { ...prev, presence: status } as Agent : null)
+  }, [currentAgent])
+
+  // -----------------------------------------------------------------------
   // Memoized context value
   // -----------------------------------------------------------------------
 
@@ -384,6 +456,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       unreadCounts,
       refreshUnreadCounts,
       latestMessageAlert,
+      setManualPresence,
     }),
     [
       currentAgent,
@@ -395,6 +468,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       unreadCounts,
       refreshUnreadCounts,
       latestMessageAlert,
+      setManualPresence,
     ],
   )
 

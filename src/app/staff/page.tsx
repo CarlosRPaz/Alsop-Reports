@@ -144,6 +144,8 @@ export default function StaffPage() {
   const [selectedTeam, setSelectedTeam] = useState("All Teams")
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [dbMissing, setDbMissing] = useState(false)
+  const [spanishOnly, setSpanishOnly] = useState(false)
+  const [spanishAgentNames, setSpanishAgentNames] = useState<Set<string>>(new Set())
 
   // Favorites state persisted in localStorage
   const [favorites, setFavorites] = useState<string[]>([])
@@ -193,14 +195,17 @@ export default function StaffPage() {
 
         if (entError) throw entError
 
-        // Exclude archived agents
-        const { data: agentData } = await supabase.from("agents").select("name, active")
+        // Exclude archived agents and load Spanish-speaking agent names
+        const { data: agentData } = await supabase.from("agents").select("name, active, speaks_spanish")
         const archivedNames = new Set<string>()
+        const spanishNames = new Set<string>()
         if (agentData) {
-          agentData.forEach((a: { name: string | null; active: boolean | null }) => {
+          agentData.forEach((a: { name: string | null; active: boolean | null; speaks_spanish?: boolean }) => {
             if (a.active === false && a.name) archivedNames.add(a.name.trim().toLowerCase())
+            if (a.speaks_spanish && a.name) spanishNames.add(a.name.trim().toLowerCase())
           })
         }
+        setSpanishAgentNames(spanishNames)
 
         const validEntries = (ents || []).filter(e => {
           if (!e.is_active) return false
@@ -386,9 +391,14 @@ export default function StaffPage() {
       )
     }
 
+    // Spanish language filter
+    if (spanishOnly) {
+      all = all.filter(e => spanishAgentNames.has(e.name.trim().toLowerCase()))
+    }
+
     all.sort((a, b) => a.name.localeCompare(b.name))
     return { flatEntries: all, totalCount: total }
-  }, [groups, activeTab, search, selectedOffice, selectedTeam, isFlatTab])
+  }, [groups, activeTab, search, selectedOffice, selectedTeam, isFlatTab, spanishOnly, spanishAgentNames])
 
   // Alphabetical sections
   const sections = useMemo(() => {
@@ -436,7 +446,7 @@ export default function StaffPage() {
   }, [groups, search, activeTab, isFlatTab])
 
   // Count label
-  const isFiltered = !!(search || selectedOffice !== "All Offices" || selectedTeam !== "All Teams")
+  const isFiltered = !!(search || selectedOffice !== "All Offices" || selectedTeam !== "All Teams" || spanishOnly)
   const countLabel = isFlatTab
     ? isFiltered
       ? `${flatEntries.length} of ${totalCount} contacts`
@@ -479,6 +489,9 @@ export default function StaffPage() {
               <span className="font-medium text-[#1E3553]">
                 <Highlight text={entry.name} query={search} />
               </span>
+              {spanishAgentNames.has(entry.name.trim().toLowerCase()) && (
+                <span className="ml-1 text-[11px]" title="Speaks Spanish">🇲🇽</span>
+              )}
             </button>
           </td>
 
@@ -631,6 +644,22 @@ export default function StaffPage() {
               </select>
               <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
+          )}
+
+          {/* Spanish language toggle */}
+          {(activeTab === "Offices" || activeTab === "HQ") && (
+            <button
+              onClick={() => setSpanishOnly(!spanishOnly)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[13px] font-medium transition-colors shadow-xs ${
+                spanishOnly
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-[#D6E2F0] bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+              title="Filter Spanish-speaking agents"
+            >
+              <span>🇲🇽</span>
+              <span>Español</span>
+            </button>
           )}
         </div>
 

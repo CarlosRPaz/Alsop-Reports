@@ -15,6 +15,7 @@ export interface Agent {
   avatar_url: string | null
   status_message: string | null
   last_seen_at: string | null
+  speaks_spanish?: boolean
 }
 
 // ---------------------------------------------------------------------------

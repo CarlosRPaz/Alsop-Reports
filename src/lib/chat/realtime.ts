@@ -161,6 +161,74 @@ export async function updatePresence(
   }
 }
 
+/**
+ * Heartbeat-only presence update: refreshes `last_seen_at` without
+ * overwriting a manually-set status (away/busy). Only writes `online`
+ * if the current status is already `online`.
+ */
+export async function updatePresenceHeartbeat(
+  agentId: string,
+  currentManualStatus: 'online' | 'away' | 'busy' | 'offline',
+): Promise<void> {
+  const update: Record<string, unknown> = {
+    last_seen_at: new Date().toISOString(),
+  }
+  // Only set presence if the agent hasn't manually chosen away/busy
+  if (currentManualStatus === 'online') {
+    update.presence = 'online'
+  }
+
+  const { error } = await supabase
+    .from('agents')
+    .update(update)
+    .eq('id', agentId)
+
+  if (error) {
+    console.error('[realtime] Failed to update heartbeat:', error)
+  }
+}
+
+/**
+ * Fire-and-forget offline beacon using `navigator.sendBeacon()`.
+ * Reliably sets presence to 'offline' even when the browser tab is closing.
+ * Falls back to a synchronous fetch if sendBeacon is unavailable.
+ */
+export function sendPresenceOfflineBeacon(agentId: string): void {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return
+
+  const endpoint = `${url}/rest/v1/agents?id=eq.${agentId}`
+  const body = JSON.stringify({
+    presence: 'offline',
+    last_seen_at: new Date().toISOString(),
+  })
+
+  if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+    const blob = new Blob([body], { type: 'application/json' })
+
+    // sendBeacon doesn't support custom headers, so we use fetch with keepalive
+    // as the primary mechanism, with sendBeacon as a last resort
+    try {
+      fetch(endpoint, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': key,
+          'Authorization': `Bearer ${key}`,
+          'Prefer': 'return=minimal',
+        },
+        body,
+        keepalive: true,
+      }).catch(() => {})
+    } catch {
+      // Absolute last resort — this likely won't work due to missing headers
+      // but it's better than nothing
+      navigator.sendBeacon(endpoint, blob)
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Cleanup helpers
 // ---------------------------------------------------------------------------

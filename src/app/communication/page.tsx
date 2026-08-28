@@ -35,11 +35,12 @@ import MessageComposer from "@/components/chat/MessageComposer"
 import CreateConversationModal from "@/components/chat/CreateConversationModal"
 import PinnedMessagesPanel from "@/components/chat/PinnedMessagesPanel"
 import ConversationSettingsModal from "@/components/chat/ConversationSettingsModal"
+import AgentHudPanel from "@/components/chat/AgentHudPanel"
 import { updatePresence } from "@/lib/chat/realtime"
-import { MessageSquare } from "lucide-react"
+import { MessageSquare, MonitorSmartphone } from "lucide-react"
 
 export default function CommunicationHub() {
-  const { currentAgent, hasPermission, unreadCounts, refreshUnreadCounts, signOut } = useChat()
+  const { currentAgent, hasPermission, unreadCounts, refreshUnreadCounts, signOut, setManualPresence } = useChat()
 
   // ── State ─────────────────────────────────────────────────────
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -56,6 +57,7 @@ export default function CommunicationHub() {
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [editingMessage, setEditingMessage] = useState<string | null>(null)
   const [showPinnedPanel, setShowPinnedPanel] = useState(false)
+  const [showHudPanel, setShowHudPanel] = useState(false)
 
   // Realtime channel ref
   const conversationChannelRef = useRef<RealtimeChannel | null>(null)
@@ -409,10 +411,15 @@ export default function CommunicationHub() {
   const handleStatusChange = useCallback(
     async (status: 'online' | 'away' | 'busy' | 'offline') => {
       if (!currentAgent) return
-      await updatePresence(currentAgent.id, status)
+      if (status === 'offline') {
+        // Offline is handled via sign-out / tab close, but allow manual offline too
+        await updatePresence(currentAgent.id, 'offline')
+      } else {
+        await setManualPresence(status)
+      }
       window.dispatchEvent(new Event('agent-updated'))
     },
-    [currentAgent]
+    [currentAgent, setManualPresence]
   )
 
   // ── Render ────────────────────────────────────────────────────
@@ -460,7 +467,35 @@ export default function CommunicationHub() {
 
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col min-w-0">
-          {selectedConversation ? (
+          {/* Chat / HUD Tab Toggle */}
+          <div className="flex items-center gap-1 px-3 py-2 border-b border-slate-200 bg-slate-50/80 shrink-0">
+            <button
+              onClick={() => setShowHudPanel(false)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                !showHudPanel
+                  ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              Chat
+            </button>
+            <button
+              onClick={() => setShowHudPanel(true)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                showHudPanel
+                  ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
+              }`}
+            >
+              <MonitorSmartphone className="w-3.5 h-3.5" />
+              Agent HUD
+            </button>
+          </div>
+
+          {showHudPanel ? (
+            <AgentHudPanel />
+          ) : selectedConversation ? (
             <>
               <ConversationHeader
                 conversation={selectedConversation}

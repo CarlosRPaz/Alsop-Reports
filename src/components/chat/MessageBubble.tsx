@@ -111,9 +111,34 @@ function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+// Known image/GIF CDN domains and file extensions for inline rendering
+const IMAGE_EXTENSIONS = /\.(gif|png|jpg|jpeg|webp|svg|bmp)(\?.*)?$/i
+const IMAGE_CDN_DOMAINS = [
+  'media.tenor.com',
+  'media.giphy.com',
+  'media0.giphy.com',
+  'media1.giphy.com',
+  'media2.giphy.com',
+  'media3.giphy.com',
+  'media4.giphy.com',
+  'i.giphy.com',
+  'i.imgur.com',
+  'c.tenor.com',
+]
+
+function isImageUrl(url: string): boolean {
+  if (IMAGE_EXTENSIONS.test(url)) return true
+  try {
+    const hostname = new URL(url).hostname.toLowerCase()
+    return IMAGE_CDN_DOMAINS.some(domain => hostname === domain || hostname.endsWith('.' + domain))
+  } catch {
+    return false
+  }
+}
+
 /**
- * Renders message content with inline markdown and mentions.
- * Supports: **bold**, *italic*, `code`, @Mentions, URLs
+ * Renders message content with inline markdown, mentions, and media.
+ * Supports: **bold**, *italic*, `code`, @Mentions, URLs, inline images/GIFs
  */
 function renderContent(content: string, currentAgent?: Agent | null): React.ReactNode[] {
   const parts: React.ReactNode[] = []
@@ -188,19 +213,49 @@ function renderContent(content: string, currentAgent?: Agent | null): React.Reac
         </span>
       )
     } else if (full.startsWith('http')) {
-      // URL
-      parts.push(
-        <a
-          key={match.index}
-          href={full}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-0.5 dark:text-blue-400"
-        >
-          {full.length > 50 ? full.slice(0, 50) + '…' : full}
-          <ExternalLink className="w-3 h-3 inline shrink-0" />
-        </a>
-      )
+      // Check if this URL is an image/GIF — render inline
+      if (isImageUrl(full)) {
+        parts.push(
+          <a
+            key={match.index}
+            href={full}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block my-1"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={full}
+              alt="Shared image"
+              className="rounded-lg max-w-xs sm:max-w-sm max-h-64 object-contain border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+              loading="lazy"
+              onError={(e) => {
+                // Fallback: if image fails to load, replace with a text link
+                const target = e.currentTarget
+                const parent = target.parentElement
+                if (parent) {
+                  parent.className = 'text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-0.5 dark:text-blue-400'
+                  target.replaceWith(document.createTextNode(full.length > 50 ? full.slice(0, 50) + '…' : full))
+                }
+              }}
+            />
+          </a>
+        )
+      } else {
+        // Regular URL — render as clickable text link
+        parts.push(
+          <a
+            key={match.index}
+            href={full}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-0.5 dark:text-blue-400"
+          >
+            {full.length > 50 ? full.slice(0, 50) + '…' : full}
+            <ExternalLink className="w-3 h-3 inline shrink-0" />
+          </a>
+        )
+      }
     }
 
     lastIndex = match.index + full.length
