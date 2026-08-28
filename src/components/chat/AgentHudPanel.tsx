@@ -17,9 +17,12 @@ import {
   Copy,
   Check,
   Building2,
-  Briefcase
+  Briefcase,
+  MessageSquare
 } from 'lucide-react'
 import UserPresenceBadge from '@/components/chat/UserPresenceBadge'
+import { useChat } from '@/lib/chat/chatContext'
+import { getOrCreateDirectDM } from '@/lib/chat/conversations'
 
 type DirectoryEntryContact = {
   name: string
@@ -93,6 +96,7 @@ const ALIAS_MAP: Record<string, string> = {
 export default function AgentHudPanel() {
   const [agents, setAgents] = useState<EnrichedAgent[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const { currentAgent } = useChat()
 
   // Filters: only "all" and "online"
   const [searchQuery, setSearchQuery] = useState('')
@@ -105,6 +109,30 @@ export default function AgentHudPanel() {
   // Click-to-open Modal state
   const [selectedAgent, setSelectedAgent] = useState<EnrichedAgent | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const [isStartingDM, setIsStartingDM] = useState(false)
+
+  const handleStartDirectDM = useCallback(async (targetAgentId: string) => {
+    if (!currentAgent || isStartingDM) return
+    setIsStartingDM(true)
+    try {
+      const convo = await getOrCreateDirectDM(currentAgent.id, targetAgentId)
+      setSelectedAgent(null)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('select-conversation', {
+            detail: { conversationId: convo.id },
+          })
+        )
+        const newUrl = new URL(window.location.href)
+        newUrl.searchParams.set('id', convo.id)
+        window.history.pushState({}, '', newUrl.toString())
+      }
+    } catch (err) {
+      console.error('Failed to start Direct DM from HUD:', err)
+    } finally {
+      setIsStartingDM(false)
+    }
+  }, [currentAgent, isStartingDM])
 
   const copyToClipboard = useCallback((text: string, key: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
@@ -781,7 +809,22 @@ export default function AgentHudPanel() {
             </div>
 
             {/* Modal Footer */}
-            <div className="mt-5 pt-3 border-t border-slate-100 flex justify-end">
+            <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+              {currentAgent && selectedAgent.id !== currentAgent.id ? (
+                <button
+                  onClick={() => handleStartDirectDM(selectedAgent.id)}
+                  disabled={isStartingDM}
+                  className="flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-[0.98] px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isStartingDM ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <MessageSquare className="h-3.5 w-3.5" />
+                  )}
+                  <span>Message {selectedAgent.name.split(' ')[0]}</span>
+                </button>
+              ) : <div />}
+
               <button
                 onClick={() => setSelectedAgent(null)}
                 className="rounded-lg bg-slate-100 px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"

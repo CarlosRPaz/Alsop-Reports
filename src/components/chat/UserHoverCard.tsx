@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
-import { Building2, Users, Shield, Sparkles } from 'lucide-react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { Building2, Users, Shield, Sparkles, MessageSquare, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UserPresenceBadge from './UserPresenceBadge'
+import { useChat } from '@/lib/chat/chatContext'
+import { getOrCreateDirectDM } from '@/lib/chat/conversations'
 
 interface UserHoverCardProps {
   agent: {
@@ -61,8 +63,10 @@ export default function UserHoverCard({
   side = 'top',
 }: UserHoverCardProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [isStartingDM, setIsStartingDM] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { currentAgent } = useChat()
 
   const handleMouseEnter = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -84,8 +88,39 @@ export default function UserHoverCard({
     }
   }, [])
 
+  const handleStartDirectDM = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    if (!agent.id || !currentAgent || isStartingDM) return
+
+    setIsStartingDM(true)
+    try {
+      const convo = await getOrCreateDirectDM(currentAgent.id, agent.id)
+      setIsOpen(false)
+      if (typeof window !== 'undefined') {
+        if (window.location.pathname.startsWith('/communication')) {
+          window.dispatchEvent(
+            new CustomEvent('select-conversation', {
+              detail: { conversationId: convo.id },
+            })
+          )
+          const newUrl = new URL(window.location.href)
+          newUrl.searchParams.set('id', convo.id)
+          window.history.pushState({}, '', newUrl.toString())
+        } else {
+          window.location.href = `/communication?id=${convo.id}`
+        }
+      }
+    } catch (err) {
+      console.error('Failed to start Direct DM:', err)
+    } finally {
+      setIsStartingDM(false)
+    }
+  }
+
   const statusInfo = parseStatusMessage(agent.status_message ?? null)
   const displayName = agent.name || 'Unknown'
+  const canMessage = Boolean(agent.id && currentAgent && agent.id !== currentAgent.id)
 
   return (
     <div
@@ -197,6 +232,24 @@ export default function UserHoverCard({
               </div>
             )}
           </div>
+
+          {/* Quick Message Button */}
+          {canMessage && (
+            <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+              <button
+                onClick={handleStartDirectDM}
+                disabled={isStartingDM}
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isStartingDM ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <MessageSquare className="w-3.5 h-3.5" />
+                )}
+                <span>Message {displayName.split(' ')[0]}</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -73,11 +73,16 @@ export default function CommunicationHub() {
       const convos = await fetchConversationsForAgent(currentAgent.id)
       setConversations(convos)
 
-      // Check if a specific channel was requested via ?channel=... query param
+      // Check if a specific conversation was requested via ?id=... or ?channel=... query param
       let targetId: string | null = null
       if (typeof window !== "undefined") {
-        const paramChannel = new URLSearchParams(window.location.search).get("channel")
-        if (paramChannel) {
+        const searchParams = new URLSearchParams(window.location.search)
+        const paramId = searchParams.get("id")
+        const paramChannel = searchParams.get("channel")
+
+        if (paramId) {
+          targetId = paramId
+        } else if (paramChannel) {
           const match = convos.find((c) => c.name?.toLowerCase() === paramChannel.toLowerCase())
           if (match) {
             targetId = match.id
@@ -102,6 +107,23 @@ export default function CommunicationHub() {
   useEffect(() => {
     loadConversations()
   }, [loadConversations])
+
+  // Listen to select-conversation event to switch active conversation from hover cards or HUD
+  useEffect(() => {
+    const handleSelectConvo = async (e: any) => {
+      const convoId = e.detail?.conversationId
+      if (convoId) {
+        setSelectedId(convoId)
+        setShowHudPanel(false)
+        if (currentAgent) {
+          const convos = await fetchConversationsForAgent(currentAgent.id)
+          setConversations(convos)
+        }
+      }
+    }
+    window.addEventListener('select-conversation', handleSelectConvo)
+    return () => window.removeEventListener('select-conversation', handleSelectConvo)
+  }, [currentAgent])
 
   // ── Load messages for selected conversation ───────────────────
   useEffect(() => {
