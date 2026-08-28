@@ -93,9 +93,9 @@ export default function ConversationSidebar({
     if (conversation.type === 'direct_dm' && conversation.members) {
       const other = conversation.members.find((m) => m.agent_id !== currentAgentId)
       if (other?.agent_id) {
-        return getLivePresence ? getLivePresence(other.agent_id, other?.agent?.presence ?? 'offline') : (other?.agent?.presence ?? 'offline')
+        return getLivePresence ? getLivePresence(other.agent_id, other?.agent) : ((other?.agent?.presence as any) ?? 'offline')
       }
-      return other?.agent?.presence ?? 'offline'
+      return (other?.agent?.presence as any) ?? 'offline'
     }
     return 'offline'
   }

@@ -357,9 +357,9 @@ export default function MessageBubble({
     currentAgent && (senderId === currentAgent.id || senderName.toLowerCase() === currentAgent.name.toLowerCase())
   )
 
-  const senderPresence = isSelf
-    ? (currentAgent?.presence || 'online')
-    : (senderId && chat?.getLivePresence ? chat.getLivePresence(senderId, message.sender?.presence || 'offline') : message.sender?.presence || 'offline')
+  const senderPresence = senderId && chat?.getLivePresence
+    ? chat.getLivePresence(senderId, message.sender)
+    : (message.sender?.presence || 'offline')
 
   const senderStatusMsg = isSelf
     ? currentAgent?.status_message

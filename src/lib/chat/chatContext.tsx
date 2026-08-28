@@ -74,7 +74,7 @@ export interface ChatContextValue {
   /** Live realtime presence map for all agents keyed by agent ID. */
   livePresenceMap: Record<string, AgentPresenceData>
   /** Helper to get an agent's true realtime presence. */
-  getLivePresence: (agentId: string, fallback?: string) => 'online' | 'away' | 'busy' | 'offline'
+  getLivePresence: (agentId: string, fallback?: any) => 'online' | 'away' | 'busy' | 'offline'
   /** Helper to get an agent's true realtime status message. */
   getLiveStatusMessage: (agentId: string, fallback?: string | null) => string | null
 }
@@ -135,6 +135,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
 
     loadInitialPresence()
+    const pollInterval = setInterval(loadInitialPresence, 20_000)
 
     const presenceChannel = supabase
       .channel('public:agents-presence-feed')
@@ -162,6 +163,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       .subscribe()
 
     return () => {
+      clearInterval(pollInterval)
       supabase.removeChannel(presenceChannel)
     }
   }, [])
@@ -540,18 +542,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // -----------------------------------------------------------------------
 
   const getLivePresence = useCallback(
-    (agentId: string, fallback: string = 'offline'): 'online' | 'away' | 'busy' | 'offline' => {
+    (agentId: string, fallback?: any): 'online' | 'away' | 'busy' | 'offline' => {
       if (agentIdRef.current && agentId === agentIdRef.current && currentAgent) {
         return currentAgent.presence || 'online'
       }
       const data = livePresenceMap[agentId]
-      if (!data) return fallback as any
-      if (data.presence === 'offline') return 'offline'
-      if (!data.last_seen_at) return 'offline'
-      const lastSeen = new Date(data.last_seen_at).getTime()
+      const presence = data?.presence ?? (typeof fallback === 'object' && fallback ? fallback.presence : fallback) ?? 'offline'
+      const lastSeenAt = data?.last_seen_at ?? (typeof fallback === 'object' && fallback ? fallback.last_seen_at : null)
+
+      if (presence === 'offline') return 'offline'
+      if (presence === 'busy') return 'busy'
+
+      if (!lastSeenAt) return 'offline'
+      const lastSeen = new Date(lastSeenAt).getTime()
       const sixtyMinAgo = Date.now() - 60 * 60 * 1000
       if (lastSeen < sixtyMinAgo) return 'offline'
-      return data.presence || 'online'
+
+      return presence as 'online' | 'away' | 'busy' | 'offline'
     },
     [currentAgent, livePresenceMap]
   )

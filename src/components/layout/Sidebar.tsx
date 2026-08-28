@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser"
 import { useChat } from "@/lib/chat/chatContext"
+import UserPresenceBadge from "@/components/chat/UserPresenceBadge"
 import { 
   BarChart3,
   MessageSquare, 
@@ -60,23 +61,23 @@ function parseStatusMessage(msg: string): { emoji: string; text: string } {
 }
 
 /* ── Nav item type with support for both icon components and letters ─ */
-type NavItem = {
+interface NavItem {
   name: string
   href: string
-  icon?: React.ComponentType<{ className?: string }>
+  icon?: any
+  isLetter?: boolean
   letter?: string
-  pageKey?: string // maps to page_permissions.page_key for access control
+  pageKey?: string
 }
 
 const navItems: NavItem[] = [
-  { name: 'Overview', href: '/', icon: BarChart3, pageKey: 'overview' },
-  { name: 'Daily Standup', href: '/reports/daily', letter: 'D', pageKey: 'daily' },
-  { name: 'Weekly Report', href: '/reports/weekly', letter: 'W', pageKey: 'weekly' },
-  { name: 'MTD Performance', href: '/reports/mtd', letter: 'M', pageKey: 'mtd' },
-  { name: 'Quotes & NB', href: '/reports/quotes', icon: Percent, pageKey: 'quotes' },
-  { name: 'Agent Heatmap', href: '/reports/heatmap', icon: Flame, pageKey: 'heatmap' },
-  { name: 'Rebel Rewards', href: '/rebel-rewards', icon: Trophy, pageKey: 'rebel_rewards' },
-  { name: 'Staff', href: '/staff', icon: Users, pageKey: 'staff' },
+  { name: 'Heatmap', href: '/reports/heatmap', icon: Flame },
+  { name: 'Daily Report', href: '/reports/daily', isLetter: true, letter: 'D' },
+  { name: 'Weekly Report', href: '/reports/weekly', isLetter: true, letter: 'W' },
+  { name: 'MTD Report', href: '/reports/mtd', isLetter: true, letter: 'M' },
+  { name: 'Quotes Report', href: '/reports/quotes', icon: Percent },
+  { name: 'Rebel Rewards', href: '/rebel-rewards', icon: Trophy },
+  { name: 'Staff Directory', href: '/staff', icon: Users },
   { name: 'Agent Portal', href: '/reports/agent', icon: UserCircle, pageKey: 'agent_portal' },
   { name: 'Communication', href: '/communication', icon: MessageSquare },
   { name: 'My Settings', href: '/settings', icon: Settings },
@@ -90,10 +91,9 @@ export function Sidebar() {
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
 
-  const { unreadCounts } = useChat()
+  const { currentAgent, unreadCounts, setManualPresence } = useChat()
   const totalUnread = Object.values(unreadCounts || {}).reduce((sum, count) => sum + (count || 0), 0)
 
-  const [currentAgent, setCurrentAgent] = useState<any>(null)
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
   const [modalPresence, setModalPresence] = useState<'online' | 'away' | 'busy' | 'offline'>('online')
   const [modalStatusMsg, setModalStatusMsg] = useState('')
@@ -122,22 +122,8 @@ export function Sidebar() {
   }, [currentAgent, isManagerOrAdmin])
 
   useEffect(() => {
-    const loadAgent = async () => {
+    const loadPerms = async () => {
       const supabase = createSupabaseBrowserClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      
-      const { data } = await supabase
-        .from('agents')
-        .select('id, name, presence, status_message, role, team')
-        .eq('auth_user_id', user.id)
-        .single()
-      
-      if (data) {
-        setCurrentAgent(data)
-      }
-
-      // Load page permissions
       const { data: perms } = await supabase
         .from('page_permissions')
         .select('page_key, allowed_teams')
@@ -148,15 +134,7 @@ export function Sidebar() {
       }
     }
     
-    loadAgent()
-    
-    const handleUpdate = () => {
-      loadAgent()
-    }
-    window.addEventListener('agent-updated', handleUpdate)
-    return () => {
-      window.removeEventListener('agent-updated', handleUpdate)
-    }
+    loadPerms()
   }, [])
 
   useEffect(() => {
@@ -203,11 +181,9 @@ export function Sidebar() {
       
       if (error) throw error
       
-      setCurrentAgent((prev: any) => prev ? {
-        ...prev,
-        presence: modalPresence,
-        status_message: finalStatusMsg
-      } : null)
+      if (setManualPresence && modalPresence !== 'offline') {
+        await setManualPresence(modalPresence as any)
+      }
       
       // Save to recent statuses in localStorage
       if (modalStatusMsg.trim()) {
@@ -610,15 +586,9 @@ export function Sidebar() {
                 >
                   {currentAgent.name.charAt(0).toUpperCase()}
                 </div>
-                <div
-                  className={cn(
-                    "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white shrink-0 shadow-sm",
-                    currentAgent.presence === 'online' && "bg-emerald-500",
-                    currentAgent.presence === 'away' && "bg-amber-500",
-                    currentAgent.presence === 'busy' && "bg-rose-500",
-                    currentAgent.presence === 'offline' && "bg-slate-400"
-                  )}
-                />
+                <div className="absolute -bottom-0.5 -right-0.5">
+                  <UserPresenceBadge status={currentAgent.presence || 'online'} size="sm" />
+                </div>
               </div>
 
               {/* Details */}

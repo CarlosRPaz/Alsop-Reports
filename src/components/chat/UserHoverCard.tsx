@@ -123,9 +123,7 @@ export default function UserHoverCard({
     (agent.id === currentAgent.id || agent.name.trim().toLowerCase() === currentAgent.name.trim().toLowerCase())
   )
 
-  const effectivePresence = isSelf
-    ? (currentAgent?.presence || 'online')
-    : (agent.id ? getLivePresence(agent.id, agent.presence || 'offline') : agent.presence || 'offline')
+  const effectivePresence = agent.id ? getLivePresence(agent.id, agent) : (agent.presence || 'offline')
 
   const effectiveStatusMessage = isSelf
     ? currentAgent?.status_message

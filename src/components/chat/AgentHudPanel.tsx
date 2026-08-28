@@ -41,11 +41,12 @@ type EnrichedAgent = Agent & {
 
 function getEffectivePresence(agent: Agent): 'online' | 'away' | 'busy' | 'offline' {
   if (agent.presence === 'offline') return 'offline'
+  if (agent.presence === 'busy') return 'busy'
   if (!agent.last_seen_at) return 'offline'
   const lastSeen = new Date(agent.last_seen_at).getTime()
   const sixtyMinAgo = Date.now() - 60 * 60 * 1000
   if (lastSeen < sixtyMinAgo) return 'offline'
-  return agent.presence || 'online'
+  return (agent.presence as any) || 'online'
 }
 
 /**
@@ -97,7 +98,14 @@ const ALIAS_MAP: Record<string, string> = {
 export default function AgentHudPanel() {
   const [agents, setAgents] = useState<EnrichedAgent[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const { currentAgent, getLivePresence } = useChat()
+  const { currentAgent, getLivePresence, livePresenceMap } = useChat()
+
+  const resolvePresence = useCallback((agent: Agent): 'online' | 'away' | 'busy' | 'offline' => {
+    if (getLivePresence) {
+      return getLivePresence(agent.id, agent)
+    }
+    return getEffectivePresence(agent)
+  }, [getLivePresence])
 
   // Filters: only "all" and "online"
   const [searchQuery, setSearchQuery] = useState('')
@@ -224,15 +232,17 @@ export default function AgentHudPanel() {
         const matchEmail = agent.email?.toLowerCase().includes(q)
         if (!matchName && !matchRc && !matchRico && !matchEmail) return false
       }
-      if (statusFilter === 'online' && getEffectivePresence(agent) !== 'online') return false
+      if (statusFilter === 'online' && resolvePresence(agent) !== 'online') return false
       if (officeFilter !== 'all' && agent.office !== officeFilter) return false
       if (teamFilter !== 'all' && agent.team !== teamFilter) return false
       if (spanishOnly && !agent.speaks_spanish) return false
       return true
     })
-  }, [agents, searchQuery, statusFilter, officeFilter, teamFilter, spanishOnly])
+  }, [agents, searchQuery, statusFilter, officeFilter, teamFilter, spanishOnly, resolvePresence, livePresenceMap])
 
-  const onlineCount = useMemo(() => agents.filter(a => getEffectivePresence(a) === 'online').length, [agents])
+  const onlineCount = useMemo(() => {
+    return agents.filter(a => resolvePresence(a) === 'online').length
+  }, [agents, resolvePresence, livePresenceMap])
 
   const hasActiveFilters = searchQuery || statusFilter !== 'all' || officeFilter !== 'all' || teamFilter !== 'all' || spanishOnly
 
@@ -438,12 +448,7 @@ export default function AgentHudPanel() {
           /* ── Compact Grid View (Click to Open Detail Modal) ── */
           <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2">
             {filteredAgents.map(agent => {
-              const isSelf = Boolean(
-                currentAgent && (agent.id === currentAgent.id || agent.name.toLowerCase() === currentAgent.name.toLowerCase())
-              )
-              const presence = isSelf
-                ? (currentAgent?.presence || 'online')
-                : (agent.id && getLivePresence ? getLivePresence(agent.id, agent.presence || 'offline') : getEffectivePresence(agent))
+              const presence = resolvePresence(agent)
               const ringColor = getPresenceColor(presence)
 
               return (
@@ -516,12 +521,7 @@ export default function AgentHudPanel() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredAgents.map(agent => {
-                  const isSelf = Boolean(
-                    currentAgent && (agent.id === currentAgent.id || agent.name.toLowerCase() === currentAgent.name.toLowerCase())
-                  )
-                  const presence = isSelf
-                    ? (currentAgent?.presence || 'online')
-                    : (agent.id && getLivePresence ? getLivePresence(agent.id, agent.presence || 'offline') : getEffectivePresence(agent))
+                  const presence = resolvePresence(agent)
                   const statusText = agent.status_message || (presence.charAt(0).toUpperCase() + presence.slice(1))
                   const rc = parsePhoneAndExt(agent.ring_central_phone)
 
@@ -628,12 +628,7 @@ export default function AgentHudPanel() {
               <div className="flex items-center gap-3 min-w-0">
                 <div className="relative shrink-0">
                   {(() => {
-                    const isModalSelf = Boolean(
-                      currentAgent && (selectedAgent.id === currentAgent.id || selectedAgent.name.toLowerCase() === currentAgent.name.toLowerCase())
-                    )
-                    const modalPresence = isModalSelf
-                      ? (currentAgent?.presence || 'online')
-                      : (selectedAgent.id && getLivePresence ? getLivePresence(selectedAgent.id, selectedAgent.presence || 'offline') : getEffectivePresence(selectedAgent))
+                    const modalPresence = resolvePresence(selectedAgent)
 
                     return (
                       <>
