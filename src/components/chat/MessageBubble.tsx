@@ -11,12 +11,14 @@ import {
   AlertTriangle,
   AlertCircle,
   ExternalLink,
+  Plus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChat } from '@/lib/chat/chatContext'
 import type { Message, Reaction, Agent } from './types'
 import UserPresenceBadge from './UserPresenceBadge'
 import UserHoverCard from './UserHoverCard'
+import EmojiReactionPicker from './EmojiReactionPicker'
 
 interface MessageBubbleProps {
   message: Message
@@ -48,8 +50,6 @@ function getAvatarColor(name: string): string {
   }
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
 }
-
-const QUICK_EMOJIS = ['👍', '❤️', '😂', '🎉', '👀', '🙏']
 
 function formatTime(dateStr: string): string {
   const d = new Date(dateStr)
@@ -525,7 +525,7 @@ export default function MessageBubble({
 
           {/* Reactions */}
           {message.reactions && message.reactions.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
               {message.reactions.map((r) => {
                 const isReactedByMe = r.agent_ids.includes(currentAgentId)
                 const reactorNames = formatReactionTooltip(r, currentAgentId)
@@ -556,6 +556,17 @@ export default function MessageBubble({
                   </div>
                 )
               })}
+
+              {/* Quick Add Reaction Button on Reaction Pill Row */}
+              <div className="relative inline-flex">
+                <button
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-dashed border-slate-300 text-slate-400 hover:text-slate-600 hover:border-slate-400 hover:bg-slate-50 transition-all text-xs cursor-pointer select-none"
+                  title="Add reaction"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -575,26 +586,17 @@ export default function MessageBubble({
           <div className="relative">
             <button
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="w-7 h-7 flex items-center justify-center rounded text-slate-400 hover:text-amber-500 hover:bg-amber-50 transition-colors"
+              className="w-7 h-7 flex items-center justify-center rounded text-slate-400 hover:text-amber-500 hover:bg-amber-50 transition-colors cursor-pointer"
               title="React"
             >
               <Smile className="w-3.5 h-3.5" />
             </button>
             {showEmojiPicker && (
-              <div className="absolute right-0 top-full mt-1 flex items-center gap-1 bg-white border border-slate-200 rounded-lg shadow-lg p-1.5 z-20">
-                {QUICK_EMOJIS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => {
-                      onReact(message.id, emoji)
-                      setShowEmojiPicker(false)
-                    }}
-                    className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 transition-colors text-sm"
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
+              <EmojiReactionPicker
+                align="right"
+                onSelect={(emoji) => onReact(message.id, emoji)}
+                onClose={() => setShowEmojiPicker(false)}
+              />
             )}
           </div>
 
