@@ -1,15 +1,15 @@
 'use client'
 
-import {
+import React, {
   useState,
   useRef,
   useCallback,
   useEffect,
   type KeyboardEvent,
-  type ChangeEvent,
   type ClipboardEvent,
+  type FormEvent,
 } from 'react'
-import { Send, X, ChevronDown, AlertTriangle, AlertCircle, Loader2, Sparkles } from 'lucide-react'
+import { Send, X, ChevronDown, AlertTriangle, AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import MentionAutocomplete from './MentionAutocomplete'
 import GifPicker from './GifPicker'
@@ -43,6 +43,34 @@ const PRIORITY_OPTIONS: { value: PriorityLevel; label: string; icon: React.React
   },
 ]
 
+/**
+ * Extracts plain text and image URLs from contentEditable DOM tree
+ */
+function extractContentFromDom(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent || ''
+  }
+  if (node.nodeType === Node.ELEMENT_NODE) {
+    const el = node as HTMLElement
+    if (el.tagName === 'IMG') {
+      const src = el.getAttribute('src') || ''
+      return src ? ` ${src} ` : ''
+    }
+    if (el.tagName === 'BR') {
+      return '\n'
+    }
+    let text = ''
+    for (const child of Array.from(el.childNodes)) {
+      text += extractContentFromDom(child)
+    }
+    if (el.tagName === 'DIV' || el.tagName === 'P') {
+      return '\n' + text
+    }
+    return text
+  }
+  return ''
+}
+
 export default function MessageComposer({
   conversationId,
   currentAgentId,
@@ -60,20 +88,42 @@ export default function MessageComposer({
   const [showGifPicker, setShowGifPicker] = useState(false)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 })
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editorRef = useRef<HTMLDivElement>(null)
 
-  // Auto resize textarea
+  // Focus editor on mount and conversation change
   useEffect(() => {
-    const el = textareaRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, 160) + 'px'
-  }, [content])
-
-  // Focus textarea on mount and conversation change
-  useEffect(() => {
-    textareaRef.current?.focus()
+    if (editorRef.current) {
+      editorRef.current.focus()
+    }
   }, [conversationId, replyTo])
+
+  // Sync content state when DOM changes
+  const updateContentFromDom = useCallback(() => {
+    if (!editorRef.current) return
+    const text = extractContentFromDom(editorRef.current).trim()
+    setContent(text)
+
+    // Check for @ mention trigger
+    const selection = window.getSelection()
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0)
+      const textBefore = range.startContainer.textContent?.slice(0, range.startOffset) || ''
+      const atMatch = textBefore.match(/@(\w*)$/)
+
+      if (atMatch) {
+        setMentionQuery(atMatch[1])
+        const rect = range.getBoundingClientRect()
+        setMentionPosition({
+          top: rect.top,
+          left: rect.left,
+        })
+      } else {
+        setMentionQuery(null)
+      }
+    } else {
+      setMentionQuery(null)
+    }
+  }, [])
 
   const handleSend = useCallback(async () => {
     const text = content.trim()
@@ -82,6 +132,9 @@ export default function MessageComposer({
     setIsSending(true)
     try {
       await onSend(text, replyTo?.id, priority)
+      if (editorRef.current) {
+        editorRef.current.innerHTML = ''
+      }
       setContent('')
       setPriority('normal')
       setShowGifPicker(false)
@@ -91,8 +144,8 @@ export default function MessageComposer({
   }, [content, isSending, isUploading, onSend, replyTo, priority])
 
   const handleKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      // Don't intercept if mention picker is open
+    (e: KeyboardEvent<HTMLDivElement>) => {
+      // Don't intercept Enter if mention picker is open
       if (mentionQuery !== null) return
 
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -104,14 +157,14 @@ export default function MessageComposer({
   )
 
   /**
-   * Handle pasting images/GIFs from Windows "Win + ." or clipboard files / HTML
+   * Handle pasting images/GIFs from Windows "Win + ." or clipboard
    */
   const handlePaste = useCallback(
-    async (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    async (e: ClipboardEvent<HTMLDivElement>) => {
       const clipboardData = e.clipboardData
       if (!clipboardData) return
 
-      // 1. Check for image files / blobs (Windows Win+. GIF picker pastes image blobs)
+      // 1. Check for image files/blobs from Windows GIF picker or clipboard
       let imageFile: File | null = null
 
       if (clipboardData.files && clipboardData.files.length > 0) {
@@ -148,87 +201,107 @@ export default function MessageComposer({
 
           if (res.ok) {
             const data = await res.json()
-            if (data.url) {
-              setContent((prev) => (prev ? `${prev.trim()} ${data.url}` : data.url))
+            if (data.url && editorRef.current) {
+              // Insert image element into contentEditable
+              const img = document.createElement('img')
+              img.src = data.url
+              img.className = 'max-h-28 rounded-lg my-1 inline-block'
+              img.alt = 'GIF'
+
+              const selection = window.getSelection()
+              if (selection && selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0)
+                range.deleteContents()
+                range.insertNode(img)
+                range.collapse(false)
+              } else {
+                editorRef.current.appendChild(img)
+              }
+              updateContentFromDom()
             }
           }
         } catch (err) {
-          console.error('Failed to upload pasted GIF/image:', err)
+          console.error('Failed to upload pasted image:', err)
         } finally {
           setIsUploading(false)
         }
         return
       }
 
-      // 2. Check for HTML snippet with <img src="..."> (some browsers paste Tenor GIFs as HTML)
+      // 2. Check for HTML snippet with <img src="...">
       const html = clipboardData.getData('text/html')
       if (html) {
         const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i)
         if (imgMatch && imgMatch[1] && (imgMatch[1].startsWith('http') || imgMatch[1].startsWith('data:image/'))) {
           e.preventDefault()
           const src = imgMatch[1]
-          setContent((prev) => (prev ? `${prev.trim()} ${src}` : src))
+          if (editorRef.current) {
+            const img = document.createElement('img')
+            img.src = src
+            img.className = 'max-h-28 rounded-lg my-1 inline-block'
+            img.alt = 'GIF'
+
+            const selection = window.getSelection()
+            if (selection && selection.rangeCount > 0) {
+              const range = selection.getRangeAt(0)
+              range.deleteContents()
+              range.insertNode(img)
+              range.collapse(false)
+            } else {
+              editorRef.current.appendChild(img)
+            }
+            updateContentFromDom()
+          }
           return
         }
       }
     },
-    []
+    [updateContentFromDom]
   )
 
-  const handleChange = useCallback(
-    (e: ChangeEvent<HTMLTextAreaElement>) => {
-      const val = e.target.value
-      setContent(val)
-
-      // Check for @ mention trigger
-      const cursorPos = e.target.selectionStart
-      const textBefore = val.slice(0, cursorPos)
-      const atMatch = textBefore.match(/@(\w*)$/)
-
-      if (atMatch) {
-        setMentionQuery(atMatch[1])
-        const rect = e.target.getBoundingClientRect()
-        setMentionPosition({
-          top: rect.top,
-          left: rect.left + 20,
-        })
-      } else {
-        setMentionQuery(null)
-      }
+  const handleInput = useCallback(
+    (e: FormEvent<HTMLDivElement>) => {
+      updateContentFromDom()
     },
-    []
+    [updateContentFromDom]
   )
 
   const handleMentionSelect = useCallback(
     (mention: string) => {
-      const cursorPos = textareaRef.current?.selectionStart ?? content.length
-      const textBefore = content.slice(0, cursorPos)
-      const textAfter = content.slice(cursorPos)
-      const newBefore = textBefore.replace(/@\w*$/, mention + ' ')
-      setContent(newBefore + textAfter)
-      setMentionQuery(null)
-
-      setTimeout(() => {
-        const el = textareaRef.current
-        if (el) {
-          el.focus()
-          el.selectionStart = newBefore.length
-          el.selectionEnd = newBefore.length
+      if (!editorRef.current) return
+      const selection = window.getSelection()
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0)
+        const node = range.startContainer
+        if (node.nodeType === Node.TEXT_NODE) {
+          const text = node.textContent || ''
+          const beforeAt = text.slice(0, range.startOffset).replace(/@\w*$/, mention + ' ')
+          const afterAt = text.slice(range.startOffset)
+          node.textContent = beforeAt + afterAt
+          range.setStart(node, beforeAt.length)
+          range.setEnd(node, beforeAt.length)
         }
-      }, 0)
+      }
+      setMentionQuery(null)
+      updateContentFromDom()
     },
-    [content]
+    [updateContentFromDom]
   )
 
   const handleGifSelect = useCallback((gifUrl: string) => {
-    setContent((prev) => (prev ? `${prev.trim()} ${gifUrl}` : gifUrl))
+    if (!editorRef.current) return
+    const img = document.createElement('img')
+    img.src = gifUrl
+    img.className = 'max-h-28 rounded-lg my-1 inline-block'
+    img.alt = 'GIF'
+    editorRef.current.appendChild(img)
+    updateContentFromDom()
     setShowGifPicker(false)
-    setTimeout(() => {
-      textareaRef.current?.focus()
-    }, 0)
-  }, [])
+    editorRef.current.focus()
+  }, [updateContentFromDom])
 
   const canSendUrgent = hasPermission('send_urgent_messages')
+  const isEmpty = !content.trim()
 
   return (
     <div className="relative border-t border-slate-100 bg-white">
@@ -245,7 +318,7 @@ export default function MessageComposer({
             </div>
             <button
               onClick={onCancelReply}
-              className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-slate-600 hover:bg-white/50 transition-colors shrink-0"
+              className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-slate-600 hover:bg-white/50 transition-colors shrink-0 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -259,22 +332,30 @@ export default function MessageComposer({
         {isUploading && (
           <div className="mb-2 flex items-center gap-2 rounded-lg bg-pink-50 border border-pink-100 px-3 py-1.5 text-xs text-pink-700 font-medium animate-pulse">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-pink-600" />
-            <span>Processing and uploading pasted GIF...</span>
+            <span>Processing and uploading GIF...</span>
           </div>
         )}
 
         <div className="flex items-end gap-2 sm:gap-3 bg-slate-50 border border-slate-200 rounded-xl p-2 focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400 transition-all">
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder="Write a message... (Paste or use Win + . for GIFs)"
-            disabled={isSending || isUploading}
-            className="flex-1 bg-transparent border-none px-2 sm:px-3 py-2 text-sm text-slate-900 focus:outline-none resize-none min-h-[40px] max-h-[160px] placeholder:text-slate-400 disabled:opacity-50"
-            rows={1}
-          />
+          {/* ContentEditable Rich Text Input (Enables Windows Emoji/GIF Picker without opening new window) */}
+          <div className="relative flex-1 min-h-[40px] max-h-[160px] overflow-y-auto">
+            {isEmpty && (
+              <div className="pointer-events-none absolute left-2 sm:left-3 top-2 text-sm text-slate-400 select-none">
+                Write a message...
+              </div>
+            )}
+            <div
+              ref={editorRef}
+              contentEditable={!isSending && !isUploading}
+              role="textbox"
+              aria-multiline="true"
+              onInput={handleInput}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              className="w-full bg-transparent border-none px-2 sm:px-3 py-2 text-sm text-slate-900 focus:outline-none min-h-[40px] whitespace-pre-wrap break-words leading-normal cursor-text"
+              style={{ minHeight: '40px' }}
+            />
+          </div>
 
           {/* Action buttons toolbar */}
           <div className="flex items-center gap-1 shrink-0 pb-1">
@@ -289,7 +370,7 @@ export default function MessageComposer({
                     ? 'bg-pink-100 text-pink-700 shadow-xs ring-1 ring-pink-200'
                     : 'text-slate-500 hover:text-pink-600 hover:bg-pink-50'
                 )}
-                title="Insert a GIF (or use Win + .)"
+                title="Insert a GIF"
               >
                 <span className="flex h-4 w-4 items-center justify-center rounded bg-pink-500 text-white text-[9px] font-extrabold">
                   G
@@ -356,10 +437,10 @@ export default function MessageComposer({
             {/* Send button */}
             <button
               onClick={handleSend}
-              disabled={!content.trim() || isSending || isUploading}
+              disabled={isEmpty || isSending || isUploading}
               className={cn(
                 'rounded-lg px-3 sm:px-4 h-9 sm:h-10 flex items-center gap-1.5 sm:gap-2 text-sm font-semibold transition-all shrink-0 cursor-pointer',
-                content.trim() && !isSending && !isUploading
+                !isEmpty && !isSending && !isUploading
                   ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs active:scale-[0.97]'
                   : 'bg-slate-200 text-slate-400 cursor-not-allowed'
               )}
@@ -382,9 +463,9 @@ export default function MessageComposer({
             </kbd>{' '}
             to send ·{' '}
             <kbd className="font-mono bg-slate-100 border border-slate-200 rounded px-1">
-              Win + .
+              Shift+Enter
             </kbd>{' '}
-            or click <span className="font-semibold text-pink-600">GIF</span>
+            for newline
           </p>
           <p className="text-[11px] text-slate-400 hidden sm:block">
             <span className="text-slate-300">**bold**</span>{' '}
