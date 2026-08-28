@@ -64,6 +64,19 @@ export default function CommunicationHub() {
 
   const selectedConversation = conversations.find(c => c.id === selectedId) || null
 
+  const hasHandledInitialUrlParamRef = useRef(false)
+
+  const handleSelectConversation = useCallback((id: string) => {
+    setSelectedId(id)
+    setShowHudPanel(false)
+    if (typeof window !== 'undefined') {
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.delete('channel')
+      newUrl.searchParams.set('id', id)
+      window.history.replaceState({}, '', newUrl.toString())
+    }
+  }, [])
+
   // ── Load conversations ────────────────────────────────────────
   const loadConversations = useCallback(async () => {
     if (!currentAgent) return
@@ -73,13 +86,14 @@ export default function CommunicationHub() {
       const convos = await fetchConversationsForAgent(currentAgent.id)
       setConversations(convos)
 
-      // Check if a specific conversation was requested via ?id=... or ?channel=... query param
-      let targetId: string | null = null
-      if (typeof window !== "undefined") {
+      // Only check URL params on the initial mount
+      if (!hasHandledInitialUrlParamRef.current && typeof window !== "undefined") {
+        hasHandledInitialUrlParamRef.current = true
         const searchParams = new URLSearchParams(window.location.search)
         const paramId = searchParams.get("id")
         const paramChannel = searchParams.get("channel")
 
+        let targetId: string | null = null
         if (paramId) {
           targetId = paramId
         } else if (paramChannel) {
@@ -88,21 +102,25 @@ export default function CommunicationHub() {
             targetId = match.id
           }
         }
+
+        if (targetId) {
+          setSelectedId(targetId)
+          return
+        }
       }
 
-      if (targetId) {
-        setSelectedId(targetId)
-      } else if (!selectedId && convos.length > 0) {
-        // Prefer 'All' channel as the default landing channel
+      // Default selection if none selected yet or previous is invalid
+      setSelectedId(prev => {
+        if (prev && convos.some(c => c.id === prev)) return prev
         const allChannel = convos.find((c) => c.name === "All")
-        setSelectedId(allChannel ? allChannel.id : convos[0].id)
-      }
+        return allChannel ? allChannel.id : (convos[0]?.id ?? null)
+      })
     } catch (err) {
       console.error("[CommunicationHub] Failed to load conversations:", err)
     } finally {
       setIsLoadingConversations(false)
     }
-  }, [currentAgent, selectedId])
+  }, [currentAgent])
 
   useEffect(() => {
     loadConversations()
@@ -113,8 +131,7 @@ export default function CommunicationHub() {
     const handleSelectConvo = async (e: any) => {
       const convoId = e.detail?.conversationId
       if (convoId) {
-        setSelectedId(convoId)
-        setShowHudPanel(false)
+        handleSelectConversation(convoId)
         if (currentAgent) {
           const convos = await fetchConversationsForAgent(currentAgent.id)
           setConversations(convos)
@@ -123,7 +140,7 @@ export default function CommunicationHub() {
     }
     window.addEventListener('select-conversation', handleSelectConvo)
     return () => window.removeEventListener('select-conversation', handleSelectConvo)
-  }, [currentAgent])
+  }, [currentAgent, handleSelectConversation])
 
   // ── Load messages for selected conversation ───────────────────
   useEffect(() => {
@@ -456,10 +473,7 @@ export default function CommunicationHub() {
           selectedId={selectedId}
           unreadCounts={unreadCounts}
           currentAgent={currentAgent}
-          onSelect={(id) => {
-            setSelectedId(id)
-            setShowHudPanel(false)
-          }}
+          onSelect={handleSelectConversation}
           onCreateNew={(tab) => {
             setCreateModalDefaultTab(tab || 'dm')
             setShowCreateModal(true)
