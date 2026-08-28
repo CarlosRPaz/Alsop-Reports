@@ -44,6 +44,12 @@ export interface LatestMessageAlert {
   timestamp: number
 }
 
+export interface AgentPresenceData {
+  presence: 'online' | 'away' | 'busy' | 'offline'
+  status_message?: string | null
+  last_seen_at?: string | null
+}
+
 export interface ChatContextValue {
   /** The currently signed-in agent, or `null` while loading / signed out. */
   currentAgent: Agent | null
@@ -65,6 +71,12 @@ export interface ChatContextValue {
   latestMessageAlert: LatestMessageAlert | null
   /** Set the agent's presence manually (Away/Busy/Online). Heartbeat won't overwrite manual statuses. */
   setManualPresence: (status: 'online' | 'away' | 'busy') => Promise<void>
+  /** Live realtime presence map for all agents keyed by agent ID. */
+  livePresenceMap: Record<string, AgentPresenceData>
+  /** Helper to get an agent's true realtime presence. */
+  getLivePresence: (agentId: string, fallback?: string) => 'online' | 'away' | 'busy' | 'offline'
+  /** Helper to get an agent's true realtime status message. */
+  getLiveStatusMessage: (agentId: string, fallback?: string | null) => string | null
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null)
@@ -85,6 +97,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<Record<string, boolean>>({})
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
   const [latestMessageAlert, setLatestMessageAlert] = useState<LatestMessageAlert | null>(null)
+  const [livePresenceMap, setLivePresenceMap] = useState<Record<string, AgentPresenceData>>({})
 
   // Keep a ref to the presence heartbeat interval so we can clear it on
   // unmount or sign-out.
@@ -95,6 +108,63 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const manualStatusRef = useRef<'online' | 'away' | 'busy'>('online')
   // Keep a ref to the current agent ID for use in beforeunload/visibilitychange
   const agentIdRef = useRef<string | null>(null)
+
+  // -----------------------------------------------------------------------
+  // Realtime Global Presence Subscription for all agents
+  // -----------------------------------------------------------------------
+  useEffect(() => {
+    async function loadInitialPresence() {
+      try {
+        const { data: agents } = await supabase
+          .from('agents')
+          .select('id, presence, status_message, last_seen_at')
+        if (agents) {
+          const map: Record<string, AgentPresenceData> = {}
+          agents.forEach((a: any) => {
+            map[a.id] = {
+              presence: a.presence || 'offline',
+              status_message: a.status_message,
+              last_seen_at: a.last_seen_at,
+            }
+          })
+          setLivePresenceMap(map)
+        }
+      } catch (err) {
+        console.error('[chatContext] Failed to load initial presence map:', err)
+      }
+    }
+
+    loadInitialPresence()
+
+    const presenceChannel = supabase
+      .channel('public:agents-presence-feed')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'agents' },
+        (payload: any) => {
+          const updated = payload.new
+          if (updated && updated.id) {
+            setLivePresenceMap(prev => ({
+              ...prev,
+              [updated.id]: {
+                presence: updated.presence || 'offline',
+                status_message: updated.status_message,
+                last_seen_at: updated.last_seen_at,
+              },
+            }))
+
+            if (agentIdRef.current === updated.id) {
+              setCurrentAgent(prev => prev ? { ...prev, ...updated } : null)
+            }
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(presenceChannel)
+    }
+  }, [])
 
   // -----------------------------------------------------------------------
   // Hydrate agent from localStorage on mount
@@ -453,9 +523,49 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!currentAgent) return
     manualStatusRef.current = status
     await updatePresence(currentAgent.id, status)
-    // Update local agent state to reflect the change immediately
+    // Update local agent state and livePresenceMap immediately
     setCurrentAgent(prev => prev ? { ...prev, presence: status } as Agent : null)
+    setLivePresenceMap(prev => ({
+      ...prev,
+      [currentAgent.id]: {
+        ...prev[currentAgent.id],
+        presence: status,
+        last_seen_at: new Date().toISOString(),
+      },
+    }))
   }, [currentAgent])
+
+  // -----------------------------------------------------------------------
+  // Live presence helpers
+  // -----------------------------------------------------------------------
+
+  const getLivePresence = useCallback(
+    (agentId: string, fallback: string = 'offline'): 'online' | 'away' | 'busy' | 'offline' => {
+      if (agentIdRef.current && agentId === agentIdRef.current && currentAgent) {
+        return currentAgent.presence || 'online'
+      }
+      const data = livePresenceMap[agentId]
+      if (!data) return fallback as any
+      if (data.presence === 'offline') return 'offline'
+      if (!data.last_seen_at) return 'offline'
+      const lastSeen = new Date(data.last_seen_at).getTime()
+      const sixtyMinAgo = Date.now() - 60 * 60 * 1000
+      if (lastSeen < sixtyMinAgo) return 'offline'
+      return data.presence || 'online'
+    },
+    [currentAgent, livePresenceMap]
+  )
+
+  const getLiveStatusMessage = useCallback(
+    (agentId: string, fallback: string | null = null): string | null => {
+      if (agentIdRef.current && agentId === agentIdRef.current && currentAgent) {
+        return currentAgent.status_message ?? null
+      }
+      const data = livePresenceMap[agentId]
+      return data?.status_message ?? fallback
+    },
+    [currentAgent, livePresenceMap]
+  )
 
   // -----------------------------------------------------------------------
   // Memoized context value
@@ -473,6 +583,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       refreshUnreadCounts,
       latestMessageAlert,
       setManualPresence,
+      livePresenceMap,
+      getLivePresence,
+      getLiveStatusMessage,
     }),
     [
       currentAgent,
@@ -485,6 +598,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       refreshUnreadCounts,
       latestMessageAlert,
       setManualPresence,
+      livePresenceMap,
+      getLivePresence,
+      getLiveStatusMessage,
     ],
   )
 

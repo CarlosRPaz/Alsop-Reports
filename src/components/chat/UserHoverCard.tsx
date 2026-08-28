@@ -66,7 +66,7 @@ export default function UserHoverCard({
   const [isStartingDM, setIsStartingDM] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const { currentAgent } = useChat()
+  const { currentAgent, getLivePresence, getLiveStatusMessage } = useChat()
 
   const handleMouseEnter = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -118,7 +118,20 @@ export default function UserHoverCard({
     }
   }
 
-  const statusInfo = parseStatusMessage(agent.status_message ?? null)
+  const isSelf = Boolean(
+    currentAgent &&
+    (agent.id === currentAgent.id || agent.name.trim().toLowerCase() === currentAgent.name.trim().toLowerCase())
+  )
+
+  const effectivePresence = isSelf
+    ? (currentAgent?.presence || 'online')
+    : (agent.id ? getLivePresence(agent.id, agent.presence || 'offline') : agent.presence || 'offline')
+
+  const effectiveStatusMessage = isSelf
+    ? currentAgent?.status_message
+    : (agent.id ? getLiveStatusMessage(agent.id, agent.status_message) : agent.status_message)
+
+  const statusInfo = parseStatusMessage(effectiveStatusMessage ?? null)
   const displayName = agent.name || 'Unknown'
   const canMessage = Boolean(agent.id && currentAgent && agent.id !== currentAgent.id)
 
@@ -161,13 +174,11 @@ export default function UserHoverCard({
               >
                 {displayName.charAt(0).toUpperCase()}
               </div>
-              {agent.presence && (
-                <UserPresenceBadge
-                  status={agent.presence as any}
-                  size="sm"
-                  className="absolute -bottom-0.5 -right-0.5 ring-2 ring-white dark:ring-slate-900"
-                />
-              )}
+              <UserPresenceBadge
+                status={effectivePresence as any}
+                size="sm"
+                className="absolute -bottom-0.5 -right-0.5 ring-2 ring-white dark:ring-slate-900"
+              />
             </div>
 
             <div className="flex-1 min-w-0">
@@ -183,7 +194,7 @@ export default function UserHoverCard({
                 )}
               </div>
               <div className="text-[11px] text-slate-400 capitalize">
-                {agent.presence || 'offline'}
+                {effectivePresence}
               </div>
             </div>
           </div>

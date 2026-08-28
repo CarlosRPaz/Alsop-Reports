@@ -340,19 +340,32 @@ export default function MessageBubble({
   const [showActions, setShowActions] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
 
-  let currentAgent: Agent | null = null
+  let chat: any = null
   try {
-    const chat = useChat()
-    currentAgent = chat.currentAgent
+    chat = useChat()
   } catch {
     // optional fallback outside provider
   }
+  const currentAgent = chat?.currentAgent ?? null
 
   const isOwn = message.sender_id === currentAgentId
   const isAdmin = hasPermission('admin')
   const senderName = message.sender?.name ?? 'Unknown'
+  const senderId = message.sender_id || message.sender?.id
 
-  const statusInfo = useMemo(() => parseStatusMessage(message.sender?.status_message ?? null), [message.sender?.status_message])
+  const isSelf = Boolean(
+    currentAgent && (senderId === currentAgent.id || senderName.toLowerCase() === currentAgent.name.toLowerCase())
+  )
+
+  const senderPresence = isSelf
+    ? (currentAgent?.presence || 'online')
+    : (senderId && chat?.getLivePresence ? chat.getLivePresence(senderId, message.sender?.presence || 'offline') : message.sender?.presence || 'offline')
+
+  const senderStatusMsg = isSelf
+    ? currentAgent?.status_message
+    : (senderId && chat?.getLiveStatusMessage ? chat.getLiveStatusMessage(senderId, message.sender?.status_message) : message.sender?.status_message)
+
+  const statusInfo = useMemo(() => parseStatusMessage(senderStatusMsg ?? null), [senderStatusMsg])
 
   // Check if current user is @mentioned in this message
   const isMentioned = useMemo(() => {
@@ -440,7 +453,7 @@ export default function MessageBubble({
       <div className={cn('flex items-start gap-3 px-4', isGrouped ? 'pl-[60px]' : '')}>
         {/* Avatar with presence status dot overlay */}
         {!isGrouped && (
-          <UserHoverCard agent={message.sender || { name: senderName }} side="top" className="shrink-0 self-start">
+          <UserHoverCard agent={message.sender ? { ...message.sender, id: senderId, presence: senderPresence, status_message: senderStatusMsg } : { id: senderId, name: senderName, presence: senderPresence, status_message: senderStatusMsg }} side="top" className="shrink-0 self-start">
             <div className="relative shrink-0 mt-0.5 w-8 h-8 cursor-pointer group/avatar">
               <div
                 className={cn(
@@ -450,13 +463,11 @@ export default function MessageBubble({
               >
                 {senderName.charAt(0).toUpperCase()}
               </div>
-              {message.sender?.presence && (
-                <UserPresenceBadge
-                  status={message.sender.presence}
-                  size="sm"
-                  className="absolute -bottom-0.5 -right-0.5 ring-[2px] ring-white dark:ring-slate-900"
-                />
-              )}
+              <UserPresenceBadge
+                status={senderPresence as any}
+                size="sm"
+                className="absolute -bottom-0.5 -right-0.5 ring-[2px] ring-white dark:ring-slate-900"
+              />
             </div>
           </UserHoverCard>
         )}

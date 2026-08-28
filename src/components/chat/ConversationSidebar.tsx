@@ -14,6 +14,7 @@ import {
 import { cn } from '@/lib/utils'
 import UserPresenceBadge from './UserPresenceBadge'
 import type { Agent, Conversation, PresenceStatus } from './types'
+import { useChat } from '@/lib/chat/chatContext'
 
 interface ConversationSidebarProps {
   conversations: Conversation[]
@@ -66,14 +67,6 @@ function getDmDisplayName(conversation: Conversation, currentAgentId: string): s
   return conversation.name ?? 'Conversation'
 }
 
-function getDmPresence(conversation: Conversation, currentAgentId: string): PresenceStatus {
-  if (conversation.type === 'direct_dm' && conversation.members) {
-    const other = conversation.members.find((m) => m.agent_id !== currentAgentId)
-    return other?.agent?.presence ?? 'offline'
-  }
-  return 'offline'
-}
-
 const STATUS_OPTIONS: { value: PresenceStatus; label: string; emoji: string }[] = [
   { value: 'online', label: 'Online', emoji: '🟢' },
   { value: 'away', label: 'Away', emoji: '🟡' },
@@ -94,6 +87,18 @@ export default function ConversationSidebar({
   const [search, setSearch] = useState('')
   const [channelsOpen, setChannelsOpen] = useState(true)
   const [dmsOpen, setDmsOpen] = useState(true)
+  const { getLivePresence } = useChat()
+
+  const getDmPresence = (conversation: Conversation, currentAgentId: string): PresenceStatus => {
+    if (conversation.type === 'direct_dm' && conversation.members) {
+      const other = conversation.members.find((m) => m.agent_id !== currentAgentId)
+      if (other?.agent_id) {
+        return getLivePresence ? getLivePresence(other.agent_id, other?.agent?.presence ?? 'offline') : (other?.agent?.presence ?? 'offline')
+      }
+      return other?.agent?.presence ?? 'offline'
+    }
+    return 'offline'
+  }
 
   const channels = useMemo(() => {
     const list = conversations.filter((c) => c.type === 'channel')

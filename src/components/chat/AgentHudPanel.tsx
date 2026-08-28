@@ -97,7 +97,7 @@ const ALIAS_MAP: Record<string, string> = {
 export default function AgentHudPanel() {
   const [agents, setAgents] = useState<EnrichedAgent[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const { currentAgent } = useChat()
+  const { currentAgent, getLivePresence } = useChat()
 
   // Filters: only "all" and "online"
   const [searchQuery, setSearchQuery] = useState('')
@@ -438,7 +438,12 @@ export default function AgentHudPanel() {
           /* ── Compact Grid View (Click to Open Detail Modal) ── */
           <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2">
             {filteredAgents.map(agent => {
-              const presence = getEffectivePresence(agent)
+              const isSelf = Boolean(
+                currentAgent && (agent.id === currentAgent.id || agent.name.toLowerCase() === currentAgent.name.toLowerCase())
+              )
+              const presence = isSelf
+                ? (currentAgent?.presence || 'online')
+                : (agent.id && getLivePresence ? getLivePresence(agent.id, agent.presence || 'offline') : getEffectivePresence(agent))
               const ringColor = getPresenceColor(presence)
 
               return (
@@ -511,7 +516,12 @@ export default function AgentHudPanel() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredAgents.map(agent => {
-                  const presence = getEffectivePresence(agent)
+                  const isSelf = Boolean(
+                    currentAgent && (agent.id === currentAgent.id || agent.name.toLowerCase() === currentAgent.name.toLowerCase())
+                  )
+                  const presence = isSelf
+                    ? (currentAgent?.presence || 'online')
+                    : (agent.id && getLivePresence ? getLivePresence(agent.id, agent.presence || 'offline') : getEffectivePresence(agent))
                   const statusText = agent.status_message || (presence.charAt(0).toUpperCase() + presence.slice(1))
                   const rc = parsePhoneAndExt(agent.ring_central_phone)
 
@@ -617,20 +627,33 @@ export default function AgentHudPanel() {
             <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="relative shrink-0">
-                  <div className={cn(
-                    "flex h-12 w-12 items-center justify-center rounded-full text-white ring-2 ring-offset-2 text-base font-bold",
-                    getPresenceColor(getEffectivePresence(selectedAgent)),
-                    !selectedAgent.avatar_url && getAvatarColor(selectedAgent.name)
-                  )}>
-                    {selectedAgent.avatar_url ? (
-                      <img src={selectedAgent.avatar_url} alt={selectedAgent.name} className="h-full w-full rounded-full object-cover" />
-                    ) : (
-                      getInitials(selectedAgent.name)
-                    )}
-                  </div>
-                  <div className="absolute -bottom-0.5 -right-0.5">
-                    <UserPresenceBadge status={getEffectivePresence(selectedAgent)} size="md" />
-                  </div>
+                  {(() => {
+                    const isModalSelf = Boolean(
+                      currentAgent && (selectedAgent.id === currentAgent.id || selectedAgent.name.toLowerCase() === currentAgent.name.toLowerCase())
+                    )
+                    const modalPresence = isModalSelf
+                      ? (currentAgent?.presence || 'online')
+                      : (selectedAgent.id && getLivePresence ? getLivePresence(selectedAgent.id, selectedAgent.presence || 'offline') : getEffectivePresence(selectedAgent))
+
+                    return (
+                      <>
+                        <div className={cn(
+                          "flex h-12 w-12 items-center justify-center rounded-full text-white ring-2 ring-offset-2 text-base font-bold",
+                          getPresenceColor(modalPresence),
+                          !selectedAgent.avatar_url && getAvatarColor(selectedAgent.name)
+                        )}>
+                          {selectedAgent.avatar_url ? (
+                            <img src={selectedAgent.avatar_url} alt={selectedAgent.name} className="h-full w-full rounded-full object-cover" />
+                          ) : (
+                            getInitials(selectedAgent.name)
+                          )}
+                        </div>
+                        <div className="absolute -bottom-0.5 -right-0.5">
+                          <UserPresenceBadge status={modalPresence} size="md" />
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
 
                 <div className="min-w-0">
