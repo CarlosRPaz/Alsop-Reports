@@ -456,7 +456,10 @@ export default function CommunicationHub() {
           selectedId={selectedId}
           unreadCounts={unreadCounts}
           currentAgent={currentAgent}
-          onSelect={(id) => setSelectedId(id)}
+          onSelect={(id) => {
+            setSelectedId(id)
+            setShowHudPanel(false)
+          }}
           onCreateNew={(tab) => {
             setCreateModalDefaultTab(tab || 'dm')
             setShowCreateModal(true)
@@ -591,6 +594,7 @@ export default function CommunicationHub() {
             const convo = await getOrCreateDirectDM(currentAgent.id, agentId)
             if (convo) {
               setShowCreateModal(false)
+              setShowHudPanel(false)
               await loadConversations()
               setSelectedId(convo.id)
             }
@@ -609,6 +613,7 @@ export default function CommunicationHub() {
           })
           if (convo) {
             setShowCreateModal(false)
+            setShowHudPanel(false)
             await loadConversations()
             setSelectedId(convo.id)
           }
@@ -624,6 +629,7 @@ export default function CommunicationHub() {
           })
           if (convo) {
             setShowCreateModal(false)
+            setShowHudPanel(false)
             await loadConversations()
             setSelectedId(convo.id)
           }
