@@ -1,11 +1,39 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { Agent } from '@/lib/chat/types'
 import { cn } from '@/lib/utils'
-import { Search, LayoutGrid, List, Users, Loader2, X } from 'lucide-react'
+import {
+  Search,
+  LayoutGrid,
+  List,
+  Users,
+  Loader2,
+  X,
+  Phone,
+  PhoneCall,
+  Mail,
+  Copy,
+  Check,
+  Building2,
+  Briefcase
+} from 'lucide-react'
 import UserPresenceBadge from '@/components/chat/UserPresenceBadge'
+
+type DirectoryEntryContact = {
+  name: string
+  position?: string | null
+  ring_central_phone?: string | null
+  ricochet_phone?: string | null
+  email?: string | null
+}
+
+type EnrichedAgent = Agent & {
+  position?: string | null
+  ring_central_phone?: string | null
+  ricochet_phone?: string | null
+}
 
 function getEffectivePresence(agent: Agent): 'online' | 'away' | 'busy' | 'offline' {
   if (agent.presence === 'offline') return 'offline'
@@ -37,57 +65,108 @@ function getInitials(name: string) {
   return name.substring(0, 2).toUpperCase()
 }
 
-const STATUS_OPTIONS = [
-  { value: 'all', label: 'All Status', dot: '' },
-  { value: 'online', label: 'Online', dot: 'bg-emerald-500' },
-  { value: 'away', label: 'Away', dot: 'bg-amber-500' },
-  { value: 'busy', label: 'Busy', dot: 'bg-red-500' },
-  { value: 'offline', label: 'Offline', dot: 'bg-slate-300' },
-] as const
+// Known name alias mapping from agent name -> directory name
+const ALIAS_MAP: Record<string, string> = {
+  'charlie paz': 'carlos charlie paz',
+  'ric becerra': 'ricardo becerra',
+  'gabby': 'carmen “gabby” davis',
+  'rosie': 'rosario delgado',
+  'roxana': 'roxanna topete',
+}
 
 export default function AgentHudPanel() {
-  const [agents, setAgents] = useState<Agent[]>([])
+  const [agents, setAgents] = useState<EnrichedAgent[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  // Filters
+  // Filters: only "all" and "online" for status filter
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'online'>('all')
   const [officeFilter, setOfficeFilter] = useState<string>('all')
   const [teamFilter, setTeamFilter] = useState<string>('all')
   const [spanishOnly, setSpanishOnly] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
-  const fetchAgents = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('agents')
-        .select('*')
-        .eq('active', true)
-        .order('name')
+  // Hover and Modal state
+  const [hoveredAgent, setHoveredAgent] = useState<EnrichedAgent | null>(null)
+  const [selectedAgent, setSelectedAgent] = useState<EnrichedAgent | null>(null)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-      if (error) {
-        console.error('Error fetching agents:', error)
+  const copyToClipboard = useCallback((text: string, key: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    if (!text) return
+    navigator.clipboard.writeText(text).catch(() => {
+      const textArea = document.createElement('textarea')
+      textArea.value = text
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+    })
+    setCopiedKey(key)
+    setTimeout(() => {
+      setCopiedKey(prev => prev === key ? null : prev)
+    }, 1500)
+  }, [])
+
+  const fetchAgentsAndDirectory = useCallback(async () => {
+    try {
+      const [{ data: rawAgents, error: agentErr }, { data: rawEntries, error: entErr }] = await Promise.all([
+        supabase.from('agents').select('*').eq('active', true).order('name'),
+        supabase.from('directory_entries').select('name, position, ring_central_phone, ricochet_phone, email').eq('is_active', true)
+      ])
+
+      if (agentErr) {
+        console.error('Error fetching agents:', agentErr)
         return
       }
 
-      setAgents(data || [])
+      // Build lookup map from directory entries
+      const dirMap = new Map<string, DirectoryEntryContact>()
+      if (rawEntries) {
+        rawEntries.forEach((e: DirectoryEntryContact) => {
+          const clean = e.name.replace(/\s*\(\s*Mgr\.?\s*\)/i, '').trim().toLowerCase()
+          dirMap.set(clean, e)
+          const first = clean.split(' ')[0]
+          if (!dirMap.has(first)) {
+            dirMap.set(first, e)
+          }
+        })
+      }
+
+      const enriched: EnrichedAgent[] = (rawAgents || []).map((agent: Agent) => {
+        const lowerName = agent.name.trim().toLowerCase()
+        const aliasTarget = ALIAS_MAP[lowerName] || lowerName
+        const entry = dirMap.get(aliasTarget) || dirMap.get(lowerName.split(' ')[0])
+
+        return {
+          ...agent,
+          position: entry?.position || agent.role || agent.team || null,
+          ring_central_phone: entry?.ring_central_phone || null,
+          ricochet_phone: entry?.ricochet_phone || null,
+          email: agent.email || entry?.email || null,
+        }
+      })
+
+      setAgents(enriched)
     } catch (err) {
-      console.error('Error in fetchAgents:', err)
+      console.error('Error in fetchAgentsAndDirectory:', err)
     } finally {
       setIsLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    fetchAgents()
-    const interval = setInterval(fetchAgents, 30000)
+    fetchAgentsAndDirectory()
+    const interval = setInterval(fetchAgentsAndDirectory, 30000)
     return () => clearInterval(interval)
-  }, [fetchAgents])
+  }, [fetchAgentsAndDirectory])
 
+  // Filtered agent list
   const filteredAgents = useMemo(() => {
     return agents.filter(agent => {
       if (searchQuery && !agent.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
-      if (statusFilter !== 'all' && getEffectivePresence(agent) !== statusFilter) return false
+      if (statusFilter === 'online' && getEffectivePresence(agent) !== 'online') return false
       if (officeFilter !== 'all' && agent.office !== officeFilter) return false
       if (teamFilter !== 'all' && agent.team !== teamFilter) return false
       if (spanishOnly && !agent.speaks_spanish) return false
@@ -95,9 +174,7 @@ export default function AgentHudPanel() {
     })
   }, [agents, searchQuery, statusFilter, officeFilter, teamFilter, spanishOnly])
 
-  const onlineCount = useMemo(() => filteredAgents.filter(a => getEffectivePresence(a) === 'online').length, [filteredAgents])
-  const awayCount = useMemo(() => filteredAgents.filter(a => getEffectivePresence(a) === 'away').length, [filteredAgents])
-  const busyCount = useMemo(() => filteredAgents.filter(a => getEffectivePresence(a) === 'busy').length, [filteredAgents])
+  const onlineCount = useMemo(() => agents.filter(a => getEffectivePresence(a) === 'online').length, [agents])
 
   const hasActiveFilters = searchQuery || statusFilter !== 'all' || officeFilter !== 'all' || teamFilter !== 'all' || spanishOnly
 
@@ -109,12 +186,15 @@ export default function AgentHudPanel() {
     setSpanishOnly(false)
   }
 
-  if (isLoading && agents.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-      </div>
-    )
+  const handleMouseEnter = (agent: EnrichedAgent) => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+    setHoveredAgent(agent)
+  }
+
+  const handleMouseLeave = () => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredAgent(null)
+    }, 150)
   }
 
   const getPresenceColor = (presence: string) => {
@@ -135,17 +215,28 @@ export default function AgentHudPanel() {
     }
   }
 
+  if (isLoading && agents.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center bg-slate-50">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    )
+  }
+
+  // Active agent for modal detail card (either selected via click or hovered)
+  const modalAgent = selectedAgent || hoveredAgent
+
   return (
-    <div className="flex h-full flex-col bg-slate-50/50">
+    <div className="relative flex h-full flex-col bg-slate-50/50">
       {/* ── Filter Bar ── */}
-      <div className="border-b border-slate-200 bg-white px-4 py-2.5 shadow-sm">
+      <div className="border-b border-slate-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 shadow-xs">
         <div className="flex flex-wrap items-center gap-2">
-          {/* Search */}
-          <div className="relative min-w-[180px] flex-1 max-w-[260px]">
+          {/* Search Input */}
+          <div className="relative min-w-[150px] flex-1 max-w-[240px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
             <input
               type="text"
-              placeholder="Search agents..."
+              placeholder="Search agent or phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-8 w-full rounded-md border border-slate-200 bg-slate-50 pl-8 pr-3 text-[13px] placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
@@ -157,83 +248,92 @@ export default function AgentHudPanel() {
             )}
           </div>
 
-          {/* Divider */}
-          <div className="h-5 w-px bg-slate-200 hidden sm:block" />
-
-          {/* Status Filter — pill buttons */}
-          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-0.5">
-            {STATUS_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => setStatusFilter(statusFilter === opt.value ? 'all' : opt.value)}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium transition-all",
-                  statusFilter === opt.value
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                {opt.dot && <span className={cn("w-2 h-2 rounded-full shrink-0", opt.dot)} />}
-                {opt.label}
-              </button>
-            ))}
+          {/* Status Filter: Only 'All' and 'Online' */}
+          <div className="flex items-center rounded-lg bg-slate-100 p-0.5 border border-slate-200/60">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={cn(
+                "px-2.5 py-1 rounded-md text-[12px] font-medium transition-all",
+                statusFilter === 'all'
+                  ? "bg-white text-slate-900 shadow-xs font-semibold"
+                  : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              All Status
+            </button>
+            <button
+              onClick={() => setStatusFilter('online')}
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium transition-all",
+                statusFilter === 'online'
+                  ? "bg-white text-slate-900 shadow-xs font-semibold"
+                  : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              Online ({onlineCount})
+            </button>
           </div>
 
-          {/* Divider */}
-          <div className="h-5 w-px bg-slate-200 hidden sm:block" />
-
-          {/* Office */}
+          {/* Office Filter */}
           <select
             value={officeFilter}
             onChange={(e) => setOfficeFilter(e.target.value)}
             className={cn(
-              "h-8 rounded-md border px-2 pr-7 text-[12px] font-medium appearance-none bg-[right_6px_center] bg-[length:12px] bg-no-repeat cursor-pointer transition-colors",
+              "h-8 rounded-md border px-2 pr-6 text-[12px] font-medium appearance-none bg-[right_6px_center] bg-[length:10px] bg-no-repeat cursor-pointer transition-colors",
               officeFilter !== 'all'
-                ? "border-blue-300 bg-blue-50 text-blue-700"
+                ? "border-blue-300 bg-blue-50 text-blue-700 font-semibold"
                 : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
             )}
             style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")` }}
           >
-            <option value="all">Office</option>
+            <option value="all">All Offices</option>
             <option value="MCM">MCM</option>
             <option value="MB">MB</option>
             <option value="RC">RC</option>
             <option value="CH">CH</option>
           </select>
 
-          {/* Team */}
+          {/* Team Filter */}
           <select
             value={teamFilter}
             onChange={(e) => setTeamFilter(e.target.value)}
             className={cn(
-              "h-8 rounded-md border px-2 pr-7 text-[12px] font-medium appearance-none bg-[right_6px_center] bg-[length:12px] bg-no-repeat cursor-pointer transition-colors",
+              "h-8 rounded-md border px-2 pr-6 text-[12px] font-medium appearance-none bg-[right_6px_center] bg-[length:10px] bg-no-repeat cursor-pointer transition-colors",
               teamFilter !== 'all'
-                ? "border-blue-300 bg-blue-50 text-blue-700"
+                ? "border-blue-300 bg-blue-50 text-blue-700 font-semibold"
                 : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
             )}
             style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")` }}
           >
-            <option value="all">Team</option>
+            <option value="all">All Teams</option>
             <option value="Sales">Sales</option>
             <option value="CSR">CSR</option>
             <option value="EA">EA</option>
             <option value="Managers">Managers</option>
           </select>
 
-          {/* Spanish Toggle */}
+          {/* Spanish Filter Button (No 'mx' flag) */}
           <button
             onClick={() => setSpanishOnly(!spanishOnly)}
             className={cn(
               "flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[12px] font-medium transition-all cursor-pointer",
               spanishOnly
-                ? "border-blue-300 bg-blue-50 text-blue-700 shadow-sm"
+                ? "border-amber-400 bg-amber-50 text-amber-800 shadow-xs font-semibold"
                 : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
             )}
+            title="Filter Spanish-speaking agents"
           >
-            🇲🇽 Spanish
+            <span className={cn("px-1 py-0.5 rounded text-[10px] font-bold", spanishOnly ? "bg-amber-200 text-amber-900" : "bg-slate-200 text-slate-700")}>
+              Spa
+            </span>
+            <span>Spanish</span>
           </button>
 
-          {/* Clear Filters */}
+          {/* Clear Filters Button */}
           {hasActiveFilters && (
             <button
               onClick={clearFilters}
@@ -247,21 +347,19 @@ export default function AgentHudPanel() {
           {/* Spacer */}
           <div className="flex-1" />
 
-          {/* View Toggle + Count */}
+          {/* View Mode Toggle + Counts */}
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium text-slate-400 hidden sm:inline">
+            <span className="text-[11px] font-medium text-slate-400 hidden lg:inline">
               {filteredAgents.length} agents
-              {onlineCount > 0 && <span className="text-emerald-600"> · {onlineCount} on</span>}
-              {awayCount > 0 && <span className="text-amber-600"> · {awayCount} away</span>}
-              {busyCount > 0 && <span className="text-red-600"> · {busyCount} busy</span>}
             </span>
             <div className="flex h-7 items-center rounded-md border border-slate-200 bg-slate-50 p-0.5">
               <button
                 onClick={() => setViewMode('grid')}
                 className={cn(
                   "flex h-full items-center justify-center rounded px-1.5 transition-colors",
-                  viewMode === 'grid' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                  viewMode === 'grid' ? "bg-white text-slate-900 shadow-xs" : "text-slate-400 hover:text-slate-600"
                 )}
+                title="Grid View"
               >
                 <LayoutGrid className="h-3.5 w-3.5" />
               </button>
@@ -269,8 +367,9 @@ export default function AgentHudPanel() {
                 onClick={() => setViewMode('list')}
                 className={cn(
                   "flex h-full items-center justify-center rounded px-1.5 transition-colors",
-                  viewMode === 'list' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                  viewMode === 'list' ? "bg-white text-slate-900 shadow-xs" : "text-slate-400 hover:text-slate-600"
                 )}
+                title="List View"
               >
                 <List className="h-3.5 w-3.5" />
               </button>
@@ -279,16 +378,21 @@ export default function AgentHudPanel() {
         </div>
       </div>
 
-      {/* ── Main Content ── */}
+      {/* ── Main Content Area ── */}
       <div className="flex-1 overflow-auto p-3">
         {filteredAgents.length === 0 ? (
           <div className="flex h-40 flex-col items-center justify-center gap-2 text-slate-500">
             <Users className="h-8 w-8 text-slate-300" />
             <p className="text-sm">No agents found matching filters.</p>
+            {hasActiveFilters && (
+              <button onClick={clearFilters} className="text-xs text-blue-600 hover:underline">
+                Clear all filters
+              </button>
+            )}
           </div>
         ) : viewMode === 'grid' ? (
-          /* ── Grid View (Compact) ── */
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
+          /* ── Compact Grid View with Hover / Click Popover ── */
+          <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2">
             {filteredAgents.map(agent => {
               const presence = getEffectivePresence(agent)
               const ringColor = getPresenceColor(presence)
@@ -296,12 +400,20 @@ export default function AgentHudPanel() {
               return (
                 <div
                   key={agent.id}
-                  className="group relative flex flex-col items-center rounded-lg border border-slate-200 bg-white px-2 py-2.5 text-center transition-all hover:shadow-sm hover:border-slate-300"
+                  onClick={() => setSelectedAgent(agent)}
+                  onMouseEnter={() => handleMouseEnter(agent)}
+                  onMouseLeave={handleMouseLeave}
+                  className={cn(
+                    "group relative flex flex-col items-center rounded-lg border bg-white p-2 text-center transition-all cursor-pointer select-none",
+                    selectedAgent?.id === agent.id
+                      ? "border-blue-500 ring-2 ring-blue-500/20 shadow-sm"
+                      : "border-slate-200 hover:border-slate-300 hover:shadow-xs"
+                  )}
                 >
-                  {/* Avatar with presence ring */}
+                  {/* Avatar with status ring */}
                   <div className="relative mb-1.5">
                     <div className={cn(
-                      "flex h-9 w-9 items-center justify-center rounded-full text-white ring-2 ring-offset-1",
+                      "flex h-9 w-9 items-center justify-center rounded-full text-white ring-2 ring-offset-1 transition-transform group-hover:scale-105",
                       ringColor,
                       !agent.avatar_url && getAvatarColor(agent.name)
                     )}>
@@ -317,22 +429,24 @@ export default function AgentHudPanel() {
                   </div>
 
                   {/* Name */}
-                  <div className="w-full truncate text-[12px] font-medium text-slate-800 leading-tight" title={agent.name}>
+                  <div className="w-full truncate text-[12px] font-semibold text-slate-800 leading-tight" title={agent.name}>
                     {agent.name.split(' ')[0]}
                     {agent.name.split(' ').length > 1 && (
-                      <span className="text-slate-400"> {agent.name.split(' ').slice(1).map(n => n[0]).join('')}</span>
+                      <span className="text-slate-400 font-normal"> {agent.name.split(' ').slice(1).map(n => n[0]).join('')}</span>
                     )}
                   </div>
 
-                  {/* Badges row */}
-                  <div className="mt-1 flex items-center gap-0.5 flex-wrap justify-center">
+                  {/* Badges row: Office, Team, Spa */}
+                  <div className="mt-1 flex items-center gap-1 flex-wrap justify-center">
                     {agent.office && (
-                      <span className="rounded bg-slate-100 px-1 py-px text-[9px] font-medium text-slate-500">
+                      <span className="rounded bg-slate-100 px-1 py-px text-[9px] font-medium text-slate-600">
                         {agent.office}
                       </span>
                     )}
                     {agent.speaks_spanish && (
-                      <span className="text-[9px]" title="Spanish">🇲🇽</span>
+                      <span className="rounded bg-amber-50 border border-amber-200/80 px-1 py-px text-[9px] font-bold text-amber-700" title="Speaks Spanish">
+                        Spa
+                      </span>
                     )}
                   </div>
                 </div>
@@ -341,15 +455,16 @@ export default function AgentHudPanel() {
           </div>
         ) : (
           /* ── List View ── */
-          <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+          <div className="rounded-lg border border-slate-200 bg-white overflow-hidden shadow-xs">
             <table className="w-full text-left text-[13px]">
-              <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider border-b border-slate-200">
                 <tr>
                   <th className="px-3 py-2 font-semibold">Agent</th>
                   <th className="px-3 py-2 font-semibold">Status</th>
-                  <th className="px-3 py-2 font-semibold">Team</th>
+                  <th className="px-3 py-2 font-semibold">RingCentral</th>
+                  <th className="px-3 py-2 font-semibold">Ricochet</th>
                   <th className="px-3 py-2 font-semibold">Office</th>
-                  <th className="px-3 py-2 font-semibold w-16">🇲🇽</th>
+                  <th className="px-3 py-2 font-semibold w-12 text-center">Spa</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -358,7 +473,11 @@ export default function AgentHudPanel() {
                   const statusText = agent.status_message || (presence.charAt(0).toUpperCase() + presence.slice(1))
 
                   return (
-                    <tr key={agent.id} className="hover:bg-slate-50/80 h-10">
+                    <tr
+                      key={agent.id}
+                      onClick={() => setSelectedAgent(agent)}
+                      className="hover:bg-blue-50/40 h-10 cursor-pointer transition-colors"
+                    >
                       <td className="px-3 py-1.5">
                         <div className="flex items-center gap-2">
                           <div className="relative shrink-0">
@@ -374,19 +493,60 @@ export default function AgentHudPanel() {
                               )}
                             </div>
                           </div>
-                          <span className="font-medium text-slate-800">{agent.name}</span>
+                          <span className="font-semibold text-slate-800">{agent.name}</span>
                         </div>
                       </td>
                       <td className="px-3 py-1.5">
                         <div className="flex items-center gap-1.5">
                           <span className={cn("w-2 h-2 rounded-full shrink-0", getPresenceDot(presence))} />
-                          <span className="text-slate-600 truncate max-w-[120px]">{statusText}</span>
+                          <span className="text-slate-600 truncate max-w-[110px] text-[12px]">{statusText}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-1.5 text-slate-600">{agent.team || '—'}</td>
-                      <td className="px-3 py-1.5 text-slate-600">{agent.office || '—'}</td>
                       <td className="px-3 py-1.5">
-                        {agent.speaks_spanish && <span title="Speaks Spanish">🇲🇽</span>}
+                        {agent.ring_central_phone ? (
+                          <button
+                            onClick={(e) => copyToClipboard(agent.ring_central_phone!, `rc-${agent.id}`, e)}
+                            className="inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 font-mono text-[12px] text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition-colors"
+                            title="Click to copy RingCentral phone"
+                          >
+                            <Phone className="h-3 w-3 text-slate-400" />
+                            <span>{agent.ring_central_phone}</span>
+                            {copiedKey === `rc-${agent.id}` ? (
+                              <Check className="h-3 w-3 text-emerald-600" />
+                            ) : (
+                              <Copy className="h-2.5 w-2.5 text-slate-300 opacity-0 group-hover:opacity-100" />
+                            )}
+                          </button>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        {agent.ricochet_phone ? (
+                          <button
+                            onClick={(e) => copyToClipboard(agent.ricochet_phone!, `rico-${agent.id}`, e)}
+                            className="inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 font-mono text-[12px] text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition-colors"
+                            title="Click to copy Ricochet phone"
+                          >
+                            <PhoneCall className="h-3 w-3 text-slate-400" />
+                            <span>{agent.ricochet_phone}</span>
+                            {copiedKey === `rico-${agent.id}` ? (
+                              <Check className="h-3 w-3 text-emerald-600" />
+                            ) : (
+                              <Copy className="h-2.5 w-2.5 text-slate-300 opacity-0 group-hover:opacity-100" />
+                            )}
+                          </button>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-1.5 text-slate-600 text-[12px]">{agent.office || '—'}</td>
+                      <td className="px-3 py-1.5 text-center">
+                        {agent.speaks_spanish && (
+                          <span className="inline-flex items-center rounded bg-amber-50 border border-amber-200/80 px-1.5 py-0.5 text-[10px] font-bold text-amber-700" title="Speaks Spanish">
+                            Spa
+                          </span>
+                        )}
                       </td>
                     </tr>
                   )
@@ -396,6 +556,224 @@ export default function AgentHudPanel() {
           </div>
         )}
       </div>
+
+      {/* ── Quick Contact Detail Modal / Popover ── */}
+      {modalAgent && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
+          onClick={() => { setSelectedAgent(null); setHoveredAgent(null) }}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-xl transition-all scale-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative shrink-0">
+                  <div className={cn(
+                    "flex h-12 w-12 items-center justify-center rounded-full text-white ring-2 ring-offset-2 text-base font-bold",
+                    getPresenceColor(getEffectivePresence(modalAgent)),
+                    !modalAgent.avatar_url && getAvatarColor(modalAgent.name)
+                  )}>
+                    {modalAgent.avatar_url ? (
+                      <img src={modalAgent.avatar_url} alt={modalAgent.name} className="h-full w-full rounded-full object-cover" />
+                    ) : (
+                      getInitials(modalAgent.name)
+                    )}
+                  </div>
+                  <div className="absolute -bottom-0.5 -right-0.5">
+                    <UserPresenceBadge status={getEffectivePresence(modalAgent)} size="md" />
+                  </div>
+                </div>
+
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-slate-900 truncate flex items-center gap-1.5">
+                    {modalAgent.name}
+                    {modalAgent.speaks_spanish && (
+                      <span className="rounded bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                        Spa
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-500 truncate">
+                    {modalAgent.position || modalAgent.team || 'Agent'}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-400">
+                    {modalAgent.office && (
+                      <span className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-slate-600 font-medium">
+                        <Building2 className="h-3 w-3 text-slate-400" />
+                        {modalAgent.office}
+                      </span>
+                    )}
+                    {modalAgent.team && (
+                      <span className="inline-flex items-center gap-1 rounded bg-blue-50 px-1.5 py-0.5 text-blue-700 font-medium">
+                        <Briefcase className="h-3 w-3 text-blue-400" />
+                        {modalAgent.team}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => { setSelectedAgent(null); setHoveredAgent(null) }}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Status Section */}
+            <div className="my-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs">
+              <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", getPresenceDot(getEffectivePresence(modalAgent)))} />
+              <span className="font-semibold text-slate-700 capitalize">
+                {getEffectivePresence(modalAgent)}
+              </span>
+              {modalAgent.status_message && (
+                <span className="text-slate-500 italic truncate">— "{modalAgent.status_message}"</span>
+              )}
+            </div>
+
+            {/* Contact Actions (Speed-optimized for click-to-copy) */}
+            <div className="space-y-2 mt-4">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Quick Contact Numbers
+              </p>
+
+              {/* RingCentral */}
+              {modalAgent.ring_central_phone ? (
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600">
+                      <Phone className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase text-slate-400">RingCentral</p>
+                      <p className="text-xs font-mono font-bold text-slate-800 truncate">
+                        {modalAgent.ring_central_phone}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => copyToClipboard(modalAgent.ring_central_phone!, 'modal-rc', e)}
+                    className={cn(
+                      "flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all shadow-xs shrink-0 cursor-pointer",
+                      copiedKey === 'modal-rc'
+                        ? "bg-emerald-600 text-white"
+                        : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                    )}
+                  >
+                    {copiedKey === 'modal-rc' ? (
+                      <>
+                        <Check className="h-3.5 w-3.5" />
+                        <span>Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : null}
+
+              {/* Ricochet Phone */}
+              {modalAgent.ricochet_phone ? (
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-100 text-emerald-600">
+                      <PhoneCall className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase text-slate-400">Ricochet</p>
+                      <p className="text-xs font-mono font-bold text-slate-800 truncate">
+                        {modalAgent.ricochet_phone}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => copyToClipboard(modalAgent.ricochet_phone!, 'modal-rico', e)}
+                    className={cn(
+                      "flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all shadow-xs shrink-0 cursor-pointer",
+                      copiedKey === 'modal-rico'
+                        ? "bg-emerald-600 text-white"
+                        : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                    )}
+                  >
+                    {copiedKey === 'modal-rico' ? (
+                      <>
+                        <Check className="h-3.5 w-3.5" />
+                        <span>Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : null}
+
+              {/* Email */}
+              {modalAgent.email ? (
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-indigo-100 text-indigo-600">
+                      <Mail className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase text-slate-400">Email</p>
+                      <p className="text-xs font-mono text-slate-800 truncate">
+                        {modalAgent.email}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => copyToClipboard(modalAgent.email!, 'modal-email', e)}
+                    className={cn(
+                      "flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all shadow-xs shrink-0 cursor-pointer",
+                      copiedKey === 'modal-email'
+                        ? "bg-emerald-600 text-white"
+                        : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                    )}
+                  >
+                    {copiedKey === 'modal-email' ? (
+                      <>
+                        <Check className="h-3.5 w-3.5" />
+                        <span>Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : null}
+
+              {!modalAgent.ring_central_phone && !modalAgent.ricochet_phone && !modalAgent.email && (
+                <p className="text-xs text-slate-400 italic py-2 text-center">
+                  No direct phone or email on file in directory.
+                </p>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="mt-5 pt-3 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => { setSelectedAgent(null); setHoveredAgent(null) }}
+                className="rounded-lg bg-slate-100 px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

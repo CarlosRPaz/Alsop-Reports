@@ -16,6 +16,8 @@ export interface Agent {
   status_message: string | null
   last_seen_at: string | null
   speaks_spanish?: boolean
+  email?: string | null
+  meeting_time?: string | null
 }
 
 // ---------------------------------------------------------------------------

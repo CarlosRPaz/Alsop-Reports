@@ -490,7 +490,9 @@ export default function StaffPage() {
                 <Highlight text={entry.name} query={search} />
               </span>
               {spanishAgentNames.has(entry.name.trim().toLowerCase()) && (
-                <span className="ml-1 text-[11px]" title="Speaks Spanish">🇲🇽</span>
+                <span className="ml-1.5 inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200" title="Speaks Spanish">
+                  Spa
+                </span>
               )}
             </button>
           </td>
@@ -657,7 +659,6 @@ export default function StaffPage() {
               }`}
               title="Filter Spanish-speaking agents"
             >
-              <span>🇲🇽</span>
               <span>Spanish</span>
             </button>
           )}

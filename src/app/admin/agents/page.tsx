@@ -626,7 +626,7 @@ export default function AgentManagement() {
                     <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Office</th>
                     <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Team</th>
                     <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Meeting</th>
-                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 text-center">🇲🇽</th>
+                    <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 text-center">Spa</th>
                     <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 text-center">Variants</th>
                     <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Status</th>
                     <th className="py-3 px-3 text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 text-right">Actions</th>
@@ -1071,7 +1071,13 @@ function AgentRow({
               />
             </label>
           ) : (
-            agent.speaks_spanish ? <span title="Speaks Spanish">🇲🇽</span> : <span className="text-slate-300">—</span>
+            agent.speaks_spanish ? (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200" title="Speaks Spanish">
+                Spa
+              </span>
+            ) : (
+              <span className="text-slate-300">—</span>
+            )
           )}
         </td>
 
