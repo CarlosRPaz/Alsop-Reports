@@ -204,33 +204,69 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setPermissions(perms)
       setUnreadCounts(counts)
 
+      // Track last activity time (for 30-min idle auto-away)
+      const lastActivityTimeRef = { current: Date.now() }
+      const isAutoAwayRef = { current: false }
+
       // Set presence to initial active status (defaults to online)
       await updatePresence(agentId, manualStatusRef.current || 'online')
 
-      // Start presence heartbeat (every 20s) — keeps last_seen_at fresh and status active
+      // Start presence heartbeat (every 20s)
       if (heartbeatRef.current) clearInterval(heartbeatRef.current)
-      heartbeatRef.current = setInterval(
-        () => updatePresenceHeartbeat(agentId, manualStatusRef.current),
-        20_000,
-      )
+      heartbeatRef.current = setInterval(() => {
+        const now = Date.now()
+        const idleMs = now - lastActivityTimeRef.current
 
-      // Refresh immediately whenever the user switches back to tab or focuses window
-      const handleActivity = () => {
-        if (agentIdRef.current) {
-          updatePresenceHeartbeat(agentIdRef.current, manualStatusRef.current).catch(() => {})
+        // If inactive for > 30 minutes, automatically set to Away
+        if (idleMs >= 30 * 60 * 1000) {
+          if (!isAutoAwayRef.current && manualStatusRef.current !== 'busy') {
+            isAutoAwayRef.current = true
+            updatePresence(agentId, 'away').catch(() => {})
+            setCurrentAgent(prev => prev ? { ...prev, presence: 'away' } as Agent : null)
+          }
+          updatePresenceHeartbeat(agentId, 'away').catch(() => {})
+        } else {
+          // Active on site: keep current status
+          updatePresenceHeartbeat(agentId, manualStatusRef.current).catch(() => {})
+        }
+      }, 20_000)
+
+      // User activity listeners: when active again after auto-away, restore to Online
+      let lastThrottle = 0
+      const handleUserActivity = () => {
+        const now = Date.now()
+        if (now - lastThrottle < 2000) return
+        lastThrottle = now
+        lastActivityTimeRef.current = now
+
+        // If they were auto-set to Away after 30 min, restore to Online as soon as they are active
+        if (isAutoAwayRef.current && agentIdRef.current) {
+          isAutoAwayRef.current = false
+          manualStatusRef.current = 'online'
+          updatePresence(agentIdRef.current, 'online').catch(() => {})
+          setCurrentAgent(prev => prev ? { ...prev, presence: 'online' } as Agent : null)
         }
       }
 
-      window.addEventListener('focus', handleActivity)
-      document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) handleActivity()
-      })
+      const ACTIVITY_EVENTS = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll', 'click']
+      ACTIVITY_EVENTS.forEach(ev => window.addEventListener(ev, handleUserActivity, { passive: true }))
+
+      // When tab/site actually closes or navigates away, send offline beacon
+      const handleSiteExit = () => {
+        if (agentIdRef.current) {
+          sendPresenceOfflineBeacon(agentIdRef.current)
+        }
+      }
+      window.addEventListener('pagehide', handleSiteExit)
+      window.addEventListener('beforeunload', handleSiteExit)
 
       // Store cleanup functions for unmount
       const prevCleanup = (window as any).__chatPresenceCleanup
       if (prevCleanup) prevCleanup()
       ;(window as any).__chatPresenceCleanup = () => {
-        window.removeEventListener('focus', handleActivity)
+        ACTIVITY_EVENTS.forEach(ev => window.removeEventListener(ev, handleUserActivity))
+        window.removeEventListener('pagehide', handleSiteExit)
+        window.removeEventListener('beforeunload', handleSiteExit)
         if (heartbeatRef.current) clearInterval(heartbeatRef.current)
       }
     } catch (err) {
