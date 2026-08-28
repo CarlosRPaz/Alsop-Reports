@@ -204,54 +204,34 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setPermissions(perms)
       setUnreadCounts(counts)
 
-      // Set presence to online
-      await updatePresence(agentId, 'online')
+      // Set presence to initial active status (defaults to online)
+      await updatePresence(agentId, manualStatusRef.current || 'online')
 
-      // Start presence heartbeat (every 60s) — respects manual status
+      // Start presence heartbeat (every 20s) — keeps last_seen_at fresh and status active
       if (heartbeatRef.current) clearInterval(heartbeatRef.current)
       heartbeatRef.current = setInterval(
         () => updatePresenceHeartbeat(agentId, manualStatusRef.current),
-        60_000,
+        20_000,
       )
 
-      // --- Browser lifecycle listeners for accurate offline detection ---
-
-      // Tab close / navigate away: fire-and-forget offline beacon
-      const handleBeforeUnload = () => {
-        sendPresenceOfflineBeacon(agentId)
-      }
-
-      // Tab visibility: set away when hidden for 5+ min, restore when visible
-      let visibilityTimer: ReturnType<typeof setTimeout> | null = null
-      const handleVisibilityChange = () => {
-        if (document.hidden) {
-          // If agent hasn't manually set away/busy, auto-set away after 5 min
-          visibilityTimer = setTimeout(() => {
-            if (manualStatusRef.current === 'online') {
-              updatePresence(agentId, 'away').catch(() => {})
-            }
-          }, 5 * 60 * 1000)
-        } else {
-          // Tab is visible again
-          if (visibilityTimer) {
-            clearTimeout(visibilityTimer)
-            visibilityTimer = null
-          }
-          // Restore to manual status (or online if no manual override)
-          updatePresence(agentId, manualStatusRef.current).catch(() => {})
+      // Refresh immediately whenever the user switches back to tab or focuses window
+      const handleActivity = () => {
+        if (agentIdRef.current) {
+          updatePresenceHeartbeat(agentIdRef.current, manualStatusRef.current).catch(() => {})
         }
       }
 
-      window.addEventListener('beforeunload', handleBeforeUnload)
-      document.addEventListener('visibilitychange', handleVisibilityChange)
+      window.addEventListener('focus', handleActivity)
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) handleActivity()
+      })
 
       // Store cleanup functions for unmount
       const prevCleanup = (window as any).__chatPresenceCleanup
       if (prevCleanup) prevCleanup()
       ;(window as any).__chatPresenceCleanup = () => {
-        window.removeEventListener('beforeunload', handleBeforeUnload)
-        document.removeEventListener('visibilitychange', handleVisibilityChange)
-        if (visibilityTimer) clearTimeout(visibilityTimer)
+        window.removeEventListener('focus', handleActivity)
+        if (heartbeatRef.current) clearInterval(heartbeatRef.current)
       }
     } catch (err) {
       console.error('[chatContext] Hydration failed:', err)

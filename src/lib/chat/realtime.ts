@@ -173,9 +173,9 @@ export async function updatePresenceHeartbeat(
   const update: Record<string, unknown> = {
     last_seen_at: new Date().toISOString(),
   }
-  // Only set presence if the agent hasn't manually chosen away/busy
-  if (currentManualStatus === 'online') {
-    update.presence = 'online'
+  // Keep the current status active (online, away, busy)
+  if (currentManualStatus && currentManualStatus !== 'offline') {
+    update.presence = currentManualStatus
   }
 
   const { error } = await supabase

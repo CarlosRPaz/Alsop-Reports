@@ -39,8 +39,8 @@ function getEffectivePresence(agent: Agent): 'online' | 'away' | 'busy' | 'offli
   if (agent.presence === 'offline') return 'offline'
   if (!agent.last_seen_at) return 'offline'
   const lastSeen = new Date(agent.last_seen_at).getTime()
-  const threeMinAgo = Date.now() - 3 * 60 * 1000
-  if (lastSeen < threeMinAgo) return 'offline'
+  const tenMinAgo = Date.now() - 10 * 60 * 1000
+  if (lastSeen < tenMinAgo) return 'offline'
   return agent.presence || 'offline'
 }
 
