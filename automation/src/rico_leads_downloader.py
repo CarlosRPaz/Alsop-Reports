@@ -2,8 +2,7 @@
 rico_leads_downloader.py — Auto-download the Ricochet LeadSwami Report.
 
 Uses Playwright with a persistent Edge profile so login survives between runs.
-First run: logs in with creds from config.json.
-Subsequent runs: session cookies reused, no login prompt.
+If Edge or profile is busy/locked, falls back to isolated Chromium session seamlessly.
 
 Usage:
     from src.rico_leads_downloader import download_rico_leads
@@ -24,34 +23,19 @@ DOWNLOAD_TIMEOUT_MS = 120_000  # large file, give it time
 
 
 def download_rico_leads(
-    config: dict,
+    config: dict | str,
+    target_date: str | None = None,
     headless: bool = False,
     save_to: str | None = None,
-    target_date: str | None = None,
 ) -> str | None:
     """
-    Launch Edge via Playwright, navigate to the Ricochet reports page,
+    Launch Edge/Chromium via Playwright, navigate to the Ricochet reports page,
     and download the correct LeadSwami Report CSV.
-
-    Date logic: LeadSwami snapshots run at midnight, so the snapshot for
-    report_date (e.g. June 4th) is the row dated the NEXT day (June 5th).
-    If target_date is provided, we look for the row dated target_date + 1 day.
-    If not provided, we grab the newest row.
-
-    Parameters
-    ----------
-    config : dict
-        Loaded config.json.
-    headless : bool
-        Run headless. Default False so user can see what's happening and
-        handle MFA/CAPTCHA if it ever surfaces.
-    save_to : str | None
-        Override download folder. Defaults to config's rico_leads downloads_folder.
-
-    Returns
-    -------
-    str | None : Path to downloaded file, or None on failure.
     """
+    if isinstance(config, str):
+        with open(config, "r", encoding="utf-8") as f:
+            config = json.load(f)
+
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
@@ -63,30 +47,60 @@ def download_rico_leads(
         print("[rico_leads_downloader] No 'ricochet' section in config.json")
         return None
 
-    reports_url = rico.get("reports_url")
+    reports_url = rico.get("reports_url", "https://admin-allstate-mt3.ricochet.me/alsop/reports")
     username    = rico.get("username")
     password    = rico.get("password")
-    org         = rico.get("org", "")
-    profile_dir = Path(rico.get("profile_dir", "data/playwright_profile")).resolve()
+    org         = rico.get("org", "Alsop")
+    profile_dir = Path(rico.get("profile_dir", config.get("playwright_profile_dir", "data/playwright_profile"))).resolve()
+
+    if not username or not password:
+        raise ValueError("Ricochet credentials (username/password) are not set in config/config.json")
 
     if save_to is None:
-        save_to = config.get("email_sources", {}).get("rico_leads", {}).get(
-            "downloads_folder", "C:/Users/scag3s29/Downloads"
-        )
+        save_to = config.get("downloads_folder", "C:/Users/phoeb/Downloads")
 
     profile_dir.mkdir(parents=True, exist_ok=True)
     Path(save_to).mkdir(parents=True, exist_ok=True)
 
-    print(f"[rico_leads_downloader] Launching Edge (profile: {profile_dir.name})...")
+    print(f"[rico_leads_downloader] Starting browser automation for LeadSwami snapshot...")
 
     with sync_playwright() as p:
-        ctx = p.chromium.launch_persistent_context(
-            user_data_dir=str(profile_dir),
-            channel="msedge",
-            headless=headless,
-            accept_downloads=True,
-            viewport={"width": 1400, "height": 900},
-        )
+        ctx = None
+        browser_obj = None
+
+        # 1. Try launching persistent Edge context
+        try:
+            ctx = p.chromium.launch_persistent_context(
+                user_data_dir=str(profile_dir),
+                channel="msedge",
+                headless=headless,
+                accept_downloads=True,
+                viewport={"width": 1400, "height": 900},
+            )
+            print("[rico_leads_downloader] Launched persistent Edge context.")
+        except Exception as e1:
+            print(f"[rico_leads_downloader] Persistent Edge unavailable ({e1}). Trying bundled Chromium...")
+            try:
+                # 2. Try launching bundled Chromium with persistent context
+                ctx = p.chromium.launch_persistent_context(
+                    user_data_dir=str(profile_dir),
+                    headless=headless,
+                    accept_downloads=True,
+                    viewport={"width": 1400, "height": 900},
+                )
+                print("[rico_leads_downloader] Launched persistent Chromium context.")
+            except Exception as e2:
+                print(f"[rico_leads_downloader] Profile directory locked ({e2}). Launching fresh non-persistent session...")
+                # 3. Fall back to standard browser (immune to profile lock issues)
+                try:
+                    browser_obj = p.chromium.launch(channel="msedge", headless=headless)
+                except Exception:
+                    browser_obj = p.chromium.launch(headless=headless)
+                ctx = browser_obj.new_context(
+                    accept_downloads=True,
+                    viewport={"width": 1400, "height": 900},
+                )
+                print("[rico_leads_downloader] Launched fresh browser session.")
 
         page = ctx.new_page()
         page.set_default_timeout(DEFAULT_TIMEOUT_MS)
@@ -100,17 +114,19 @@ def download_rico_leads(
             if _is_login_page(page):
                 print("[rico_leads_downloader] Login page detected — signing in...")
                 _perform_login(page, org, username, password)
-                # Navigate back to reports if not already there
                 if "reports" not in page.url.lower():
                     page.goto(reports_url, wait_until="domcontentloaded")
                 time.sleep(2)
             else:
-                print("[rico_leads_downloader] Already signed in (reusing profile session)")
+                print("[rico_leads_downloader] Already signed in (reusing session)")
 
             # Wait for the reports table to render
             print("[rico_leads_downloader] Waiting for reports table...")
-            page.wait_for_load_state("networkidle", timeout=DEFAULT_TIMEOUT_MS)
-            time.sleep(1.5)
+            try:
+                page.wait_for_load_state("networkidle", timeout=DEFAULT_TIMEOUT_MS)
+            except Exception:
+                pass
+            time.sleep(2)
 
             # Click the download button on the matching row
             download_path = _click_newest_download(page, save_to, target_date)
@@ -125,7 +141,6 @@ def download_rico_leads(
         except Exception as e:
             print(f"[rico_leads_downloader] Error: {e}")
             try:
-                # Screenshot for debugging
                 shot = Path("data") / f"rico_leads_error_{int(time.time())}.png"
                 shot.parent.mkdir(parents=True, exist_ok=True)
                 page.screenshot(path=str(shot))
@@ -134,15 +149,21 @@ def download_rico_leads(
                 pass
             return None
         finally:
-            ctx.close()
+            try:
+                ctx.close()
+            except Exception:
+                pass
+            if browser_obj:
+                try:
+                    browser_obj.close()
+                except Exception:
+                    pass
 
 
 def _is_login_page(page) -> bool:
-    """Heuristic: look for common login field indicators."""
     url = page.url.lower()
     if "login" in url or "signin" in url or "sign_in" in url:
         return True
-    # Check for password input
     try:
         if page.locator('input[type="password"]').count() > 0:
             return True
@@ -152,15 +173,10 @@ def _is_login_page(page) -> bool:
 
 
 def _perform_login(page, org: str, username: str, password: str) -> None:
-    """
-    Fill in Ricochet's 3-input login form.
-    Input 1: Org, Input 2: Username (email), Input 3: Password.
-    """
     inputs = page.locator("input:visible")
     count  = inputs.count()
     print(f"[rico_leads_downloader] Found {count} visible inputs")
 
-    # Common case: 3 inputs — org, username, password
     text_inputs = page.locator('input[type="text"]:visible, input[type="email"]:visible, input:not([type]):visible')
     pw_inputs   = page.locator('input[type="password"]:visible')
 
@@ -169,11 +185,9 @@ def _perform_login(page, org: str, username: str, password: str) -> None:
         text_inputs.nth(1).fill(username)
         pw_inputs.nth(0).fill(password)
     elif text_inputs.count() >= 1 and pw_inputs.count() >= 1:
-        # Only 2 inputs — some login flows combine/skip org
         text_inputs.nth(0).fill(username)
         pw_inputs.nth(0).fill(password)
     else:
-        # Fallback: fill all visible inputs in order
         vals = [org, username, password]
         for i in range(min(count, 3)):
             try:
@@ -181,41 +195,24 @@ def _perform_login(page, org: str, username: str, password: str) -> None:
             except Exception:
                 pass
 
-    # Submit
     submit_btn = page.locator('button[type="submit"], input[type="submit"]').first
     if submit_btn.count() > 0:
         submit_btn.click()
     else:
-        # Fallback: press Enter on the password field
         pw_inputs.nth(0).press("Enter")
 
-    page.wait_for_load_state("domcontentloaded", timeout=DEFAULT_TIMEOUT_MS)
+    try:
+        page.wait_for_load_state("domcontentloaded", timeout=DEFAULT_TIMEOUT_MS)
+    except Exception:
+        pass
     time.sleep(2)
 
 
 def _click_newest_download(page, save_to: str, target_date: str | None = None) -> str | None:
-    """
-    Expand the Leads Report card, find the correct LeadSwami Report row,
-    and click its download button (3rd action button in the row).
-
-    Date logic:
-      LeadSwami snapshots run at ~midnight. The snapshot for a given
-      report_date (e.g. June 4) is the row dated the NEXT day (June 5).
-      If target_date is provided, we look for the row containing
-      "Jun 5" (target_date + 1 day). If no match, fall back to newest.
-
-    The Ricochet Reports page has collapsible blue cards (Vuetify toolbars).
-    The "Leads Report" card expands to show a v-data-table with rows like:
-        Report          | Date                      | Results | [edit] [refresh] [download] [delete]
-        LeadSwami Report| Fri, Jun 5, 2026 12:05 AM | 83544   |   ✏️      🔄        ⬇️         🗑️
-
-    The download button is the 3rd `button.table-btn` in each row.
-    """
-    # Step 1: Expand the "Leads Report" card
     print("[rico_leads_downloader] Expanding 'Leads Report' card...")
     try:
         leads_toolbar = page.locator('text="Leads Report"').first
-        if leads_toolbar:
+        if leads_toolbar.count() > 0:
             parent = leads_toolbar.locator(
                 "xpath=ancestor::*[contains(@class, 'toolbar-container') or contains(@class, 'feature-section')]"
             ).first
@@ -232,7 +229,6 @@ def _click_newest_download(page, save_to: str, target_date: str | None = None) -
 
     _debug_screenshot(page, "rico_leads_expanded")
 
-    # Step 2: Find LeadSwami Report rows
     print("[rico_leads_downloader] Looking for LeadSwami Report rows...")
     try:
         rows = page.locator('tr:has-text("LeadSwami Report"):visible')
@@ -250,16 +246,11 @@ def _click_newest_download(page, save_to: str, target_date: str | None = None) -
             _debug_screenshot(page, "rico_leads_no_rows")
             return None
 
-        # Step 2b: Pick the correct row based on target_date
-        # Snapshot for report_date X is the row dated X+1
         target_row = None
         if target_date:
             snapshot_date = datetime.strptime(target_date, "%Y-%m-%d") + timedelta(days=1)
-            # The date column shows e.g. "Thu, Jun 5, 2026 12:05 AM"
-            # Match on "Mon, Jun 5" pattern — use abbreviated month + day
-            date_needle = snapshot_date.strftime("%b %#d")  # e.g. "Jun 5" (Windows # removes leading zero)
-            # Also try with leading zero for compatibility
-            date_needle_padded = snapshot_date.strftime("%b %d")  # e.g. "Jun 05"
+            date_needle = snapshot_date.strftime("%b %#d") if hasattr(snapshot_date, "strftime") else snapshot_date.strftime("%b %d").replace(" 0", " ")
+            date_needle_padded = snapshot_date.strftime("%b %d")
             print(f"[rico_leads_downloader] Looking for snapshot dated '{date_needle}' (report_date={target_date} + 1 day)")
 
             for i in range(row_count):
@@ -272,13 +263,11 @@ def _click_newest_download(page, save_to: str, target_date: str | None = None) -
             if target_row is None:
                 print(f"[rico_leads_downloader] [WARN] No row matching '{date_needle}' found — falling back to newest")
 
-        # Fall back to the first (newest) row
         if target_row is None:
             target_row = rows.first
             row_text = target_row.inner_text().strip().replace("\n", " | ")[:120]
             print(f"[rico_leads_downloader] Using newest row: {row_text}")
 
-        # Step 3: Click the download button (3rd action button)
         action_btns = target_row.locator("button.table-btn")
         btn_count = action_btns.count()
         print(f"[rico_leads_downloader] Found {btn_count} action buttons in row")
@@ -311,19 +300,16 @@ def _click_newest_download(page, save_to: str, target_date: str | None = None) -
 
 
 def _debug_screenshot(page, label: str) -> None:
-    """Save a debug screenshot."""
     try:
         ts = int(time.time())
         path = Path("data") / f"{label}_{ts}.png"
         path.parent.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(path))
-        print(f"[rico_leads_downloader] Screenshot: {path}")
     except Exception:
         pass
 
 
 def _save_download(download, save_to: str) -> str:
-    """Save the download to the target folder, keeping the suggested filename."""
     suggested = download.suggested_filename or f"leads_report_{int(time.time())}.csv"
     target = Path(save_to) / suggested
     download.save_as(str(target))
