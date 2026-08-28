@@ -133,6 +133,34 @@ type TabType = "Offices" | "HQ" | "Helpful Numbers" | "Carriers"
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")
 
+const SPANISH_NOTES_REGEX = /\b(\*?S\s*[-–]\s*(CSR;?\s*)?Spanish|\*?S\s*[-–]|Spanish\s*Speaking|Bilingual)\b/i
+
+export function isSpanishSpeaker(
+  entry: { name?: string | null; notes?: string | null },
+  spanishAgentNames: Set<string>
+): boolean {
+  // 1. Direct check in directory entry notes (e.g. "*S – CSR; Spanish Speaking")
+  if (entry.notes && SPANISH_NOTES_REGEX.test(entry.notes)) {
+    return true
+  }
+
+  // 2. Check name against agents table with speaks_spanish = true
+  const cleanName = (entry.name || '').replace(/\s*\(\s*Mgr\.?\s*\)/i, '').trim().toLowerCase()
+  if (!cleanName) return false
+  if (spanishAgentNames.has(cleanName)) return true
+
+  // Check first name
+  const firstName = cleanName.split(' ')[0]
+  if (spanishAgentNames.has(firstName)) return true
+
+  // Check substring / alias matching
+  for (const name of spanishAgentNames) {
+    if (cleanName.includes(name) || name.includes(cleanName)) return true
+  }
+
+  return false
+}
+
 // ── Main Component ───────────────────────────────────────────────────────────────
 
 export default function StaffPage() {
@@ -393,7 +421,7 @@ export default function StaffPage() {
 
     // Spanish language filter
     if (spanishOnly) {
-      all = all.filter(e => spanishAgentNames.has(e.name.trim().toLowerCase()))
+      all = all.filter(e => isSpanishSpeaker(e, spanishAgentNames))
     }
 
     all.sort((a, b) => a.name.localeCompare(b.name))
@@ -489,7 +517,7 @@ export default function StaffPage() {
               <span className="font-medium text-[#1E3553]">
                 <Highlight text={entry.name} query={search} />
               </span>
-              {spanishAgentNames.has(entry.name.trim().toLowerCase()) && (
+              {isSpanishSpeaker(entry, spanishAgentNames) && (
                 <span className="ml-1.5 inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200" title="Speaks Spanish">
                   Spa
                 </span>

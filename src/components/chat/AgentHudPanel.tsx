@@ -30,6 +30,7 @@ type DirectoryEntryContact = {
   ring_central_phone?: string | null
   ricochet_phone?: string | null
   email?: string | null
+  notes?: string | null
 }
 
 type EnrichedAgent = Agent & {
@@ -155,7 +156,7 @@ export default function AgentHudPanel() {
     try {
       const [{ data: rawAgents, error: agentErr }, { data: rawEntries, error: entErr }] = await Promise.all([
         supabase.from('agents').select('*').eq('active', true).order('name'),
-        supabase.from('directory_entries').select('name, position, ring_central_phone, ricochet_phone, email').eq('is_active', true)
+        supabase.from('directory_entries').select('name, position, ring_central_phone, ricochet_phone, email, notes').eq('is_active', true)
       ])
 
       if (agentErr) {
@@ -176,13 +177,21 @@ export default function AgentHudPanel() {
         })
       }
 
+      const SPANISH_NOTES_REGEX = /\b(\*?S\s*[-–]\s*(CSR;?\s*)?Spanish|\*?S\s*[-–]|Spanish\s*Speaking|Bilingual)\b/i
+
       const enriched: EnrichedAgent[] = (rawAgents || []).map((agent: Agent) => {
         const lowerName = agent.name.trim().toLowerCase()
         const aliasTarget = ALIAS_MAP[lowerName] || lowerName
         const entry = dirMap.get(aliasTarget) || dirMap.get(lowerName.split(' ')[0])
 
+        const isSpanish = Boolean(
+          agent.speaks_spanish ||
+          (entry?.notes && SPANISH_NOTES_REGEX.test(entry.notes))
+        )
+
         return {
           ...agent,
+          speaks_spanish: isSpanish,
           position: entry?.position || agent.role || agent.team || null,
           ring_central_phone: entry?.ring_central_phone || null,
           ricochet_phone: entry?.ricochet_phone || null,
