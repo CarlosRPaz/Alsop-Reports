@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { Agent } from '@/lib/chat/types'
 import { cn } from '@/lib/utils'
@@ -44,6 +44,22 @@ function getEffectivePresence(agent: Agent): 'online' | 'away' | 'busy' | 'offli
   return agent.presence || 'offline'
 }
 
+/**
+ * Extracts pure phone number and optional extension
+ * E.g. "909-267-3582 Ext 103" -> { phone: "909-267-3582", ext: "Ext 103" }
+ */
+function parsePhoneAndExt(raw?: string | null): { phone: string; ext: string | null } {
+  if (!raw) return { phone: '', ext: null }
+  const match = raw.match(/^(.*?)(?:\s*(?:ext\.?|x)\s*(\d+))?$/i)
+  if (match && match[1]) {
+    return {
+      phone: match[1].trim(),
+      ext: match[2] ? `Ext ${match[2]}` : null,
+    }
+  }
+  return { phone: raw.trim(), ext: null }
+}
+
 const AVATAR_COLORS = [
   'bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-emerald-500',
   'bg-cyan-500', 'bg-blue-500', 'bg-indigo-500', 'bg-violet-500',
@@ -78,7 +94,7 @@ export default function AgentHudPanel() {
   const [agents, setAgents] = useState<EnrichedAgent[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  // Filters: only "all" and "online" for status filter
+  // Filters: only "all" and "online"
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'online'>('all')
   const [officeFilter, setOfficeFilter] = useState<string>('all')
@@ -86,11 +102,9 @@ export default function AgentHudPanel() {
   const [spanishOnly, setSpanishOnly] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
-  // Hover and Modal state
-  const [hoveredAgent, setHoveredAgent] = useState<EnrichedAgent | null>(null)
+  // Click-to-open Modal state
   const [selectedAgent, setSelectedAgent] = useState<EnrichedAgent | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const copyToClipboard = useCallback((text: string, key: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
@@ -165,7 +179,14 @@ export default function AgentHudPanel() {
   // Filtered agent list
   const filteredAgents = useMemo(() => {
     return agents.filter(agent => {
-      if (searchQuery && !agent.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase()
+        const matchName = agent.name.toLowerCase().includes(q)
+        const matchRc = agent.ring_central_phone?.toLowerCase().includes(q)
+        const matchRico = agent.ricochet_phone?.toLowerCase().includes(q)
+        const matchEmail = agent.email?.toLowerCase().includes(q)
+        if (!matchName && !matchRc && !matchRico && !matchEmail) return false
+      }
       if (statusFilter === 'online' && getEffectivePresence(agent) !== 'online') return false
       if (officeFilter !== 'all' && agent.office !== officeFilter) return false
       if (teamFilter !== 'all' && agent.team !== teamFilter) return false
@@ -184,17 +205,6 @@ export default function AgentHudPanel() {
     setOfficeFilter('all')
     setTeamFilter('all')
     setSpanishOnly(false)
-  }
-
-  const handleMouseEnter = (agent: EnrichedAgent) => {
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
-    setHoveredAgent(agent)
-  }
-
-  const handleMouseLeave = () => {
-    hoverTimeoutRef.current = setTimeout(() => {
-      setHoveredAgent(null)
-    }, 150)
   }
 
   const getPresenceColor = (presence: string) => {
@@ -223,9 +233,6 @@ export default function AgentHudPanel() {
     )
   }
 
-  // Active agent for modal detail card (either selected via click or hovered)
-  const modalAgent = selectedAgent || hoveredAgent
-
   return (
     <div className="relative flex h-full flex-col bg-slate-50/50">
       {/* ── Filter Bar ── */}
@@ -253,7 +260,7 @@ export default function AgentHudPanel() {
             <button
               onClick={() => setStatusFilter('all')}
               className={cn(
-                "px-2.5 py-1 rounded-md text-[12px] font-medium transition-all",
+                "px-2.5 py-1 rounded-md text-[12px] font-medium transition-all cursor-pointer",
                 statusFilter === 'all'
                   ? "bg-white text-slate-900 shadow-xs font-semibold"
                   : "text-slate-500 hover:text-slate-700"
@@ -264,7 +271,7 @@ export default function AgentHudPanel() {
             <button
               onClick={() => setStatusFilter('online')}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium transition-all",
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium transition-all cursor-pointer",
                 statusFilter === 'online'
                   ? "bg-white text-slate-900 shadow-xs font-semibold"
                   : "text-slate-500 hover:text-slate-700"
@@ -337,7 +344,7 @@ export default function AgentHudPanel() {
           {hasActiveFilters && (
             <button
               onClick={clearFilters}
-              className="flex h-8 items-center gap-1 rounded-md px-2 text-[12px] font-medium text-slate-400 hover:text-slate-600 transition-colors"
+              className="flex h-8 items-center gap-1 rounded-md px-2 text-[12px] font-medium text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
             >
               <X className="h-3 w-3" />
               Clear
@@ -356,7 +363,7 @@ export default function AgentHudPanel() {
               <button
                 onClick={() => setViewMode('grid')}
                 className={cn(
-                  "flex h-full items-center justify-center rounded px-1.5 transition-colors",
+                  "flex h-full items-center justify-center rounded px-1.5 transition-colors cursor-pointer",
                   viewMode === 'grid' ? "bg-white text-slate-900 shadow-xs" : "text-slate-400 hover:text-slate-600"
                 )}
                 title="Grid View"
@@ -366,7 +373,7 @@ export default function AgentHudPanel() {
               <button
                 onClick={() => setViewMode('list')}
                 className={cn(
-                  "flex h-full items-center justify-center rounded px-1.5 transition-colors",
+                  "flex h-full items-center justify-center rounded px-1.5 transition-colors cursor-pointer",
                   viewMode === 'list' ? "bg-white text-slate-900 shadow-xs" : "text-slate-400 hover:text-slate-600"
                 )}
                 title="List View"
@@ -385,13 +392,13 @@ export default function AgentHudPanel() {
             <Users className="h-8 w-8 text-slate-300" />
             <p className="text-sm">No agents found matching filters.</p>
             {hasActiveFilters && (
-              <button onClick={clearFilters} className="text-xs text-blue-600 hover:underline">
+              <button onClick={clearFilters} className="text-xs text-blue-600 hover:underline cursor-pointer">
                 Clear all filters
               </button>
             )}
           </div>
         ) : viewMode === 'grid' ? (
-          /* ── Compact Grid View with Hover / Click Popover ── */
+          /* ── Compact Grid View (Click to Open Detail Modal) ── */
           <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2">
             {filteredAgents.map(agent => {
               const presence = getEffectivePresence(agent)
@@ -401,13 +408,11 @@ export default function AgentHudPanel() {
                 <div
                   key={agent.id}
                   onClick={() => setSelectedAgent(agent)}
-                  onMouseEnter={() => handleMouseEnter(agent)}
-                  onMouseLeave={handleMouseLeave}
                   className={cn(
                     "group relative flex flex-col items-center rounded-lg border bg-white p-2 text-center transition-all cursor-pointer select-none",
                     selectedAgent?.id === agent.id
                       ? "border-blue-500 ring-2 ring-blue-500/20 shadow-sm"
-                      : "border-slate-200 hover:border-slate-300 hover:shadow-xs"
+                      : "border-slate-200 hover:border-slate-300 hover:shadow-xs active:scale-[0.98]"
                   )}
                 >
                   {/* Avatar with status ring */}
@@ -471,6 +476,7 @@ export default function AgentHudPanel() {
                 {filteredAgents.map(agent => {
                   const presence = getEffectivePresence(agent)
                   const statusText = agent.status_message || (presence.charAt(0).toUpperCase() + presence.slice(1))
+                  const rc = parsePhoneAndExt(agent.ring_central_phone)
 
                   return (
                     <tr
@@ -503,14 +509,17 @@ export default function AgentHudPanel() {
                         </div>
                       </td>
                       <td className="px-3 py-1.5">
-                        {agent.ring_central_phone ? (
+                        {rc.phone ? (
                           <button
-                            onClick={(e) => copyToClipboard(agent.ring_central_phone!, `rc-${agent.id}`, e)}
+                            onClick={(e) => copyToClipboard(rc.phone, `rc-${agent.id}`, e)}
                             className="inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 font-mono text-[12px] text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition-colors"
-                            title="Click to copy RingCentral phone"
+                            title={`Copy number: ${rc.phone}${rc.ext ? ` (${rc.ext})` : ''}`}
                           >
                             <Phone className="h-3 w-3 text-slate-400" />
-                            <span>{agent.ring_central_phone}</span>
+                            <span>{rc.phone}</span>
+                            {rc.ext && (
+                              <span className="text-slate-400 text-[10px] font-sans"> {rc.ext}</span>
+                            )}
                             {copiedKey === `rc-${agent.id}` ? (
                               <Check className="h-3 w-3 text-emerald-600" />
                             ) : (
@@ -557,11 +566,11 @@ export default function AgentHudPanel() {
         )}
       </div>
 
-      {/* ── Quick Contact Detail Modal / Popover ── */}
-      {modalAgent && (
+      {/* ── Quick Contact Detail Modal (Triggered on Click) ── */}
+      {selectedAgent && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-150"
-          onClick={() => { setSelectedAgent(null); setHoveredAgent(null) }}
+          onClick={() => setSelectedAgent(null)}
         >
           <div
             className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-xl transition-all scale-in-95"
@@ -573,43 +582,43 @@ export default function AgentHudPanel() {
                 <div className="relative shrink-0">
                   <div className={cn(
                     "flex h-12 w-12 items-center justify-center rounded-full text-white ring-2 ring-offset-2 text-base font-bold",
-                    getPresenceColor(getEffectivePresence(modalAgent)),
-                    !modalAgent.avatar_url && getAvatarColor(modalAgent.name)
+                    getPresenceColor(getEffectivePresence(selectedAgent)),
+                    !selectedAgent.avatar_url && getAvatarColor(selectedAgent.name)
                   )}>
-                    {modalAgent.avatar_url ? (
-                      <img src={modalAgent.avatar_url} alt={modalAgent.name} className="h-full w-full rounded-full object-cover" />
+                    {selectedAgent.avatar_url ? (
+                      <img src={selectedAgent.avatar_url} alt={selectedAgent.name} className="h-full w-full rounded-full object-cover" />
                     ) : (
-                      getInitials(modalAgent.name)
+                      getInitials(selectedAgent.name)
                     )}
                   </div>
                   <div className="absolute -bottom-0.5 -right-0.5">
-                    <UserPresenceBadge status={getEffectivePresence(modalAgent)} size="md" />
+                    <UserPresenceBadge status={getEffectivePresence(selectedAgent)} size="md" />
                   </div>
                 </div>
 
                 <div className="min-w-0">
                   <h3 className="text-base font-bold text-slate-900 truncate flex items-center gap-1.5">
-                    {modalAgent.name}
-                    {modalAgent.speaks_spanish && (
+                    {selectedAgent.name}
+                    {selectedAgent.speaks_spanish && (
                       <span className="rounded bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
                         Spa
                       </span>
                     )}
                   </h3>
                   <p className="text-xs text-slate-500 truncate">
-                    {modalAgent.position || modalAgent.team || 'Agent'}
+                    {selectedAgent.position || selectedAgent.team || 'Agent'}
                   </p>
                   <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-400">
-                    {modalAgent.office && (
+                    {selectedAgent.office && (
                       <span className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-slate-600 font-medium">
                         <Building2 className="h-3 w-3 text-slate-400" />
-                        {modalAgent.office}
+                        {selectedAgent.office}
                       </span>
                     )}
-                    {modalAgent.team && (
+                    {selectedAgent.team && (
                       <span className="inline-flex items-center gap-1 rounded bg-blue-50 px-1.5 py-0.5 text-blue-700 font-medium">
                         <Briefcase className="h-3 w-3 text-blue-400" />
-                        {modalAgent.team}
+                        {selectedAgent.team}
                       </span>
                     )}
                   </div>
@@ -617,8 +626,8 @@ export default function AgentHudPanel() {
               </div>
 
               <button
-                onClick={() => { setSelectedAgent(null); setHoveredAgent(null) }}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                onClick={() => setSelectedAgent(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -626,12 +635,12 @@ export default function AgentHudPanel() {
 
             {/* Status Section */}
             <div className="my-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs">
-              <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", getPresenceDot(getEffectivePresence(modalAgent)))} />
+              <span className={cn("h-2.5 w-2.5 rounded-full shrink-0", getPresenceDot(getEffectivePresence(selectedAgent)))} />
               <span className="font-semibold text-slate-700 capitalize">
-                {getEffectivePresence(modalAgent)}
+                {getEffectivePresence(selectedAgent)}
               </span>
-              {modalAgent.status_message && (
-                <span className="text-slate-500 italic truncate">— "{modalAgent.status_message}"</span>
+              {selectedAgent.status_message && (
+                <span className="text-slate-500 italic truncate">— "{selectedAgent.status_message}"</span>
               )}
             </div>
 
@@ -641,46 +650,55 @@ export default function AgentHudPanel() {
                 Quick Contact Numbers
               </p>
 
-              {/* RingCentral */}
-              {modalAgent.ring_central_phone ? (
-                <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 hover:bg-slate-50 transition-colors">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600">
-                      <Phone className="h-4 w-4" />
+              {/* RingCentral (copies phone without extension) */}
+              {selectedAgent.ring_central_phone ? (() => {
+                const rc = parsePhoneAndExt(selectedAgent.ring_central_phone)
+                return (
+                  <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600">
+                        <Phone className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-semibold uppercase text-slate-400">RingCentral</p>
+                        <p className="text-xs font-mono font-bold text-slate-800 truncate flex items-center gap-1.5">
+                          <span>{rc.phone}</span>
+                          {rc.ext && (
+                            <span className="rounded bg-slate-200/80 px-1 py-0.5 text-[10px] font-sans font-semibold text-slate-600">
+                              {rc.ext}
+                            </span>
+                          )}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase text-slate-400">RingCentral</p>
-                      <p className="text-xs font-mono font-bold text-slate-800 truncate">
-                        {modalAgent.ring_central_phone}
-                      </p>
-                    </div>
+                    <button
+                      onClick={(e) => copyToClipboard(rc.phone, 'modal-rc', e)}
+                      className={cn(
+                        "flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all shadow-xs shrink-0 cursor-pointer",
+                        copiedKey === 'modal-rc'
+                          ? "bg-emerald-600 text-white"
+                          : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                      )}
+                      title={`Copy phone number ${rc.phone}`}
+                    >
+                      {copiedKey === 'modal-rc' ? (
+                        <>
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3.5 w-3.5" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
                   </div>
-                  <button
-                    onClick={(e) => copyToClipboard(modalAgent.ring_central_phone!, 'modal-rc', e)}
-                    className={cn(
-                      "flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all shadow-xs shrink-0 cursor-pointer",
-                      copiedKey === 'modal-rc'
-                        ? "bg-emerald-600 text-white"
-                        : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
-                    )}
-                  >
-                    {copiedKey === 'modal-rc' ? (
-                      <>
-                        <Check className="h-3.5 w-3.5" />
-                        <span>Copied</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3.5 w-3.5" />
-                        <span>Copy</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              ) : null}
+                )
+              })() : null}
 
               {/* Ricochet Phone */}
-              {modalAgent.ricochet_phone ? (
+              {selectedAgent.ricochet_phone ? (
                 <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 hover:bg-slate-50 transition-colors">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-100 text-emerald-600">
@@ -689,12 +707,12 @@ export default function AgentHudPanel() {
                     <div className="min-w-0">
                       <p className="text-[10px] font-semibold uppercase text-slate-400">Ricochet</p>
                       <p className="text-xs font-mono font-bold text-slate-800 truncate">
-                        {modalAgent.ricochet_phone}
+                        {selectedAgent.ricochet_phone}
                       </p>
                     </div>
                   </div>
                   <button
-                    onClick={(e) => copyToClipboard(modalAgent.ricochet_phone!, 'modal-rico', e)}
+                    onClick={(e) => copyToClipboard(selectedAgent.ricochet_phone!, 'modal-rico', e)}
                     className={cn(
                       "flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all shadow-xs shrink-0 cursor-pointer",
                       copiedKey === 'modal-rico'
@@ -718,7 +736,7 @@ export default function AgentHudPanel() {
               ) : null}
 
               {/* Email */}
-              {modalAgent.email ? (
+              {selectedAgent.email ? (
                 <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 hover:bg-slate-50 transition-colors">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-indigo-100 text-indigo-600">
@@ -727,12 +745,12 @@ export default function AgentHudPanel() {
                     <div className="min-w-0">
                       <p className="text-[10px] font-semibold uppercase text-slate-400">Email</p>
                       <p className="text-xs font-mono text-slate-800 truncate">
-                        {modalAgent.email}
+                        {selectedAgent.email}
                       </p>
                     </div>
                   </div>
                   <button
-                    onClick={(e) => copyToClipboard(modalAgent.email!, 'modal-email', e)}
+                    onClick={(e) => copyToClipboard(selectedAgent.email!, 'modal-email', e)}
                     className={cn(
                       "flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all shadow-xs shrink-0 cursor-pointer",
                       copiedKey === 'modal-email'
@@ -755,7 +773,7 @@ export default function AgentHudPanel() {
                 </div>
               ) : null}
 
-              {!modalAgent.ring_central_phone && !modalAgent.ricochet_phone && !modalAgent.email && (
+              {!selectedAgent.ring_central_phone && !selectedAgent.ricochet_phone && !selectedAgent.email && (
                 <p className="text-xs text-slate-400 italic py-2 text-center">
                   No direct phone or email on file in directory.
                 </p>
@@ -765,7 +783,7 @@ export default function AgentHudPanel() {
             {/* Modal Footer */}
             <div className="mt-5 pt-3 border-t border-slate-100 flex justify-end">
               <button
-                onClick={() => { setSelectedAgent(null); setHoveredAgent(null) }}
+                onClick={() => setSelectedAgent(null)}
                 className="rounded-lg bg-slate-100 px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
               >
                 Close
