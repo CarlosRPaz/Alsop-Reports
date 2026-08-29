@@ -9,6 +9,7 @@ import { Breadcrumbs } from "@/components/layout/Breadcrumbs"
 import { WelcomeBanner } from "@/components/layout/WelcomeBanner"
 import { ErrorBoundary } from "@/components/layout/ErrorBoundary"
 import { ChatProvider } from "@/lib/chat/chatContext"
+import { NotificationBridge } from "@/components/layout/NotificationBridge"
 
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -43,6 +44,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     <ChatProvider>
       <ToastProvider>
         <TabBadge />
+        <NotificationBridge />
         <Sidebar />
         <div className="flex-1 overflow-x-hidden flex flex-col min-h-screen">
           <WelcomeBanner />

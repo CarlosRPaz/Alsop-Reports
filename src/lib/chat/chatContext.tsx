@@ -99,6 +99,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [latestMessageAlert, setLatestMessageAlert] = useState<LatestMessageAlert | null>(null)
   const [livePresenceMap, setLivePresenceMap] = useState<Record<string, AgentPresenceData>>({})
 
+  // Notification preferences — defaults to everything ON
+  const notifPrefsRef = useRef({
+    desktop_enabled: true,
+    toast_enabled: true,
+    notify_on_dm: true,
+    notify_on_mentions: true,
+    notify_on_team_mentions: true,
+    notify_on_urgent: true,
+  })
+
   // Keep a ref to the presence heartbeat interval so we can clear it on
   // unmount or sign-out.
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -322,17 +332,57 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setCurrentAgent({ ...agent, presence: initialStatus } as Agent)
       agentIdRef.current = agentId
 
-      // Request browser desktop notification permissions silently
+      // Request browser desktop notification permissions
       requestDesktopPermission().catch(() => {})
 
-      // Load permissions and unread counts in parallel
-      const [perms, counts] = await Promise.all([
+      // Load permissions, unread counts, and notification preferences in parallel
+      const [perms, counts, notifPrefsResult] = await Promise.all([
         getPermissionsForAgent(agentId),
         getUnreadCounts(agentId),
+        supabase
+          .from('chat_notification_preferences')
+          .select('desktop_enabled, toast_enabled, notify_on_dm, notify_on_mentions, notify_on_team_mentions, notify_on_urgent')
+          .eq('agent_id', agentId)
+          .single(),
       ])
 
       setPermissions(perms)
       setUnreadCounts(counts)
+
+      // Load notification preferences (defaults to everything ON if no row exists)
+      if (notifPrefsResult.data) {
+        notifPrefsRef.current = {
+          desktop_enabled: notifPrefsResult.data.desktop_enabled ?? true,
+          toast_enabled: notifPrefsResult.data.toast_enabled ?? true,
+          notify_on_dm: notifPrefsResult.data.notify_on_dm ?? true,
+          notify_on_mentions: notifPrefsResult.data.notify_on_mentions ?? true,
+          notify_on_team_mentions: notifPrefsResult.data.notify_on_team_mentions ?? true,
+          notify_on_urgent: notifPrefsResult.data.notify_on_urgent ?? true,
+        }
+      } else {
+        // No preferences row exists — create one with all defaults ON
+        notifPrefsRef.current = {
+          desktop_enabled: true,
+          toast_enabled: true,
+          notify_on_dm: true,
+          notify_on_mentions: true,
+          notify_on_team_mentions: true,
+          notify_on_urgent: true,
+        }
+        supabase
+          .from('chat_notification_preferences')
+          .upsert({
+            agent_id: agentId,
+            desktop_enabled: true,
+            toast_enabled: true,
+            notify_on_dm: true,
+            notify_on_mentions: true,
+            notify_on_team_mentions: true,
+            notify_on_urgent: true,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'agent_id' })
+          .then(() => {}, () => {})
+      }
 
       // Track last activity time (for 30-min idle auto-away)
       const lastActivityTimeRef = { current: Date.now() }
@@ -455,9 +505,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               if (isSubscribed) setUnreadCounts(counts)
             } catch {}
 
-            // Fetch sender & conversation details for Desktop Notification
+            // Fetch sender & conversation details for notifications
             let senderName = 'Someone'
             let convoName = 'New Message'
+            let convoType = 'channel'
 
             try {
               const [{ data: senderAgent }, { data: convo }] = await Promise.all([
@@ -466,12 +517,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               ])
 
               if (senderAgent) senderName = senderAgent.name
-              if (convo) convoName = convo.name || (convo.type === 'direct_dm' ? senderName : 'Group Chat')
+              if (convo) {
+                convoType = convo.type || 'channel'
+                convoName = convo.name || (convo.type === 'direct_dm' ? senderName : 'Group Chat')
+              }
             } catch (err) {
               console.error('Failed to resolve notification metadata:', err)
             }
 
-            // Update tab alert state
+            // Check if this message type should be notified based on user preferences
+            const prefs = notifPrefsRef.current
+            const isDM = convoType === 'direct_dm'
+            const shouldNotify = isDM ? prefs.notify_on_dm : true // channels always notify
+
+            if (!shouldNotify) return
+
+            // Update tab alert state (also triggers in-app toast via NotificationBridge)
             setLatestMessageAlert({
               senderName,
               convoName,
@@ -479,17 +540,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               timestamp: Date.now(),
             })
 
-            // Trigger native Desktop Notification (works across browser tabs & desktop windows)
-            sendDesktopNotification(
-              convoName,
-              `${senderName}: ${msg.content.substring(0, 100)}`,
-              () => {
-                if (typeof window !== 'undefined') {
-                  window.focus()
-                  window.location.href = `/communication?id=${msg.conversation_id}`
+            // Trigger native Desktop Notification if enabled in preferences
+            if (prefs.desktop_enabled) {
+              sendDesktopNotification(
+                convoName,
+                `${senderName}: ${msg.content.substring(0, 100)}`,
+                () => {
+                  if (typeof window !== 'undefined') {
+                    window.focus()
+                    window.location.href = `/communication?id=${msg.conversation_id}`
+                  }
                 }
-              }
-            )
+              )
+            }
           },
         })
 

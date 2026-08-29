@@ -189,6 +189,9 @@ export function requestDesktopPermission(): Promise<NotificationPermission> {
 
 /**
  * Display a native desktop notification.
+ * Notifications are PERSISTENT — they stay visible until the user manually
+ * dismisses them or clicks on them. No auto-close timeout.
+ *
  * Silently no-ops if permission hasn't been granted or if running on the
  * server side.
  */
@@ -200,20 +203,21 @@ export function sendDesktopNotification(
   if (typeof window === 'undefined' || !('Notification' in window)) return
   if (Notification.permission !== 'granted') return
 
+  // Strip any HTML tags from the body (messages can contain rich text)
+  const cleanBody = body.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
+
   const notification = new Notification(title, {
-    body,
+    body: cleanBody,
     icon: '/favicon.ico',
     tag: `chat-${Date.now()}`, // prevent duplicate stacking
+    requireInteraction: true, // Stay visible until user dismisses or clicks
   })
 
-  if (onClick) {
-    notification.onclick = () => {
-      window.focus()
-      onClick()
-      notification.close()
-    }
+  notification.onclick = () => {
+    window.focus()
+    if (onClick) onClick()
+    notification.close()
   }
 
-  // Auto-close after 5 seconds
-  setTimeout(() => notification.close(), 5000)
+  // No auto-close — notification persists until manually dismissed
 }
