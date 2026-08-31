@@ -42,6 +42,7 @@ export function NotificationBridge() {
       message: preview || 'New message',
       variant: 'notification',
       duration: 0, // Persistent — stays until manually dismissed
+      metadata: { conversationId },
       onClick: () => {
         // Only route if not in the popout widget
         if (pathname !== '/communication/popout') {

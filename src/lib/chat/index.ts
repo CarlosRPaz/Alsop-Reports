@@ -58,6 +58,7 @@ export {
   markAllNotificationsRead,
   requestDesktopPermission,
   sendDesktopNotification,
+  clearDesktopNotifications,
 } from './notifications'
 export { playNotificationSound } from './sound'
 

@@ -24,6 +24,7 @@ import {
   subscribeToConversation,
   unsubscribeChannel,
   getOrCreateDirectDM,
+  clearDesktopNotifications,
 } from "@/lib/chat"
 import type { Conversation, Message, Agent, ConversationMember } from "@/lib/chat/types"
 import type { RealtimeChannel } from "@supabase/supabase-js"
@@ -38,9 +39,11 @@ import ConversationSettingsModal from "@/components/chat/ConversationSettingsMod
 import AgentHudPanel from "@/components/chat/AgentHudPanel"
 import { updatePresence } from "@/lib/chat/realtime"
 import { MessageSquare, MonitorSmartphone } from "lucide-react"
+import { useToast } from "@/components/ui/Toast"
 
 export default function CommunicationHub() {
-  const { currentAgent, hasPermission, unreadCounts, refreshUnreadCounts, signOut, setManualPresence } = useChat()
+  const { currentAgent, hasPermission, unreadCounts, refreshUnreadCounts, signOut, setManualPresence, setActiveConversationId } = useChat()
+  const { dismissToasts } = useToast()
 
   // ── State ─────────────────────────────────────────────────────
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -177,6 +180,16 @@ export default function CommunicationHub() {
     setReplyTo(null)
     setEditingMessage(null)
   }, [selectedId, currentAgent, refreshUnreadCounts])
+
+  // Sync selectedId with global chat context
+  useEffect(() => {
+    setActiveConversationId(selectedId)
+    if (selectedId) {
+      dismissToasts(t => t.metadata?.conversationId === selectedId)
+      clearDesktopNotifications(selectedId)
+    }
+    return () => setActiveConversationId(null)
+  }, [selectedId, setActiveConversationId, dismissToasts])
 
   // ── Realtime subscriptions ────────────────────────────────────
   useEffect(() => {

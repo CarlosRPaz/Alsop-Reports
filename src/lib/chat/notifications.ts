@@ -187,6 +187,9 @@ export function requestDesktopPermission(): Promise<NotificationPermission> {
   return Notification.requestPermission()
 }
 
+// Store active notifications to clear them programmatically
+const activeDesktopNotifs = new Map<string, Notification[]>()
+
 /**
  * Display a native desktop notification.
  * Notifications are PERSISTENT — they stay visible until the user manually
@@ -198,6 +201,7 @@ export function requestDesktopPermission(): Promise<NotificationPermission> {
 export function sendDesktopNotification(
   title: string,
   body: string,
+  conversationId?: string,
   onClick?: () => void,
 ): void {
   if (typeof window === 'undefined' || !('Notification' in window)) return
@@ -209,15 +213,40 @@ export function sendDesktopNotification(
   const notification = new Notification(title, {
     body: cleanBody,
     icon: '/favicon.ico',
-    tag: `chat-${Date.now()}`, // prevent duplicate stacking
+    tag: conversationId || `chat-${Date.now()}`, // Same tag = OS replaces the old one
     requireInteraction: true, // Stay visible until user dismisses or clicks
   })
+
+  // Track it
+  if (conversationId) {
+    const list = activeDesktopNotifs.get(conversationId) || []
+    list.push(notification)
+    activeDesktopNotifs.set(conversationId, list)
+  }
 
   notification.onclick = () => {
     window.focus()
     if (onClick) onClick()
     notification.close()
   }
+  
+  notification.onclose = () => {
+    // Remove from tracking array
+    if (conversationId) {
+      const list = activeDesktopNotifs.get(conversationId) || []
+      activeDesktopNotifs.set(conversationId, list.filter(n => n !== notification))
+    }
+  }
+}
 
-  // No auto-close — notification persists until manually dismissed
+/**
+ * Programmatically close all active desktop notifications for a specific conversation.
+ */
+export function clearDesktopNotifications(conversationId: string) {
+  if (typeof window === 'undefined') return
+  const list = activeDesktopNotifs.get(conversationId)
+  if (list) {
+    list.forEach(n => n.close())
+    activeDesktopNotifs.delete(conversationId)
+  }
 }

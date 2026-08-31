@@ -78,6 +78,9 @@ export interface ChatContextValue {
   getLivePresence: (agentId: string, fallback?: any) => 'online' | 'away' | 'busy' | 'offline'
   /** Helper to get an agent's true realtime status message. */
   getLiveStatusMessage: (agentId: string, fallback?: string | null) => string | null
+  /** The currently open conversation ID (if any) across the main page or widget. */
+  activeConversationId: string | null
+  setActiveConversationId: (id: string | null) => void
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null)
@@ -99,6 +102,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
   const [latestMessageAlert, setLatestMessageAlert] = useState<LatestMessageAlert | null>(null)
   const [livePresenceMap, setLivePresenceMap] = useState<Record<string, AgentPresenceData>>({})
+  const [activeConversationId, setActiveConversationIdState] = useState<string | null>(null)
+  const activeConversationIdRef = useRef<string | null>(null)
+
+  const setActiveConversationId = useCallback((id: string | null) => {
+    activeConversationIdRef.current = id
+    setActiveConversationIdState(id)
+  }, [])
 
   // Notification preferences — defaults to everything ON
   const notifPrefsRef = useRef({
@@ -533,6 +543,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
             if (!shouldNotify) return
 
+            // If the user is currently looking at this conversation, do not show a toast or desktop notification
+            if (activeConversationIdRef.current === msg.conversation_id && document.hasFocus()) {
+              return
+            }
+
             // Update tab alert state (also triggers in-app toast via NotificationBridge)
             setLatestMessageAlert({
               conversationId: msg.conversation_id,
@@ -547,6 +562,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               sendDesktopNotification(
                 convoName,
                 `${senderName}: ${msg.content.substring(0, 100)}`,
+                msg.conversation_id,
                 () => {
                   if (typeof window !== 'undefined') {
                     window.focus()
@@ -721,6 +737,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       livePresenceMap,
       getLivePresence,
       getLiveStatusMessage,
+      activeConversationId,
+      setActiveConversationId,
     }),
     [
       currentAgent,
@@ -736,6 +754,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       livePresenceMap,
       getLivePresence,
       getLiveStatusMessage,
+      activeConversationId,
+      setActiveConversationId,
     ],
   )
 

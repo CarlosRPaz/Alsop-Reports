@@ -14,16 +14,19 @@ interface Toast {
   variant: ToastVariant
   duration?: number // ms, 0 = persistent
   onClick?: () => void
+  metadata?: Record<string, any>
 }
 
 interface ToastContextValue {
   addToast: (toast: Omit<Toast, "id">) => void
+  dismissToasts: (predicate: (toast: Toast) => boolean) => void
 }
 
 /* ── Context ───────────────────────────────────────────────────────── */
 
 const ToastContext = createContext<ToastContextValue>({
   addToast: () => {},
+  dismissToasts: () => {},
 })
 
 export const useToast = () => useContext(ToastContext)
@@ -55,15 +58,31 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     }
   }, [removeToast])
 
+  const dismissToasts = useCallback((predicate: (toast: Toast) => boolean) => {
+    setToasts(prev => {
+      const remaining = prev.filter(t => !predicate(t))
+      const removed = prev.filter(t => predicate(t))
+      removed.forEach(t => {
+        const timer = timersRef.current.get(t.id)
+        if (timer) {
+          clearTimeout(timer)
+          timersRef.current.delete(t.id)
+        }
+      })
+      return remaining
+    })
+  }, [])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       timersRef.current.forEach(timer => clearTimeout(timer))
+      timersRef.current.clear()
     }
   }, [])
 
   return (
-    <ToastContext.Provider value={{ addToast }}>
+    <ToastContext.Provider value={{ addToast, dismissToasts }}>
       {children}
 
       {/* Toast Container — fixed bottom-right */}

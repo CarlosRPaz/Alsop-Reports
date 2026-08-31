@@ -6,11 +6,12 @@ import { supabase } from '@/lib/supabaseClient'
 import { useChat } from '@/lib/chat/chatContext'
 import { fetchMessages, sendMessage, deleteMessage } from '@/lib/chat/messages'
 import { getConversationMembers } from '@/lib/chat/conversations'
-import { markConversationRead } from '@/lib/chat/notifications'
+import { markConversationRead, clearDesktopNotifications } from '@/lib/chat/notifications'
 import { subscribeToConversation, unsubscribeChannel } from '@/lib/chat/realtime'
 import type { Message, Agent, ConversationMember } from '@/components/chat/types'
 import MessageList from '@/components/chat/MessageList'
 import MessageComposer from '@/components/chat/MessageComposer'
+import { useToast } from '@/components/ui/Toast'
 
 interface MiniChatRoomProps {
   conversationId: string
@@ -21,12 +22,22 @@ interface MiniChatRoomProps {
 }
 
 export function MiniChatRoom({ conversationId, conversationName, onBack, onClose, onPopOut }: MiniChatRoomProps) {
-  const { currentAgent, hasPermission, refreshUnreadCounts } = useChat()
+  const { currentAgent, hasPermission, refreshUnreadCounts, setActiveConversationId } = useChat()
+  const { dismissToasts } = useToast()
   const [messages, setMessages] = useState<Message[]>([])
   const [members, setMembers] = useState<Agent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const channelRef = useRef<any>(null)
+
+  useEffect(() => {
+    setActiveConversationId(conversationId)
+    if (conversationId) {
+      dismissToasts(t => t.metadata?.conversationId === conversationId)
+      clearDesktopNotifications(conversationId)
+    }
+    return () => setActiveConversationId(null)
+  }, [conversationId, setActiveConversationId, dismissToasts])
 
   useEffect(() => {
     if (!currentAgent || !conversationId) return
