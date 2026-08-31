@@ -67,7 +67,7 @@ export function subscribeToConversation(
     .on(
       'postgres_changes',
       {
-        event: 'INSERT',
+        event: '*',
         schema: 'public',
         table: 'chat_message_reactions',
       },

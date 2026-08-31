@@ -417,10 +417,7 @@ export default function MessageBubble({
           : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
       )}
       onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => {
-        setShowActions(false)
-        setShowEmojiPicker(false)
-      }}
+      onMouseLeave={() => { if (showEmojiPicker) return; setShowActions(false); setShowEmojiPicker(false); }}
     >
       {isGrouped && (
         <div className="absolute left-[16px] top-1/2 -translate-y-1/2 w-[36px] text-right opacity-0 group-hover:opacity-100 transition-opacity duration-150 select-none pointer-events-none z-10">
@@ -595,7 +592,7 @@ export default function MessageBubble({
               <EmojiReactionPicker
                 align="right"
                 onSelect={(emoji) => onReact(message.id, emoji)}
-                onClose={() => setShowEmojiPicker(false)}
+                onClose={() => { setShowEmojiPicker(false); setShowActions(false); }}
               />
             )}
           </div>

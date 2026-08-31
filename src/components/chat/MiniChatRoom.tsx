@@ -242,10 +242,19 @@ export function MiniChatRoom({ conversationId, conversationName, onBack, onClose
           onEdit={() => {}} // not supported in mini view for now
           onDelete={handleDelete}
           onPin={() => {}}
-          onReact={async (msgId, emoji) => {
-            const { addReaction } = await import('@/lib/chat/messages')
-            addReaction(msgId, currentAgent.id, emoji)
-          }}
+            onReact={async (msgId, emoji) => {
+              if (!currentAgent) return
+              const msg = messages.find(m => m.id === msgId)
+              const existingReaction = msg?.reactions?.find(
+                r => r.emoji === emoji && r.agent_ids.includes(currentAgent.id)
+              )
+              const { addReaction, removeReaction } = await import('@/lib/chat/messages')
+              if (existingReaction) {
+                await removeReaction(msgId, currentAgent.id, emoji)
+              } else {
+                await addReaction(msgId, currentAgent.id, emoji)
+              }
+            }}
           hasPermission={hasPermission}
           isCompact={true}
         />
