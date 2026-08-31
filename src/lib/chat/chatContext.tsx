@@ -38,6 +38,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 // ---------------------------------------------------------------------------
 
 export interface LatestMessageAlert {
+  conversationId: string
   senderName: string
   convoName: string
   content: string
@@ -534,6 +535,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
             // Update tab alert state (also triggers in-app toast via NotificationBridge)
             setLatestMessageAlert({
+              conversationId: msg.conversation_id,
               senderName,
               convoName,
               content: msg.content,

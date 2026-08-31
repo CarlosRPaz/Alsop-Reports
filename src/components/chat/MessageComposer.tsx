@@ -131,23 +131,22 @@ export default function MessageComposer({
     const text = content.trim()
     if (!text || isSending || isUploading) return
 
+    // Clear input immediately for better UX
+    if (editorRef.current) {
+      editorRef.current.innerHTML = ''
+    }
+    setContent('')
+    setPriority('normal')
+    setShowGifPicker(false)
+    
+    // Ensure focus remains
+    editorRef.current?.focus()
+
     setIsSending(true)
     try {
       await onSend(text, replyTo?.id, priority)
-      if (editorRef.current) {
-        editorRef.current.innerHTML = ''
-      }
-      setContent('')
-      setPriority('normal')
-      setShowGifPicker(false)
     } finally {
       setIsSending(false)
-      // Refocus the editor after isSending is false (which restores contentEditable)
-      setTimeout(() => {
-        if (editorRef.current) {
-          editorRef.current.focus()
-        }
-      }, 0)
     }
   }, [content, isSending, isUploading, onSend, replyTo, priority])
 
@@ -362,7 +361,7 @@ export default function MessageComposer({
             )}
             <div
               ref={editorRef}
-              contentEditable={!isSending && !isUploading}
+              contentEditable={!isUploading}
               role="textbox"
               aria-multiline="true"
               onInput={handleInput}

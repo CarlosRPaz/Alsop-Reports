@@ -13,6 +13,7 @@ interface Toast {
   message?: string
   variant: ToastVariant
   duration?: number // ms, 0 = persistent
+  onClick?: () => void
 }
 
 interface ToastContextValue {
@@ -131,11 +132,17 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
 
   return (
     <div
+      onClick={() => {
+        if (toast.onClick) {
+          toast.onClick()
+          onDismiss()
+        }
+      }}
       className={`pointer-events-auto ${style.bg} border ${style.border} rounded-xl shadow-lg shadow-slate-900/5 px-4 py-3 flex items-start gap-3 transition-all duration-300 ease-out ${
         isVisible
           ? "opacity-100 translate-x-0"
           : "opacity-0 translate-x-8"
-      }`}
+      } ${toast.onClick ? "cursor-pointer hover:scale-[1.02]" : ""}`}
     >
       {/* Icon */}
       <div className={`mt-0.5 shrink-0 ${style.iconColor}`}>
@@ -156,7 +163,10 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
 
       {/* Dismiss */}
       <button
-        onClick={onDismiss}
+        onClick={(e) => {
+          e.stopPropagation()
+          onDismiss()
+        }}
         className="shrink-0 mt-0.5 p-0.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
       >
         <X className="w-3.5 h-3.5" />

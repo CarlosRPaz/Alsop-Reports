@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import { useRouter, usePathname } from "next/navigation"
 import { useChat } from "@/lib/chat/chatContext"
 import { useToast } from "@/components/ui/Toast"
 
@@ -13,6 +14,8 @@ import { useToast } from "@/components/ui/Toast"
 export function NotificationBridge() {
   const { latestMessageAlert } = useChat()
   const { addToast } = useToast()
+  const router = useRouter()
+  const pathname = usePathname()
   const lastTimestampRef = useRef<number>(0)
 
   useEffect(() => {
@@ -21,7 +24,7 @@ export function NotificationBridge() {
     if (latestMessageAlert.timestamp <= lastTimestampRef.current) return
     lastTimestampRef.current = latestMessageAlert.timestamp
 
-    const { senderName, convoName, content } = latestMessageAlert
+    const { senderName, convoName, content, conversationId } = latestMessageAlert
 
     // Build a clean preview (strip HTML tags from rich text content)
     const cleanContent = content
@@ -39,8 +42,14 @@ export function NotificationBridge() {
       message: preview || 'New message',
       variant: 'notification',
       duration: 0, // Persistent — stays until manually dismissed
+      onClick: () => {
+        // Only route if not in the popout widget
+        if (pathname !== '/communication/popout') {
+          router.push(`/communication?id=${conversationId}`)
+        }
+      }
     })
-  }, [latestMessageAlert, addToast])
+  }, [latestMessageAlert, addToast, router, pathname])
 
   return null
 }
