@@ -91,7 +91,7 @@ export function MiniChatHub({
       <div className="flex flex-col px-4 pt-4 pb-2 border-b border-slate-200 bg-white shrink-0 gap-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold text-slate-800">Comm Hub</h2>
+            <h2 className="text-sm font-bold text-slate-800">Communication Hub</h2>
             <div className="relative group">
               <button className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-50 transition-colors">
                 <Circle className={cn(
