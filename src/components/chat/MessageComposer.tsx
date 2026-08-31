@@ -142,6 +142,12 @@ export default function MessageComposer({
       setShowGifPicker(false)
     } finally {
       setIsSending(false)
+      // Refocus the editor after isSending is false (which restores contentEditable)
+      setTimeout(() => {
+        if (editorRef.current) {
+          editorRef.current.focus()
+        }
+      }, 0)
     }
   }, [content, isSending, isUploading, onSend, replyTo, priority])
 
@@ -226,6 +232,11 @@ export default function MessageComposer({
           console.error('Failed to upload pasted image:', err)
         } finally {
           setIsUploading(false)
+          setTimeout(() => {
+            if (editorRef.current) {
+              editorRef.current.focus()
+            }
+          }, 0)
         }
         return
       }
