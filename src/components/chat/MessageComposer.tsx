@@ -396,7 +396,7 @@ export default function MessageComposer({
 
                 {/* GIF Picker Dropdown */}
                 {showGifPicker && (
-                  <div className={cn("absolute z-50", isCompact ? "bottom-full left-0 mb-2" : "bottom-full mb-2")}>
+                  <div className="absolute z-50 bottom-full left-0 mb-2">
                     <GifPicker
                       onSelect={handleGifSelect}
                       onClose={() => setShowGifPicker(false)}
