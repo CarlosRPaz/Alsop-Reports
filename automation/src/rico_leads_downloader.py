@@ -2,11 +2,7 @@
 rico_leads_downloader.py — Auto-download the Ricochet LeadSwami Report.
 
 Uses Playwright with a persistent Edge profile so login survives between runs.
-If Edge or profile is busy/locked, falls back to isolated Chromium session seamlessly.
-
-Usage:
-    from src.rico_leads_downloader import download_rico_leads
-    path = download_rico_leads(config)  # returns path to downloaded CSV
+Includes automatic recovery for browser downloads.
 """
 
 from __future__ import annotations
@@ -14,12 +10,13 @@ from __future__ import annotations
 import json
 import shutil
 import time
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
 
-DEFAULT_TIMEOUT_MS = 30_000
-DOWNLOAD_TIMEOUT_MS = 120_000  # large file, give it time
+DEFAULT_TIMEOUT_MS = 45_000
+DOWNLOAD_TIMEOUT_MS = 180_000  # large file, give it time
 
 
 def download_rico_leads(
@@ -28,10 +25,6 @@ def download_rico_leads(
     headless: bool = False,
     save_to: str | None = None,
 ) -> str | None:
-    """
-    Launch Edge/Chromium via Playwright, navigate to the Ricochet reports page,
-    and download the correct LeadSwami Report CSV.
-    """
     if isinstance(config, str):
         with open(config, "r", encoding="utf-8") as f:
             config = json.load(f)
@@ -91,7 +84,7 @@ def download_rico_leads(
                 print("[rico_leads_downloader] Launched persistent Chromium context.")
             except Exception as e2:
                 print(f"[rico_leads_downloader] Profile directory locked ({e2}). Launching fresh non-persistent session...")
-                # 3. Fall back to standard browser (immune to profile lock issues)
+                # 3. Fall back to standard browser
                 try:
                     browser_obj = p.chromium.launch(channel="msedge", headless=headless)
                 except Exception:
@@ -110,7 +103,6 @@ def download_rico_leads(
             page.goto(reports_url, wait_until="domcontentloaded")
             time.sleep(2)
 
-            # If we got redirected to a login screen, log in.
             if _is_login_page(page):
                 print("[rico_leads_downloader] Login page detected — signing in...")
                 _perform_login(page, org, username, password)
@@ -120,7 +112,6 @@ def download_rico_leads(
             else:
                 print("[rico_leads_downloader] Already signed in (reusing session)")
 
-            # Wait for the reports table to render
             print("[rico_leads_downloader] Waiting for reports table...")
             try:
                 page.wait_for_load_state("networkidle", timeout=DEFAULT_TIMEOUT_MS)
@@ -128,8 +119,14 @@ def download_rico_leads(
                 pass
             time.sleep(2)
 
-            # Click the download button on the matching row
             download_path = _click_newest_download(page, save_to, target_date)
+
+            if not download_path:
+                # Check fallback in downloads folder
+                recent = sorted(Path(save_to).glob("leads_report_*.csv"), key=lambda f: f.stat().st_mtime, reverse=True)
+                if recent and (time.time() - recent[0].stat().st_mtime) < 300 and recent[0].stat().st_size > 100_000:
+                    download_path = str(recent[0])
+                    print(f"[rico_leads_downloader] Recovered recently downloaded file from folder: {download_path}")
 
             if download_path:
                 print(f"[rico_leads_downloader] Downloaded: {download_path}")
@@ -140,13 +137,11 @@ def download_rico_leads(
 
         except Exception as e:
             print(f"[rico_leads_downloader] Error: {e}")
-            try:
-                shot = Path("data") / f"rico_leads_error_{int(time.time())}.png"
-                shot.parent.mkdir(parents=True, exist_ok=True)
-                page.screenshot(path=str(shot))
-                print(f"[rico_leads_downloader] Saved debug screenshot to {shot}")
-            except Exception:
-                pass
+            recent = sorted(Path(save_to).glob("leads_report_*.csv"), key=lambda f: f.stat().st_mtime, reverse=True)
+            if recent and (time.time() - recent[0].stat().st_mtime) < 300 and recent[0].stat().st_size > 100_000:
+                recovered = str(recent[0])
+                print(f"[rico_leads_downloader] Recovered recent download from disk after error: {recovered}")
+                return recovered
             return None
         finally:
             try:
@@ -281,13 +276,22 @@ def _click_newest_download(page, save_to: str, target_date: str | None = None) -
             download_btn = action_btns.nth(2)
             print("[rico_leads_downloader] Clicking download button (3rd action button)...")
 
-            with page.expect_download(timeout=DOWNLOAD_TIMEOUT_MS) as dl_info:
-                download_btn.click()
+            try:
+                with page.expect_download(timeout=DOWNLOAD_TIMEOUT_MS) as dl_info:
+                    download_btn.click()
 
-            download = dl_info.value
-            result_path = _save_download(download, save_to)
-            print(f"[rico_leads_downloader] [OK] Download complete: {result_path}")
-            return result_path
+                download = dl_info.value
+                result_path = _save_download(download, save_to)
+                print(f"[rico_leads_downloader] [OK] Download complete: {result_path}")
+                return result_path
+            except Exception as dl_err:
+                print(f"[rico_leads_downloader] Warning during expect_download: {dl_err}")
+                time.sleep(3)
+                recent = sorted(Path(save_to).glob("leads_report_*.csv"), key=lambda f: f.stat().st_mtime, reverse=True)
+                if recent and (time.time() - recent[0].stat().st_mtime) < 300 and recent[0].stat().st_size > 100_000:
+                    print(f"[rico_leads_downloader] Successfully found downloaded file on disk: {recent[0]}")
+                    return str(recent[0])
+                raise dl_err
         else:
             print(f"[rico_leads_downloader] [WARN] Expected >=3 buttons but found {btn_count}")
             _debug_screenshot(page, "rico_leads_wrong_btn_count")
@@ -312,5 +316,21 @@ def _debug_screenshot(page, label: str) -> None:
 def _save_download(download, save_to: str) -> str:
     suggested = download.suggested_filename or f"leads_report_{int(time.time())}.csv"
     target = Path(save_to) / suggested
-    download.save_as(str(target))
-    return str(target)
+    try:
+        download.save_as(str(target))
+        return str(target)
+    except Exception as e:
+        print(f"[rico_leads_downloader] save_as exception ({e}), checking fallback...")
+        if target.exists() and target.stat().st_size > 100_000:
+            return str(target)
+        try:
+            dl_path = download.path()
+            if dl_path and Path(dl_path).exists():
+                shutil.copy2(dl_path, str(target))
+                return str(target)
+        except Exception:
+            pass
+        recent = sorted(Path(save_to).glob("leads_report_*.csv"), key=lambda f: f.stat().st_mtime, reverse=True)
+        if recent and (time.time() - recent[0].stat().st_mtime) < 300 and recent[0].stat().st_size > 100_000:
+            return str(recent[0])
+        raise
