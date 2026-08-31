@@ -62,10 +62,74 @@ export function MiniChatRoom({ conversationId, conversationName, onBack, onClose
     // Realtime subscription
     channelRef.current = subscribeToConversation(conversationId, {
       onNewMessage: async (newMsg: Message) => {
+        // Optimistically add to message list immediately
         setMessages(prev => {
           if (prev.some(m => m.id === newMsg.id)) return prev
           return [...prev, newMsg]
         })
+        
+        // Asynchronously enrich with sender and reply preview details in parallel
+        const enriched = { ...newMsg }
+        let needsUpdate = false
+
+        try {
+          const promises: PromiseLike<void>[] = []
+
+          if (!enriched.sender) {
+            promises.push(
+              supabase
+                .from('agents')
+                .select('id, name, office, avatar_url, role, team, status_message, presence')
+                .eq('id', enriched.sender_id)
+                .single()
+                .then(({ data: senderAgent }) => {
+                  if (senderAgent) {
+                    enriched.sender = senderAgent
+                    needsUpdate = true
+                  }
+                })
+            )
+          }
+
+          if (enriched.parent_message_id && !enriched.parent_preview) {
+            promises.push(
+              supabase
+                .from('chat_messages')
+                .select('id, content, is_deleted, created_at, sender_id, agents!chat_messages_sender_id_fkey(name)')
+                .eq('id', enriched.parent_message_id)
+                .single()
+                .then((res: any) => {
+                  const parentMsg = res.data
+                  if (parentMsg) {
+                    const agents = parentMsg.agents
+                    const senderName = Array.isArray(agents)
+                      ? (agents[0]?.name ?? 'Unknown')
+                      : (agents?.name ?? 'Unknown')
+                    enriched.parent_preview = {
+                      id: parentMsg.id,
+                      content: parentMsg.is_deleted ? 'Message deleted' : parentMsg.content,
+                      sender_name: senderName,
+                      created_at: parentMsg.created_at,
+                    }
+                    needsUpdate = true
+                  }
+                })
+            )
+          }
+
+          if (promises.length > 0) {
+            await Promise.all(promises)
+          }
+        } catch (err) {
+          console.error('Failed to enrich realtime message:', err)
+        }
+
+        if (needsUpdate) {
+          setMessages(prev =>
+            prev.map(m => (m.id === enriched.id ? { ...m, ...enriched } : m))
+          )
+        }
+
         await markConversationRead(conversationId, currentAgent.id)
         refreshUnreadCounts()
       },
