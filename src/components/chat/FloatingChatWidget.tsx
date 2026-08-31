@@ -44,7 +44,7 @@ export function FloatingChatWidget() {
 
   const handlePopOut = () => {
     setIsOpen(false)
-    window.open('/communication/popout', 'DSR_Chat', 'width=400,height=650,resizable=yes,scrollbars=yes')
+    window.open('/communication/popout', 'DSR_Chat', 'width=800,height=650,resizable=yes,scrollbars=yes')
   }
 
   if (!currentAgent) return null

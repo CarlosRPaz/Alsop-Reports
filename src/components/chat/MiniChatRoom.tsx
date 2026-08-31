@@ -19,9 +19,10 @@ interface MiniChatRoomProps {
   onBack: () => void
   onClose: () => void
   onPopOut?: () => void
+  hideHeaderActions?: boolean
 }
 
-export function MiniChatRoom({ conversationId, conversationName, onBack, onClose, onPopOut }: MiniChatRoomProps) {
+export function MiniChatRoom({ conversationId, conversationName, onBack, onClose, onPopOut, hideHeaderActions }: MiniChatRoomProps) {
   const { currentAgent, hasPermission, refreshUnreadCounts, setActiveConversationId } = useChat()
   const { dismissToasts } = useToast()
   const [messages, setMessages] = useState<Message[]>([])
@@ -195,27 +196,36 @@ export function MiniChatRoom({ conversationId, conversationName, onBack, onClose
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-white shrink-0">
-        <div className="flex items-center gap-2 overflow-hidden">
-          <button 
-            onClick={onBack}
-            className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors shrink-0"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <h3 className="font-semibold text-sm text-slate-800 truncate" title={conversationName}>
+      <div className="shrink-0 h-14 border-b border-slate-100 flex items-center justify-between px-3 bg-white">
+        <div className="flex items-center gap-2">
+          {!hideHeaderActions && (
+            <button onClick={onBack} className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer" title="Back">
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          )}
+          <h3 className="font-semibold text-sm text-slate-800">
             {conversationName}
           </h3>
         </div>
+        {/* Right Actions */}
         <div className="flex items-center gap-1">
-          {onPopOut && (
-            <button onClick={onPopOut} className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer" title="Pop out to new window">
+          {!hideHeaderActions && onPopOut && (
+            <button
+              onClick={onPopOut}
+              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors"
+              title="Pop out chat"
+            >
               <ExternalLink className="w-4 h-4" />
             </button>
           )}
-          <button onClick={onClose} className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer" title="Close">
-            <X className="w-4 h-4" />
-          </button>
+          {!hideHeaderActions && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
