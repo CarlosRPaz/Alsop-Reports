@@ -11,9 +11,12 @@ import { ErrorBoundary } from "@/components/layout/ErrorBoundary"
 import { ChatProvider } from "@/lib/chat/chatContext"
 import { NotificationBridge } from "@/components/layout/NotificationBridge"
 
+import { FloatingChatWidget } from "@/components/chat/FloatingChatWidget"
+
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isLoginPage = pathname === "/login"
+  const isPopoutPage = pathname === "/communication/popout"
 
   useEffect(() => {
     const applyTheme = () => {
@@ -40,6 +43,21 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     )
   }
 
+  if (isPopoutPage) {
+    return (
+      <ChatProvider>
+        <ToastProvider>
+          <NotificationBridge />
+          <div className="min-h-screen w-full h-screen overflow-hidden flex flex-col bg-white">
+            <ErrorBoundary>
+              {children}
+            </ErrorBoundary>
+          </div>
+        </ToastProvider>
+      </ChatProvider>
+    )
+  }
+
   return (
     <ChatProvider>
       <ToastProvider>
@@ -55,6 +73,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
             </ErrorBoundary>
           </div>
         </div>
+        <FloatingChatWidget />
       </ToastProvider>
     </ChatProvider>
   )

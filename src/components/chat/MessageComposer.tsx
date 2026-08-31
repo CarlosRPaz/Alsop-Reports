@@ -23,6 +23,7 @@ interface MessageComposerProps {
   onSend: (content: string, parentId?: string, priority?: string) => Promise<void>
   onCancelReply: () => void
   hasPermission: (key: string) => boolean
+  isCompact?: boolean
 }
 
 type PriorityLevel = 'normal' | 'important' | 'urgent'
@@ -79,6 +80,7 @@ export default function MessageComposer({
   onSend,
   onCancelReply,
   hasPermission,
+  isCompact = false,
 }: MessageComposerProps) {
   const [content, setContent] = useState('')
   const [priority, setPriority] = useState<PriorityLevel>('normal')
@@ -304,17 +306,17 @@ export default function MessageComposer({
   const isEmpty = !content.trim()
 
   return (
-    <div className="relative border-t border-slate-100 bg-white">
+    <div className={cn("relative border-t border-slate-100 bg-white", isCompact ? "shrink-0" : "")}>
       {/* Reply preview */}
       {replyTo && (
-        <div className="px-4 pt-3 pb-0">
+        <div className={cn("pb-0", isCompact ? "px-2 pt-2" : "px-4 pt-3")}>
           <div className="flex items-center gap-2 bg-blue-50/80 border border-blue-100 rounded-lg px-3 py-2">
             <div className="w-0.5 h-5 bg-blue-400 rounded-full shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-[11px] font-semibold text-blue-600">
                 Replying to {replyTo.sender?.name ?? 'Unknown'}
               </p>
-              <p className="text-xs text-slate-500 truncate">{replyTo.content}</p>
+              <p className="text-xs text-slate-500 truncate">{replyTo.content.replace(/<[^>]*>?/gm, '')}</p>
             </div>
             <button
               onClick={onCancelReply}
@@ -327,7 +329,7 @@ export default function MessageComposer({
       )}
 
       {/* Input area */}
-      <div className="p-3 sm:p-4">
+      <div className={cn(isCompact ? "p-2" : "p-3 sm:p-4")}>
         {/* Uploading indicator */}
         {isUploading && (
           <div className="mb-2 flex items-center gap-2 rounded-lg bg-pink-50 border border-pink-100 px-3 py-1.5 text-xs text-pink-700 font-medium animate-pulse">
@@ -337,7 +339,7 @@ export default function MessageComposer({
         )}
 
         <div className="flex items-end gap-2 sm:gap-3 bg-slate-50 border border-slate-200 rounded-xl p-2 focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400 transition-all">
-          {/* ContentEditable Rich Text Input (Enables Windows Emoji/GIF Picker without opening new window) */}
+          {/* ContentEditable Rich Text Input */}
           <div className="relative flex-1 min-h-[40px] max-h-[160px] overflow-y-auto">
             {isEmpty && (
               <div className="pointer-events-none absolute left-2 sm:left-3 top-2 text-sm text-slate-400 select-none">

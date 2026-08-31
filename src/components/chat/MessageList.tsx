@@ -16,6 +16,7 @@ interface MessageListProps {
   onPin: (messageId: string) => void
   onReact: (messageId: string, emoji: string) => void
   hasPermission: (key: string) => boolean
+  isCompact?: boolean
 }
 
 function formatDateDivider(dateStr: string): string {
@@ -74,6 +75,7 @@ export default function MessageList({
   onPin,
   onReact,
   hasPermission,
+  isCompact = false,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
