@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react'
 import { useChat } from '@/lib/chat/chatContext'
+import { fetchConversationsForAgent } from '@/lib/chat/conversations'
 import { supabase } from '@/lib/supabaseClient'
 import type { Conversation } from '@/components/chat/types'
 import { MiniChatHub } from '@/components/chat/MiniChatHub'
@@ -25,49 +26,7 @@ export default function PopoutPage() {
 
     async function loadConversations() {
       try {
-        const { data, error } = await supabase
-          .from('chat_conversation_members')
-          .select(`
-            is_pinned,
-            conversations:conversation_id (
-              id,
-              name,
-              type,
-              created_at,
-              last_message:chat_messages (
-                content,
-                created_at,
-                sender_id
-              ),
-              members:chat_conversation_members (
-                agent_id,
-                agent:agents (
-                  id,
-                  name,
-                  avatar_url,
-                  presence,
-                  last_seen_at
-                )
-              )
-            )
-          `)
-          .eq('agent_id', currentAgent?.id || '')
-          .order('joined_at', { ascending: false })
-
-        if (error) throw error
-
-        const convos = data
-          .map((row: any) => ({
-            ...row.conversations,
-            is_pinned: row.is_pinned,
-            last_message: row.conversations.last_message?.[0] || null,
-          }))
-          .sort((a, b) => {
-            const dateA = a.last_message ? new Date(a.last_message.created_at).getTime() : new Date(a.created_at).getTime()
-            const dateB = b.last_message ? new Date(b.last_message.created_at).getTime() : new Date(b.created_at).getTime()
-            return dateB - dateA
-          }) as Conversation[]
-
+        const convos = await fetchConversationsForAgent(currentAgent!.id)
         setConversations(convos)
       } catch (err) {
         console.error("Failed to load popout conversations:", err)
