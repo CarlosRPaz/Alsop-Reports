@@ -338,9 +338,12 @@ export default function MessageComposer({
           </div>
         )}
 
-        <div className="flex items-end gap-2 sm:gap-3 bg-slate-50 border border-slate-200 rounded-xl p-2 focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400 transition-all">
+        <div className={cn(
+          "flex bg-slate-50 border border-slate-200 rounded-xl p-2 focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400 transition-all",
+          isCompact ? "flex-col gap-2" : "flex-row items-end gap-2 sm:gap-3"
+        )}>
           {/* ContentEditable Rich Text Input */}
-          <div className="relative flex-1 min-h-[40px] max-h-[160px] overflow-y-auto">
+          <div className="relative flex-1 min-w-0 min-h-[40px] max-h-[160px] overflow-y-auto">
             {isEmpty && (
               <div className="pointer-events-none absolute left-2 sm:left-3 top-2 text-sm text-slate-400 select-none">
                 Write a message...
@@ -360,105 +363,110 @@ export default function MessageComposer({
           </div>
 
           {/* Action buttons toolbar */}
-          <div className="flex items-center gap-1 shrink-0 pb-1">
-            {/* Built-in GIF Picker Button */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowGifPicker(!showGifPicker)}
-                className={cn(
-                  'flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer',
-                  showGifPicker
-                    ? 'bg-pink-100 text-pink-700 shadow-xs ring-1 ring-pink-200'
-                    : 'text-slate-500 hover:text-pink-600 hover:bg-pink-50'
-                )}
-                title="Insert a GIF"
-              >
-                <span className="flex h-4 w-4 items-center justify-center rounded bg-pink-500 text-white text-[9px] font-extrabold">
-                  G
-                </span>
-                <span className="hidden sm:inline">GIF</span>
-              </button>
-
-              {/* GIF Picker Dropdown */}
-              {showGifPicker && (
-                <GifPicker
-                  onSelect={handleGifSelect}
-                  onClose={() => setShowGifPicker(false)}
-                />
-              )}
-            </div>
-
-            {/* Priority selector */}
-            {canSendUrgent && (
+          <div className={cn("flex items-center gap-1 shrink-0", isCompact ? "justify-between w-full pb-0" : "pb-1")}>
+            <div className="flex items-center gap-1">
+              {/* Built-in GIF Picker Button */}
               <div className="relative">
                 <button
                   type="button"
-                  onClick={() => setShowPriority(!showPriority)}
+                  onClick={() => setShowGifPicker(!showGifPicker)}
                   className={cn(
-                    'flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer',
-                    priority === 'normal'
-                      ? 'text-slate-400 hover:text-slate-600 hover:bg-white'
-                      : priority === 'important'
-                        ? 'text-amber-600 bg-amber-50'
-                        : 'text-red-600 bg-red-50'
+                    'flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer',
+                    showGifPicker
+                      ? 'bg-pink-100 text-pink-700 shadow-xs ring-1 ring-pink-200'
+                      : 'text-slate-500 hover:text-pink-600 hover:bg-pink-50'
                   )}
-                  title="Message Priority"
+                  title="Insert a GIF"
                 >
-                  {PRIORITY_OPTIONS.find((p) => p.value === priority)?.icon}
-                  {priority !== 'normal' && (
-                    <span className="capitalize">{priority}</span>
-                  )}
-                  <ChevronDown className="w-3 h-3" />
+                  <span className="flex h-4 w-4 items-center justify-center rounded bg-pink-500 text-white text-[9px] font-extrabold">
+                    G
+                  </span>
+                  <span className={cn("hidden", isCompact ? "" : "sm:inline")}>GIF</span>
                 </button>
 
-                {showPriority && (
-                  <div className="absolute bottom-full right-0 mb-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[130px] z-20">
-                    {PRIORITY_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => {
-                          setPriority(opt.value)
-                          setShowPriority(false)
-                        }}
-                        className={cn(
-                          'w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors hover:bg-slate-50 cursor-pointer',
-                          priority === opt.value ? 'font-medium' : '',
-                          opt.color
-                        )}
-                      >
-                        {opt.icon}
-                        {opt.label}
-                      </button>
-                    ))}
+                {/* GIF Picker Dropdown */}
+                {showGifPicker && (
+                  <div className={cn("absolute z-50", isCompact ? "bottom-full left-0 mb-2" : "bottom-full mb-2")}>
+                    <GifPicker
+                      onSelect={handleGifSelect}
+                      onClose={() => setShowGifPicker(false)}
+                    />
                   </div>
                 )}
               </div>
-            )}
+
+              {/* Priority selector */}
+              {canSendUrgent && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowPriority(!showPriority)}
+                    className={cn(
+                      'flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer',
+                      priority === 'normal'
+                        ? 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/50'
+                        : priority === 'important'
+                          ? 'text-amber-600 bg-amber-50'
+                          : 'text-red-600 bg-red-50'
+                    )}
+                    title="Message Priority"
+                  >
+                    {PRIORITY_OPTIONS.find((p) => p.value === priority)?.icon}
+                    {priority !== 'normal' && (
+                      <span className="capitalize">{priority}</span>
+                    )}
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+
+                  {showPriority && (
+                    <div className="absolute bottom-full left-0 mb-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[130px] z-20">
+                      {PRIORITY_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => {
+                            setPriority(opt.value)
+                            setShowPriority(false)
+                          }}
+                          className={cn(
+                            'w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors hover:bg-slate-50 cursor-pointer',
+                            priority === opt.value ? 'font-medium' : '',
+                            opt.color
+                          )}
+                        >
+                          {opt.icon}
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Send button */}
             <button
               onClick={handleSend}
               disabled={isEmpty || isSending || isUploading}
               className={cn(
-                'rounded-lg px-3 sm:px-4 h-9 sm:h-10 flex items-center gap-1.5 sm:gap-2 text-sm font-semibold transition-all shrink-0 cursor-pointer',
+                'rounded-lg px-3 h-9 flex items-center justify-center gap-1.5 text-sm font-semibold transition-all shrink-0 cursor-pointer',
+                isCompact ? "flex-1 max-w-[100px]" : "sm:px-4 sm:h-10 sm:gap-2",
                 !isEmpty && !isSending && !isUploading
                   ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs active:scale-[0.97]'
                   : 'bg-slate-200 text-slate-400 cursor-not-allowed'
               )}
             >
               {isSending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
               ) : (
-                <Send className="w-4 h-4" />
+                <Send className="w-4 h-4 sm:w-5 sm:h-5" />
               )}
-              <span className="hidden sm:inline">Send</span>
+              <span className={cn(isCompact ? "" : "hidden sm:inline")}>Send</span>
             </button>
           </div>
         </div>
 
         {/* Footer hints */}
-        <div className="flex justify-between items-center mt-2 px-2">
+        <div className={cn("flex justify-between items-start mt-2 px-1", isCompact ? "flex-col gap-1" : "flex-row items-center")}>
           <p className="text-[11px] font-medium text-slate-400">
             <kbd className="font-mono bg-slate-100 border border-slate-200 rounded px-1">
               Enter
@@ -469,11 +477,13 @@ export default function MessageComposer({
             </kbd>{' '}
             for newline
           </p>
-          <p className="text-[11px] text-slate-400 hidden sm:block">
-            <span className="text-slate-300">**bold**</span>{' '}
-            <span className="text-slate-300">*italic*</span>{' '}
-            <span className="text-slate-300">`code`</span>
-          </p>
+          {!isCompact && (
+            <p className="text-[11px] text-slate-400 hidden sm:block">
+              <span className="text-slate-300">**bold**</span>{' '}
+              <span className="text-slate-300">*italic*</span>{' '}
+              <span className="text-slate-300">`code`</span>
+            </p>
+          )}
         </div>
       </div>
 

@@ -13,7 +13,7 @@ interface MiniChatHubProps {
   unreadCounts: Record<string, number>
   onSelect: (id: string, name: string) => void
   onClose: () => void
-  onPopOut: () => void
+  onPopOut?: () => void
   onStatusChange: (status: 'online' | 'away' | 'busy') => void
   getLivePresence: (agentId: string, fallback?: any) => 'online' | 'away' | 'busy' | 'offline'
 }
@@ -49,6 +49,22 @@ export function MiniChatHub({
 }: MiniChatHubProps) {
   const [tab, setTab] = useState<'recents' | 'mentions'>('recents')
   const [search, setSearch] = useState('')
+  const [mentions, setMentions] = useState<any[]>([])
+
+  React.useEffect(() => {
+    if (tab === 'mentions') {
+      supabase
+        .from('chat_notifications')
+        .select('*')
+        .eq('recipient_id', currentAgent.id)
+        .in('type', ['mention'])
+        .order('created_at', { ascending: false })
+        .limit(20)
+        .then(({ data }) => {
+          if (data) setMentions(data)
+        })
+    }
+  }, [tab, currentAgent.id])
 
   const sortedConversations = useMemo(() => {
     return [...conversations].sort((a, b) => {
@@ -106,13 +122,15 @@ export function MiniChatHub({
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <button 
-              onClick={onPopOut}
-              className="p-1.5 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-              title="Pop out to new window"
-            >
-              <ExternalLink className="w-4 h-4" />
-            </button>
+            {onPopOut && (
+              <button 
+                onClick={onPopOut}
+                className="p-1.5 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                title="Pop out to new window"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </button>
+            )}
             <button 
               onClick={onClose}
               className="p-1.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
@@ -226,9 +244,60 @@ export function MiniChatHub({
             </div>
           )
         ) : (
-          <div className="text-center p-6 text-sm text-slate-500">
-            Mentions and Urgent messages will appear here. (Coming soon)
-          </div>
+          mentions.length > 0 ? (
+            mentions.map((notif) => {
+              // Find if we have the conversation to get its name
+              const convo = conversations.find(c => c.id === notif.conversation_id)
+              const convoName = convo ? getDmDisplayName(convo, currentAgent.id) : 'Conversation'
+              
+              return (
+                <button
+                  key={notif.id}
+                  onClick={async () => {
+                    if (!notif.is_read) {
+                      try {
+                        const { markNotificationRead } = await import('@/lib/chat/notifications')
+                        await markNotificationRead(notif.id)
+                        setMentions(prev => prev.map(m => m.id === notif.id ? { ...m, is_read: true } : m))
+                      } catch {}
+                    }
+                    if (notif.conversation_id) {
+                      onSelect(notif.conversation_id, convoName)
+                    }
+                  }}
+                  className="w-full flex items-start gap-3 p-3 rounded-lg hover:bg-slate-100 transition-colors text-left"
+                >
+                  <div className="relative shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-rose-100 text-rose-600 font-bold text-sm mt-0.5">
+                    <Bell className="w-4 h-4" />
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={cn("text-sm truncate", !notif.is_read ? "font-bold text-slate-900" : "font-medium text-slate-700")}>
+                        {notif.title}
+                      </span>
+                      <span className="text-[10px] text-slate-400 shrink-0">
+                        {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <p className={cn("text-xs mt-0.5", !notif.is_read ? "text-slate-700 font-medium" : "text-slate-500")}>
+                      {notif.body?.replace(/<[^>]*>/g, '') || 'You were mentioned'}
+                    </p>
+                    {convoName && (
+                      <p className="text-[10px] text-slate-400 mt-1 font-medium flex items-center gap-1">
+                        <Hash className="w-3 h-3" /> {convoName}
+                      </p>
+                    )}
+                  </div>
+                </button>
+              )
+            })
+          ) : (
+            <div className="text-center p-6 text-sm text-slate-500 flex flex-col items-center gap-2">
+              <Bell className="w-8 h-8 text-slate-300 mx-auto" />
+              You have no recent mentions.
+            </div>
+          )
         )}
       </div>
     </div>

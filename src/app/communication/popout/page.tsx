@@ -60,7 +60,6 @@ export default function PopoutPage() {
           unreadCounts={unreadCounts}
           onSelect={(id, name) => setSelectedConversation({ id, name })}
           onClose={() => window.close()}
-          onPopOut={() => {}} // Already popped out
           onStatusChange={setManualPresence}
           getLivePresence={getLivePresence}
         />

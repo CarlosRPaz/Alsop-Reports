@@ -66,6 +66,7 @@ export function FloatingChatWidget() {
               conversationName={selectedConversation.name}
               onBack={() => setSelectedConversation(null)}
               onClose={() => setIsOpen(false)}
+              onPopOut={handlePopOut}
             />
           ) : (
             <MiniChatHub

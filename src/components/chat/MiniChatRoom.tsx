@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { ChevronLeft, MoreVertical, X } from 'lucide-react'
+import { ChevronLeft, MoreVertical, X, ExternalLink } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { useChat } from '@/lib/chat/chatContext'
 import { fetchMessages, sendMessage, deleteMessage } from '@/lib/chat/messages'
@@ -17,9 +17,10 @@ interface MiniChatRoomProps {
   conversationName: string
   onBack: () => void
   onClose: () => void
+  onPopOut?: () => void
 }
 
-export function MiniChatRoom({ conversationId, conversationName, onBack, onClose }: MiniChatRoomProps) {
+export function MiniChatRoom({ conversationId, conversationName, onBack, onClose, onPopOut }: MiniChatRoomProps) {
   const { currentAgent, hasPermission, refreshUnreadCounts } = useChat()
   const [messages, setMessages] = useState<Message[]>([])
   const [members, setMembers] = useState<Agent[]>([])
@@ -132,7 +133,12 @@ export function MiniChatRoom({ conversationId, conversationName, onBack, onClose
           </h3>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={onClose} className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer">
+          {onPopOut && (
+            <button onClick={onPopOut} className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer" title="Pop out to new window">
+              <ExternalLink className="w-4 h-4" />
+            </button>
+          )}
+          <button onClick={onClose} className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer" title="Close">
             <X className="w-4 h-4" />
           </button>
         </div>
