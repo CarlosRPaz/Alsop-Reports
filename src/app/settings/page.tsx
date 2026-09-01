@@ -78,7 +78,7 @@ export default function PersonalSettingsPage() {
   // Avatar Editor States
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [scale, setScale] = useState(1.2)
-  const [editorRef, setEditorRef] = useState<AvatarEditor | null>(null)
+  const [editorRef, setEditorRef] = useState<any | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,7 +93,7 @@ export default function PersonalSettingsPage() {
     setUploadingAvatar(true)
     try {
       const canvas = editorRef.getImageScaledToCanvas()
-      canvas.toBlob(async (blob) => {
+      canvas.toBlob(async (blob: Blob | null) => {
         if (!blob) {
           setUploadingAvatar(false)
           return
