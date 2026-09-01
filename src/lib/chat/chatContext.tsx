@@ -744,6 +744,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       getLiveStatusMessage,
       activeConversationId,
       setActiveConversationId,
+      notificationPreferences: notifPrefsRef.current,
     }),
     [
       currentAgent,
