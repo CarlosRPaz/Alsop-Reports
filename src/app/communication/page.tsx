@@ -367,13 +367,17 @@ export default function CommunicationHub() {
   )
 
   const handleEditMessage = useCallback(
-    async (messageId: string) => {
-      // Find the message and let user edit inline
-      const msg = messages.find(m => m.id === messageId)
-      if (!msg || msg.sender_id !== currentAgent?.id) return
-      setEditingMessage(messageId)
+    async (messageId: string, newContent: string) => {
+      if (!currentAgent) return
+      try {
+        await editMessage(messageId, newContent)
+        // Optimistically update
+        setMessages(prev => prev.map(m => m.id === messageId ? { ...m, content: newContent, is_edited: true } : m))
+      } catch (err) {
+        console.error("Failed to edit message:", err)
+      }
     },
-    [messages, currentAgent]
+    [currentAgent]
   )
 
   const handleDeleteMessage = useCallback(

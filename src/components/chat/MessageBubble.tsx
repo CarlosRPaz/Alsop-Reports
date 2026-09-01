@@ -25,7 +25,7 @@ interface MessageBubbleProps {
   currentAgentId: string
   isGrouped: boolean
   onReply: (messageId: string) => void
-  onEdit: (messageId: string) => void
+  onEdit: (messageId: string, newContent: string) => Promise<void> | void
   onDelete: (messageId: string) => void
   onPin: (messageId: string) => void
   onReact: (messageId: string, emoji: string) => void
@@ -323,6 +323,35 @@ export default function MessageBubble({
   const [showActions, setShowActions] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
 
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(message.content)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const handleSaveEdit = async () => {
+    if (editValue.trim() === '' || editValue === message.content) {
+      setIsEditing(false)
+      setEditValue(message.content)
+      return
+    }
+    setIsSaving(true)
+    try {
+      await onEdit(message.id, editValue)
+      setIsEditing(false)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSaveEdit()
+    } else if (e.key === 'Escape') {
+      setIsEditing(false)
+      setEditValue(message.content)
+    }
+  }
+
   let chat: any = null
   try {
     chat = useChat()
@@ -490,9 +519,45 @@ export default function MessageBubble({
 
           {/* Message text */}
           <div className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed break-words whitespace-pre-wrap">
-            {renderContent(message.content, currentAgent)}
-            {message.is_edited && (
-              <span className="text-[11px] text-slate-400 ml-1">(edited)</span>
+            {isEditing ? (
+              <div className="flex flex-col gap-2 mt-1">
+                <textarea
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="w-full text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  rows={3}
+                  autoFocus
+                  disabled={isSaving}
+                />
+                <div className="flex items-center gap-2 text-[11px]">
+                  <button
+                    onClick={handleSaveEdit}
+                    disabled={isSaving}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.25 rounded transition-colors font-medium disabled:opacity-50"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsEditing(false)
+                      setEditValue(message.content)
+                    }}
+                    disabled={isSaving}
+                    className="text-slate-500 hover:text-slate-700 font-medium px-2 py-1.25 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <span className="text-slate-400 ml-auto hidden sm:inline">escape to cancel • enter to save</span>
+                </div>
+              </div>
+            ) : (
+              <>
+                {renderContent(message.content, currentAgent)}
+                {message.is_edited && (
+                  <span className="text-[11px] text-slate-400 ml-1">(edited)</span>
+                )}
+              </>
             )}
           </div>
 
@@ -583,7 +648,10 @@ export default function MessageBubble({
 
           {isOwn && (
             <button
-              onClick={() => onEdit(message.id)}
+              onClick={() => {
+                setIsEditing(true)
+                setEditValue(message.content)
+              }}
               className="w-7 h-7 flex items-center justify-center rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
               title="Edit"
             >

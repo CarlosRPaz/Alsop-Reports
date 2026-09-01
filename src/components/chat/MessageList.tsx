@@ -11,7 +11,7 @@ interface MessageListProps {
   currentAgentId: string
   isLoading: boolean
   onReply: (messageId: string) => void
-  onEdit: (messageId: string) => void
+  onEdit: (messageId: string, newContent: string) => Promise<void> | void
   onDelete: (messageId: string) => void
   onPin: (messageId: string) => void
   onReact: (messageId: string, emoji: string) => void

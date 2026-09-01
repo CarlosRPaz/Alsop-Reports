@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { ChevronLeft, MoreVertical, X, ExternalLink } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { useChat } from '@/lib/chat/chatContext'
-import { fetchMessages, sendMessage, deleteMessage } from '@/lib/chat/messages'
+import { fetchMessages, sendMessage, deleteMessage, editMessage, addReaction, removeReaction } from '@/lib/chat/messages'
 import { getConversationMembers } from '@/lib/chat/conversations'
 import { markConversationRead, clearDesktopNotifications } from '@/lib/chat/notifications'
 import { subscribeToConversation, unsubscribeChannel } from '@/lib/chat/realtime'
@@ -239,7 +239,15 @@ export function MiniChatRoom({ conversationId, conversationName, onBack, onClose
             const msg = messages.find(m => m.id === msgId)
             if (msg) setReplyTo(msg)
           }}
-          onEdit={() => {}} // not supported in mini view for now
+          onEdit={async (msgId, newContent) => {
+            if (!currentAgent) return
+            try {
+              await editMessage(msgId, newContent)
+              setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: newContent, is_edited: true } : m))
+            } catch (err) {
+              console.error("Failed to edit message:", err)
+            }
+          }}
           onDelete={handleDelete}
           onPin={() => {}}
             onReact={async (msgId, emoji) => {
