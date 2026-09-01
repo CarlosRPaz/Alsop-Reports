@@ -81,6 +81,8 @@ export interface ChatContextValue {
   /** The currently open conversation ID (if any) across the main page or widget. */
   activeConversationId: string | null
   setActiveConversationId: (id: string | null) => void
+  /** The user's notification preferences */
+  notificationPreferences: Record<string, boolean>
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null)
@@ -507,14 +509,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           onNewMessage: async (msg) => {
             if (msg.sender_id === currentAgent.id) return
 
-            // Play notification sound for all incoming messages from others
-            playNotificationSound()
-
-            // Refresh unread counts
+            // Refresh unread counts (always update the red dots, even on DND)
             try {
               const counts = await getUnreadCounts(currentAgent.id)
               if (isSubscribed) setUnreadCounts(counts)
             } catch {}
+
+            // If Do Not Disturb (busy), suppress sounds and pop-up notifications completely
+            if (manualStatusRef.current === 'busy') return
+
+            // Play notification sound for all incoming messages from others
+            playNotificationSound()
 
             // Fetch sender & conversation details for notifications
             let senderName = 'Someone'
