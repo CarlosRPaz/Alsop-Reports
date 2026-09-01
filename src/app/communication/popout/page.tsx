@@ -35,7 +35,7 @@ function UserAvatar({ agent, sizeClass = "w-[22px] h-[22px] text-[10px]" }: { ag
 }
 
 export default function PopoutPage() {
-  const { currentAgent } = useChat()
+  const { currentAgent, unreadCounts } = useChat()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [selectedConversation, setSelectedConversation] = useState<{ id: string, name: string } | null>(null)
   
@@ -184,15 +184,17 @@ export default function PopoutPage() {
                     const otherMember = convo.members?.find((m: any) => m.agent_id !== currentAgent.id)?.agent
                     
                     const dmName = otherMember?.name || convo.name || 'Chat'
+                    const unread = unreadCounts?.[convo.id] || 0
 
                     return (
                       <button 
                         key={convo.id}
                         onClick={() => setSelectedConversation({ id: convo.id, name: (isChannel ? convo.name : dmName) || 'Chat' })}
-                        className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition cursor-pointer text-left ${
+                        className={`w-full flex items-center justify-between gap-2.5 px-2 py-1.5 rounded-lg transition cursor-pointer text-left ${
                           isActive ? 'bg-blue-600 text-white font-medium' : 'hover:bg-white/10 text-slate-300 hover:text-white'
                         }`}
                       >
+                        <div className="flex items-center gap-2.5 min-w-0">
                           {isChannel ? (
                             <div className={`w-[22px] h-[22px] rounded shrink-0 flex items-center justify-center ${isActive ? 'text-white/80' : 'text-slate-400'}`}>
                               <Hash className="w-4 h-4" />
@@ -203,6 +205,12 @@ export default function PopoutPage() {
                           <span className="truncate leading-tight">
                             {isChannel ? convo.name : dmName}
                           </span>
+                        </div>
+                        {unread > 0 && (
+                          <div className={`${isActive ? 'bg-white text-blue-600' : 'bg-blue-600 text-white'} text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1 shrink-0 ml-1`}>
+                            {unread > 99 ? '99+' : unread}
+                          </div>
+                        )}
                       </button>
                     )
                   })}
