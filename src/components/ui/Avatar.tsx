@@ -40,7 +40,6 @@ export function Avatar({ name, url, className, fallbackClassName }: AvatarProps)
         className={cn("rounded-full object-cover shadow-sm bg-white shrink-0", className)}
         width={100}
         height={100}
-        unoptimized
       />
     )
   }
