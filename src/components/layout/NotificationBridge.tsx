@@ -12,8 +12,8 @@ import { useToast } from "@/components/ui/Toast"
  * Must be rendered inside both <ChatProvider> and <ToastProvider>.
  */
 export function NotificationBridge() {
-  const { latestMessageAlert } = useChat()
-  const { addToast } = useToast()
+  const { latestMessageAlert, unreadCounts } = useChat()
+  const { addToast, dismissToasts } = useToast()
   const router = useRouter()
   const pathname = usePathname()
   const lastTimestampRef = useRef<number>(0)
@@ -37,12 +37,20 @@ export function NotificationBridge() {
     const title = isChannel ? `💬 ${senderName} in #${convoName}` : `💬 ${senderName}`
     const preview = cleanContent.length > 80 ? `${cleanContent.substring(0, 78)}...` : cleanContent
 
+    // Consolidate popups for the same conversation
+    dismissToasts((t) => t.metadata?.conversationId === conversationId)
+
+    const unreadCount = unreadCounts[conversationId] || 1
+    const displayMessage = unreadCount > 1 
+      ? `(${unreadCount} unread) ${preview}` 
+      : preview || 'New message'
+
     // Check user preference for persistent toasts
     const isPersistent = typeof window !== 'undefined' && localStorage.getItem('persistent_toasts') === 'true';
 
     addToast({
       title,
-      message: preview || 'New message',
+      message: displayMessage,
       variant: 'notification',
       duration: isPersistent ? 0 : 10000, // 0 = Persistent, 10000 = 10s
       metadata: { conversationId },
@@ -53,7 +61,7 @@ export function NotificationBridge() {
         }
       }
     })
-  }, [latestMessageAlert, addToast, router, pathname])
+  }, [latestMessageAlert, addToast, dismissToasts, router, pathname, unreadCounts])
 
   return null
 }
