@@ -698,8 +698,15 @@ export default function DataSyncPage() {
               Showing coverage for <span className="font-semibold text-slate-600 dark:text-slate-300">{new Date(date + "T12:00:00").toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}</span>
             </p>
           </div>
-          <div className="grid grid-cols-1 gap-2.5">
-            {DATA_SOURCES.map((source) => {
+          {(() => {
+            const allstateKeys = ["items", "quotes", "texts", "eagent"];
+            const allstateSources = DATA_SOURCES.filter(s => allstateKeys.includes(s.key));
+            // Ensure order: New Business, Quotes, Texts, eAgent
+            allstateSources.sort((a, b) => allstateKeys.indexOf(a.key) - allstateKeys.indexOf(b.key));
+            
+            const vaSources = DATA_SOURCES.filter(s => !allstateKeys.includes(s.key));
+
+            const renderSource = (source: typeof DATA_SOURCES[0]) => {
               const Icon = source.icon
               const colors = SOURCE_COLORS[source.color]
               const cov = coverage?.[source.key]
@@ -733,8 +740,25 @@ export default function DataSyncPage() {
                   onManualLeads={source.key === "leads" ? () => setLeadsModalOpen(true) : undefined}
                 />
               )
-            })}
-          </div>
+            }
+
+            return (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5 ml-1">Allstate Access</h3>
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {allstateSources.map(renderSource)}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5 ml-1">VA's</h3>
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {vaSources.map(renderSource)}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         {/* Right: Sync Calendar */}
