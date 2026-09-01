@@ -68,6 +68,9 @@ export default function PersonalSettingsPage() {
   const [theme, setTheme] = useState("light")
   const [savingTheme, setSavingTheme] = useState(false)
 
+  // Local device preferences
+  const [persistentToasts, setPersistentToasts] = useState(false)
+
   // Feedback states
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null)
 
@@ -99,6 +102,10 @@ export default function PersonalSettingsPage() {
         if (agentData && agentData.system_variants) {
           const displayPrefs = (agentData.system_variants as Record<string, any>).display_prefs || {}
           setTheme(displayPrefs.theme || localStorage.getItem("dsr_theme") || "light")
+        }
+
+        if (typeof window !== "undefined") {
+          setPersistentToasts(localStorage.getItem("persistent_toasts") === "true")
         }
 
         // 2. Fetch preferences
