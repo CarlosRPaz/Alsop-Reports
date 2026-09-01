@@ -367,15 +367,19 @@ export default function ConversationSidebar({
       {/* Current User Footer */}
       <div className="border-t border-slate-100 p-3">
         <div className="flex items-center gap-2.5">
-          <div className="relative shrink-0">
-            <div
-              className={cn(
-                'w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold',
-                getAvatarColor(currentAgent.name)
-              )}
-            >
-              {currentAgent.name.charAt(0).toUpperCase()}
-            </div>
+          <div className="relative shrink-0 w-8 h-8">
+            {currentAgent.avatar_url ? (
+              <img src={currentAgent.avatar_url} alt={currentAgent.name} className="w-8 h-8 rounded-full object-cover shadow-sm bg-white" />
+            ) : (
+              <div
+                className={cn(
+                  'w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm',
+                  getAvatarColor(currentAgent.name)
+                )}
+              >
+                {currentAgent.name.charAt(0).toUpperCase()}
+              </div>
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-slate-800 truncate leading-tight">

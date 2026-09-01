@@ -8,10 +8,11 @@ import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser"
 import {
   User, Bell, Shield, KeyRound, Loader2, Check, AlertCircle, X,
   Mail, Building, Users, ShieldCheck, UserCog, Moon,
-  Monitor, MessageSquare, ShieldAlert, Send
+  Monitor, MessageSquare, ShieldAlert, Send, Camera
 } from "lucide-react"
 import { sendDesktopNotification, requestDesktopPermission } from "@/lib/chat/notifications"
 import { useToast } from "@/components/ui/Toast"
+import AvatarEditor from "react-avatar-editor"
 
 interface Agent {
   id: string
@@ -73,6 +74,57 @@ export default function PersonalSettingsPage() {
 
   // Feedback states
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null)
+
+  // Avatar Editor States
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [scale, setScale] = useState(1.2)
+  const [editorRef, setEditorRef] = useState<AvatarEditor | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setUploadFile(e.target.files[0])
+      setScale(1.2)
+    }
+  }
+
+  const handleSaveAvatar = async () => {
+    if (!editorRef || !agent) return
+    setUploadingAvatar(true)
+    try {
+      const canvas = editorRef.getImageScaledToCanvas()
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          setUploadingAvatar(false)
+          return
+        }
+        const file = new File([blob], 'avatar.png', { type: 'image/png' })
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await fetch('/api/chat/upload', {
+          method: 'POST',
+          body: fd
+        })
+        const data = await res.json()
+        if (!res.ok || data.error) throw new Error(data.error || 'Failed to upload')
+        
+        const { error: dbErr } = await supabase
+          .from('agents')
+          .update({ avatar_url: data.url })
+          .eq('id', agent.id)
+          
+        if (dbErr) throw dbErr
+        
+        setAgent({ ...agent, avatar_url: data.url })
+        setUploadFile(null)
+        addToast({ title: 'Profile Updated', message: 'Your picture was saved.', variant: 'success' })
+        setUploadingAvatar(false)
+      }, 'image/png')
+    } catch (err: any) {
+      addToast({ title: 'Upload Failed', message: err.message, variant: 'error' })
+      setUploadingAvatar(false)
+    }
+  }
 
   useEffect(() => {
     const loadData = async () => {
@@ -335,9 +387,19 @@ export default function PersonalSettingsPage() {
               <CardContent className="space-y-6">
                 
                 {/* Visual Avatar Summary */}
-                <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white text-lg font-bold shadow-sm">
-                    {agent.name.charAt(0)}
+                <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100 relative group">
+                  <div className="relative shrink-0">
+                    {agent.avatar_url ? (
+                      <img src={agent.avatar_url} alt={agent.name} className="w-14 h-14 rounded-full object-cover shadow-sm border border-slate-200" />
+                    ) : (
+                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white text-lg font-bold shadow-sm">
+                        {agent.name.charAt(0)}
+                      </div>
+                    )}
+                    <label className="absolute -bottom-1 -right-1 w-6 h-6 bg-white border border-slate-200 shadow-sm rounded-full flex items-center justify-center text-slate-500 hover:text-blue-600 cursor-pointer transition-colors" title="Change Avatar">
+                      <Camera className="w-3.5 h-3.5" />
+                      <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                    </label>
                   </div>
                   <div>
                     <h3 className="text-base font-semibold text-slate-800">{agent.name}</h3>
@@ -346,6 +408,49 @@ export default function PersonalSettingsPage() {
                     </p>
                   </div>
                 </div>
+
+                {/* Avatar Cropper Modal */}
+                {uploadFile && (
+                  <div className="fixed inset-0 z-[100] flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setUploadFile(null)} />
+                    <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-5 flex flex-col gap-4 z-10">
+                      <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2">Position Profile Picture</h3>
+                      
+                      <div className="flex justify-center bg-slate-50 rounded-lg p-2 border border-slate-100 overflow-hidden">
+                        <AvatarEditor
+                          ref={(ref) => setEditorRef(ref)}
+                          image={uploadFile}
+                          width={200}
+                          height={200}
+                          border={20}
+                          borderRadius={100}
+                          color={[255, 255, 255, 0.6]}
+                          scale={scale}
+                          rotate={0}
+                        />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-slate-500">Zoom</label>
+                        <input 
+                          type="range" 
+                          min="1" max="3" step="0.01" 
+                          value={scale} 
+                          onChange={(e) => setScale(parseFloat(e.target.value))} 
+                          className="w-full accent-blue-600"
+                        />
+                      </div>
+
+                      <div className="flex gap-2 justify-end pt-2 border-t border-slate-100 mt-1">
+                        <Button variant="outline" onClick={() => setUploadFile(null)} disabled={uploadingAvatar}>Cancel</Button>
+                        <Button onClick={handleSaveAvatar} disabled={uploadingAvatar} className="flex items-center gap-1.5">
+                          {uploadingAvatar && <Loader2 className="w-4 h-4 animate-spin" />}
+                          {uploadingAvatar ? "Saving..." : "Save Picture"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Read-Only Org details */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

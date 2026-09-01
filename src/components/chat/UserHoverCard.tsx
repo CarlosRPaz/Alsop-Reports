@@ -164,14 +164,18 @@ export default function UserHoverCard({
           {/* User Header */}
           <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-100 dark:border-slate-800">
             <div className="relative shrink-0 w-9 h-9">
-              <div
-                className={cn(
-                  'w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-xs',
-                  getAvatarColor(displayName)
-                )}
-              >
-                {displayName.charAt(0).toUpperCase()}
-              </div>
+              {agent.avatar_url ? (
+                <img src={agent.avatar_url} alt={displayName} className="w-9 h-9 rounded-full object-cover shadow-xs bg-white" />
+              ) : (
+                <div
+                  className={cn(
+                    'w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-xs',
+                    getAvatarColor(displayName)
+                  )}
+                >
+                  {displayName.charAt(0).toUpperCase()}
+                </div>
+              )}
               <UserPresenceBadge
                 status={effectivePresence as any}
                 size="sm"

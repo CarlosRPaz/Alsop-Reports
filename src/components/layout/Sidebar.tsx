@@ -578,14 +578,14 @@ export function Sidebar() {
               )}
             >
               {/* Avatar with Presence dot */}
-              <div className="relative shrink-0">
-                <div
-                  className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold bg-blue-600 shadow-sm"
-                  )}
-                >
-                  {currentAgent.name.charAt(0).toUpperCase()}
-                </div>
+              <div className="relative shrink-0 w-8 h-8">
+                {currentAgent.avatar_url ? (
+                  <img src={currentAgent.avatar_url} alt={currentAgent.name} className="w-8 h-8 rounded-full object-cover shadow-sm bg-white" />
+                ) : (
+                  <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold bg-blue-600 shadow-sm")}>
+                    {currentAgent.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div className="absolute -bottom-0.5 -right-0.5">
                   <UserPresenceBadge status={currentAgent.presence || 'online'} size="sm" />
                 </div>
