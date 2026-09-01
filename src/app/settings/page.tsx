@@ -418,7 +418,7 @@ export default function PersonalSettingsPage() {
                       
                       <div className="flex justify-center bg-slate-50 rounded-lg p-2 border border-slate-100 overflow-hidden">
                         <AvatarEditor
-                          ref={(ref) => setEditorRef(ref)}
+                          ref={setEditorRef}
                           image={uploadFile}
                           width={200}
                           height={200}
