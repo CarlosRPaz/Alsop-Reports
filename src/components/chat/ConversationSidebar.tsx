@@ -80,11 +80,11 @@ function getMessagePreviewText(content?: string): string {
   return clean.replace(/\s+/g, ' ')
 }
 
-const STATUS_OPTIONS: { value: PresenceStatus; label: string; emoji: string }[] = [
-  { value: 'online', label: 'Online', emoji: '🟢' },
-  { value: 'away', label: 'Away', emoji: '🟡' },
-  { value: 'busy', label: 'Busy', emoji: '🔴' },
-  { value: 'offline', label: 'Offline', emoji: '⚫' },
+const STATUS_OPTIONS: { value: PresenceStatus; label: string; color: string }[] = [
+  { value: 'online', label: 'Online', color: 'bg-emerald-500' },
+  { value: 'away', label: 'Away', color: 'bg-amber-500' },
+  { value: 'busy', label: 'Busy', color: 'bg-rose-500' },
+  { value: 'offline', label: 'Offline', color: 'bg-slate-400' },
 ]
 
 export default function ConversationSidebar({
@@ -382,8 +382,16 @@ export default function ConversationSidebar({
               {currentAgent.name}
             </p>
             <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-              <span>{STATUS_OPTIONS.find((s) => s.value === currentAgent.presence)?.emoji}</span>
-              <span>{STATUS_OPTIONS.find((s) => s.value === currentAgent.presence)?.label}</span>
+              <span
+                className={cn(
+                  "w-2 h-2 rounded-full shrink-0",
+                  currentAgent.presence === 'online' && "bg-emerald-500",
+                  currentAgent.presence === 'away' && "bg-amber-500",
+                  currentAgent.presence === 'busy' && "bg-rose-500",
+                  (!currentAgent.presence || currentAgent.presence === 'offline') && "bg-slate-400"
+                )}
+              />
+              <span className="capitalize">{currentAgent.presence || 'Online'}</span>
             </div>
           </div>
         </div>

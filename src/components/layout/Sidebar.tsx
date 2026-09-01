@@ -71,11 +71,11 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { name: 'Heatmap', href: '/reports/heatmap', icon: Flame },
   { name: 'Daily Report', href: '/reports/daily', isLetter: true, letter: 'D' },
   { name: 'Weekly Report', href: '/reports/weekly', isLetter: true, letter: 'W' },
   { name: 'MTD Report', href: '/reports/mtd', isLetter: true, letter: 'M' },
   { name: 'Quotes Report', href: '/reports/quotes', icon: Percent },
+  { name: 'Agent Heatmap', href: '/reports/heatmap', icon: Flame, pageKey: 'heatmap' },
   { name: 'Rebel Rewards', href: '/rebel-rewards', icon: Trophy },
   { name: 'Staff Directory', href: '/staff', icon: Users },
   { name: 'Agent Portal', href: '/reports/agent', icon: UserCircle, pageKey: 'agent_portal' },
@@ -761,10 +761,10 @@ export function Sidebar() {
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Activity Status</label>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { value: 'online', label: 'Online', emoji: '🟢' },
-                  { value: 'away', label: 'Away', emoji: '🟡' },
-                  { value: 'busy', label: 'Busy', emoji: '🔴' },
-                  { value: 'offline', label: 'Offline', emoji: '⚫' }
+                  { value: 'online', label: 'Online', color: 'bg-emerald-500' },
+                  { value: 'away', label: 'Away', color: 'bg-amber-500' },
+                  { value: 'busy', label: 'Busy', color: 'bg-rose-500' },
+                  { value: 'offline', label: 'Offline', color: 'bg-slate-400' }
                 ].map((opt) => (
                   <button
                     key={opt.value}
@@ -776,7 +776,7 @@ export function Sidebar() {
                         : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
                     )}
                   >
-                    <span className="text-xs">{opt.emoji}</span>
+                    <span className={cn("w-2 h-2 rounded-full shrink-0", opt.color)} />
                     {opt.label}
                   </button>
                 ))}
