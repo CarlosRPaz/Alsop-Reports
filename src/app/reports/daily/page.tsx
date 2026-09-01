@@ -33,37 +33,52 @@ function formatHeaderDate(dateStr: string) {
 }
 
 // ── Column definitions matching Excel ordering with color groups ──
-const COLUMNS: ColumnDef[] = [
-  // Agent Info
-  { key: "agent",  label: "Agent",  group: "agent", sortAccessor: (m: any) => m.agents?.name || "" },
-  { key: "office", label: "Office", group: "meta",  sortAccessor: (m: any) => m.agents?.office || "" },
-  { key: "team",   label: "Team",   group: "meta",  sortAccessor: (m: any) => m.agents?.team || "" },
-  // RC / Ricochet
-  { key: "calls",     label: "Calls",     group: "calls", sortAccessor: (m: any) => m.calls || 0 },
-  { key: "inbound",   label: "Inbound",   group: "calls", sortAccessor: (m: any) => m.inbound || 0 },
-  { key: "outbound",  label: "Outbound",  group: "calls", sortAccessor: (m: any) => m.outbound || 0 },
-  { key: "talktime",  label: "Talk Time", group: "calls", sortAccessor: (m: any) => m.talk_time_seconds || 0 },
-  // Hearsay
-  { key: "texts",    label: "Texts",     group: "texts", sortAccessor: (m: any) => m.texts || 0 },
-  { key: "outtexts", label: "Out Texts", group: "texts", sortAccessor: (m: any) => m.out_texts || 0 },
-  { key: "optins",   label: "Opt-Ins",   group: "texts", sortAccessor: (m: any) => m.opt_ins || 0 },
-  { key: "optouts",  label: "Opt-Outs",  group: "texts", sortAccessor: (m: any) => m.opt_outs || 0 },
-  // Production (Gold)
-  { key: "quotes",   label: "Quotes",      group: "production", sortAccessor: (m: any) => m.quotes || 0 },
-  { key: "nb",       label: "NB",          group: "production", sortAccessor: (m: any) => m.nb_count || 0 },
-  { key: "premium",  label: "Premium",     group: "production", sortAccessor: (m: any) => Number(m.prem_premium) || 0 },
-  { key: "items",    label: "Items",       group: "production", sortAccessor: (m: any) => m.items || 0 },
-  { key: "itemsmtd", label: "Items MTD",   group: "production", sortAccessor: (m: any) => m.items_mtd || 0 },
-  { key: "dailyavg", label: "Daily Avg",   group: "production", sortAccessor: (m: any) => m._dailyAvg || 0 },
-  { key: "onpace",   label: "On Pace",     group: "production", sortAccessor: (m: any) => m._onPace || 0 },
-  // Leads Pipeline (Red/Orange)
-  { key: "contact", label: "Contact",    group: "leads", sortAccessor: (m: any) => m.leads_snapshot?.contact || 0 },
-  { key: "quoted",  label: "Quoted",     group: "leads", sortAccessor: (m: any) => m.leads_snapshot?.quoted || 0 },
-  { key: "hot",     label: "Hot",        group: "leads", sortAccessor: (m: any) => m.leads_snapshot?.hot || 0 },
-  { key: "xdate",   label: "X-Date",    group: "leads", sortAccessor: (m: any) => m.leads_snapshot?.xsale || 0 },
-  // eAgent/RICO
-  { key: "pivots",    label: "Pivots",     group: "eagent", sortAccessor: (m: any) => m.pivots || 0 },
-]
+const getColumns = (coverage: any): ColumnDef[] => {
+  const isMissing = (key: string) => coverage && coverage[key] && !coverage[key].present;
+  const missingLabel = (label: string, key: string) => {
+    if (isMissing(key)) {
+      return (
+        <span className="flex items-center justify-center gap-1" title="Data unavailable for this date">
+          {label}
+          <AlertCircle className="w-3 h-3 text-slate-400" />
+        </span>
+      );
+    }
+    return label;
+  };
+
+  return [
+    // Agent Info
+    { key: "agent",  label: "Agent",  group: "agent", sortAccessor: (m: any) => m.agents?.name || "" },
+    { key: "office", label: "Office", group: "meta",  sortAccessor: (m: any) => m.agents?.office || "" },
+    { key: "team",   label: "Team",   group: "meta",  sortAccessor: (m: any) => m.agents?.team || "" },
+    // RC / Ricochet
+    { key: "calls",     label: missingLabel("Calls", "calls"),     group: "calls", sortAccessor: (m: any) => m.calls || 0 },
+    { key: "inbound",   label: missingLabel("Inbound", "calls"),   group: "calls", sortAccessor: (m: any) => m.inbound || 0 },
+    { key: "outbound",  label: missingLabel("Outbound", "calls"),  group: "calls", sortAccessor: (m: any) => m.outbound || 0 },
+    { key: "talktime",  label: missingLabel("Talk Time", "calls"), group: "calls", sortAccessor: (m: any) => m.talk_time_seconds || 0 },
+    // Hearsay
+    { key: "texts",    label: missingLabel("Texts", "texts"),     group: "texts", sortAccessor: (m: any) => m.texts || 0 },
+    { key: "outtexts", label: missingLabel("Out Texts", "texts"), group: "texts", sortAccessor: (m: any) => m.out_texts || 0 },
+    { key: "optins",   label: missingLabel("Opt-Ins", "texts"),   group: "texts", sortAccessor: (m: any) => m.opt_ins || 0 },
+    { key: "optouts",  label: missingLabel("Opt-Outs", "texts"),  group: "texts", sortAccessor: (m: any) => m.opt_outs || 0 },
+    // Production (Gold)
+    { key: "quotes",   label: missingLabel("Quotes", "quotes"),      group: "production", sortAccessor: (m: any) => m.quotes || 0 },
+    { key: "nb",       label: missingLabel("NB", "items"),          group: "production", sortAccessor: (m: any) => m.nb_count || 0 },
+    { key: "premium",  label: missingLabel("Premium", "premium"),     group: "production", sortAccessor: (m: any) => Number(m.prem_premium) || 0 },
+    { key: "items",    label: missingLabel("Items", "items"),       group: "production", sortAccessor: (m: any) => m.items || 0 },
+    { key: "itemsmtd", label: "Items MTD",   group: "production", sortAccessor: (m: any) => m.items_mtd || 0 },
+    { key: "dailyavg", label: "Daily Avg",   group: "production", sortAccessor: (m: any) => m._dailyAvg || 0 },
+    { key: "onpace",   label: "On Pace",     group: "production", sortAccessor: (m: any) => m._onPace || 0 },
+    // Leads Pipeline (Red/Orange)
+    { key: "contact", label: missingLabel("Contact", "leads"),    group: "leads", sortAccessor: (m: any) => m.leads_snapshot?.contact || 0 },
+    { key: "quoted",  label: missingLabel("Quoted", "leads"),     group: "leads", sortAccessor: (m: any) => m.leads_snapshot?.quoted || 0 },
+    { key: "hot",     label: missingLabel("Hot", "leads"),        group: "leads", sortAccessor: (m: any) => m.leads_snapshot?.hot || 0 },
+    { key: "xsale",   label: missingLabel("X-Sale", "leads"),     group: "leads", sortAccessor: (m: any) => m.leads_snapshot?.xsale || 0 },
+    // eAgent Tasks (Violet)
+    { key: "eagent",  label: missingLabel("Pivots", "eagent"),     group: "eagent", sortAccessor: (m: any) => m.pivots || 0 },
+  ];
+};
 
 // ── Helpers ──
 function formatTime(seconds: number) {
@@ -878,15 +893,23 @@ export default function DailyReport() {
 
       {/* ── Main Data Table ── */}
       <Card>
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <CardTitle className="text-base">Daily Standup Report — {formatHeaderDate(date)}</CardTitle>
+          {unavailableSources.length > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 px-2 py-1 rounded-md border border-slate-200" title="These sources were marked as N/A by an admin for this date.">
+              <AlertCircle className="w-3.5 h-3.5 text-slate-400" />
+              <span>
+                Data for <strong>{unavailableSources.map(k => SOURCE_LABELS[k] || k).join(", ")}</strong> is marked as N/A for this date
+              </span>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="pt-0">
           {loading ? (
             <TableSkeleton rows={8} cols={10} />
           ) : (
             <DataTable 
-              columns={COLUMNS}
+              columns={getColumns(coverage)}
               data={filteredMetrics}
               totals={tableTotals}
               keyExtractor={(item) => item.id || item.agent_id}

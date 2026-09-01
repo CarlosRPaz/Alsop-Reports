@@ -6,7 +6,7 @@ import { ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react"
 
 export interface ColumnDef {
   key: string;
-  label: string;
+  label: React.ReactNode | string;
   group?: string;       // For color-coding column groups
   sortAccessor?: (item: any) => any;  // How to extract the sortable value
 }
