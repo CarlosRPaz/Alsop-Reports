@@ -37,11 +37,14 @@ export function NotificationBridge() {
     const title = isChannel ? `💬 ${senderName} in #${convoName}` : `💬 ${senderName}`
     const preview = cleanContent.length > 80 ? `${cleanContent.substring(0, 78)}...` : cleanContent
 
+    // Check user preference for persistent toasts
+    const isPersistent = typeof window !== 'undefined' && localStorage.getItem('persistent_toasts') === 'true';
+
     addToast({
       title,
       message: preview || 'New message',
       variant: 'notification',
-      duration: 0, // Persistent — stays until manually dismissed
+      duration: isPersistent ? 0 : 10000, // 0 = Persistent, 10000 = 10s
       metadata: { conversationId },
       onClick: () => {
         // Only route if not in the popout widget

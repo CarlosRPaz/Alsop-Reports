@@ -652,6 +652,32 @@ export default function PersonalSettingsPage() {
 
               </div>
 
+              {/* Persistent Toasts Toggle */}
+              <div className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                <div className="flex gap-2.5 items-start">
+                  <Bell className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-slate-700">Persistent Pop-ups</p>
+                    <p className="text-xs text-slate-500">Keep notification pop-ups on screen until manually dismissed</p>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={persistentToasts}
+                    onChange={(e) => {
+                      setPersistentToasts(e.target.checked)
+                      if (typeof window !== "undefined") {
+                        localStorage.setItem("persistent_toasts", e.target.checked ? "true" : "false")
+                      }
+                      addToast({ title: "Settings Saved", message: "Pop-up duration updated.", variant: "success" })
+                    }}
+                    className="sr-only peer"
+                  />
+                  <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+
               {/* Save Preferences */}
               <div className="border-t border-slate-100 pt-6">
                 <Button onClick={handleSavePrefs} disabled={savingPrefs} className="w-full">
