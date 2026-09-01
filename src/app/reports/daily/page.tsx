@@ -40,7 +40,7 @@ const getColumns = (coverage: any): ColumnDef[] => {
       return (
         <span className="flex items-center justify-center gap-1" title="Data unavailable for this date">
           {label}
-          <AlertCircle className="w-3 h-3 text-slate-400" />
+          <AlertCircle className="w-3 h-3 text-amber-500" />
         </span>
       );
     }
@@ -896,8 +896,8 @@ export default function DailyReport() {
         <CardHeader className="pb-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <CardTitle className="text-base">Daily Standup Report — {formatHeaderDate(date)}</CardTitle>
           {unavailableSources.length > 0 && (
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 px-2 py-1 rounded-md border border-slate-200" title="These sources were marked as N/A by an admin for this date.">
-              <AlertCircle className="w-3.5 h-3.5 text-slate-400" />
+            <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-200" title="These sources were marked as N/A by an admin for this date.">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
               <span>
                 Data for <strong>{unavailableSources.map(k => SOURCE_LABELS[k] || k).join(", ")}</strong> is marked as N/A for this date
               </span>
