@@ -18,24 +18,7 @@ interface ConversationHeaderProps {
   onSettingsClick: () => void
 }
 
-const AVATAR_COLORS = [
-  'bg-blue-500',
-  'bg-emerald-500',
-  'bg-violet-500',
-  'bg-amber-500',
-  'bg-rose-500',
-  'bg-cyan-500',
-  'bg-indigo-500',
-  'bg-teal-500',
-]
-
-function getAvatarColor(name: string): string {
-  let hash = 0
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
-}
+import { Avatar } from "@/components/ui/Avatar"
 
 export default function ConversationHeader({
   conversation,
@@ -112,15 +95,8 @@ export default function ConversationHeader({
             <Users className="w-4.5 h-4.5" />
           </div>
         ) : (
-          <div className="relative shrink-0">
-            <div
-              className={cn(
-                'w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold',
-                getAvatarColor(displayName)
-              )}
-            >
-              {displayName.charAt(0).toUpperCase()}
-            </div>
+          <div className="relative shrink-0 w-9 h-9">
+            <Avatar name={displayName} url={dmMember?.agent?.avatar_url} className="w-9 h-9 text-sm shadow-none" fallbackClassName="w-9 h-9 text-sm shadow-none" />
             {isDm && dmMember?.agent && (
               <div className="absolute -bottom-0.5 -right-0.5">
                 <UserPresenceBadge status={dmMember.agent.presence} size="sm" />
@@ -248,12 +224,7 @@ export default function ConversationHeader({
                       >
                         {/* Mini Avatar / Presence */}
                         <div className="relative shrink-0">
-                          <div className={cn(
-                            "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white",
-                            getAvatarColor(m.name || '')
-                          )}>
-                            {(m.name || '').charAt(0).toUpperCase()}
-                          </div>
+                          <Avatar name={m.name || ''} url={m.avatar_url} className="w-5 h-5 text-[10px] shadow-none" fallbackClassName="w-5 h-5 text-[10px] shadow-none" />
                           <span className={cn(
                             "w-2 h-2 rounded-full absolute -bottom-0.5 -right-0.5 ring-1 ring-slate-900",
                             m.presence === 'online' ? 'bg-emerald-400' :

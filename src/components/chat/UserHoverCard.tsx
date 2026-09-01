@@ -23,24 +23,7 @@ interface UserHoverCardProps {
   side?: 'top' | 'bottom'
 }
 
-const AVATAR_COLORS = [
-  'bg-blue-500',
-  'bg-emerald-500',
-  'bg-violet-500',
-  'bg-amber-500',
-  'bg-rose-500',
-  'bg-cyan-500',
-  'bg-indigo-500',
-  'bg-teal-500',
-]
-
-function getAvatarColor(name: string): string {
-  let hash = 0
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
-}
+import { Avatar } from "@/components/ui/Avatar"
 
 function parseStatusMessage(msg: string | null): { emoji: string | null; text: string | null } {
   if (!msg) return { emoji: null, text: null }
@@ -164,18 +147,7 @@ export default function UserHoverCard({
           {/* User Header */}
           <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-100 dark:border-slate-800">
             <div className="relative shrink-0 w-9 h-9">
-              {agent.avatar_url ? (
-                <img src={agent.avatar_url} alt={displayName} className="w-9 h-9 rounded-full object-cover shadow-xs bg-white" />
-              ) : (
-                <div
-                  className={cn(
-                    'w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-xs',
-                    getAvatarColor(displayName)
-                  )}
-                >
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
-              )}
+              <Avatar name={displayName} url={agent.avatar_url} className="w-9 h-9 text-xs shadow-xs" fallbackClassName="w-9 h-9 text-xs shadow-xs" />
               <UserPresenceBadge
                 status={effectivePresence as any}
                 size="sm"

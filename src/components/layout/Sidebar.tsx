@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser"
 import { useChat } from "@/lib/chat/chatContext"
 import UserPresenceBadge from "@/components/chat/UserPresenceBadge"
+import { Avatar } from "@/components/ui/Avatar"
 import { 
   BarChart3,
   MessageSquare, 
@@ -579,13 +580,7 @@ export function Sidebar() {
             >
               {/* Avatar with Presence dot */}
               <div className="relative shrink-0 w-8 h-8">
-                {currentAgent.avatar_url ? (
-                  <img src={currentAgent.avatar_url} alt={currentAgent.name} className="w-8 h-8 rounded-full object-cover shadow-sm bg-white" />
-                ) : (
-                  <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold bg-blue-600 shadow-sm")}>
-                    {currentAgent.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
+                <Avatar name={currentAgent.name} url={currentAgent.avatar_url} className="w-8 h-8 text-xs shadow-sm" fallbackClassName="w-8 h-8 text-xs shadow-sm" />
                 <div className="absolute -bottom-0.5 -right-0.5">
                   <UserPresenceBadge status={currentAgent.presence || 'online'} size="sm" />
                 </div>

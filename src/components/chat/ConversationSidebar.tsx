@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import UserPresenceBadge from './UserPresenceBadge'
+import { Avatar, getAvatarColor } from "@/components/ui/Avatar"
 import type { Agent, Conversation, PresenceStatus } from './types'
 import { useChat } from '@/lib/chat/chatContext'
 
@@ -25,25 +26,6 @@ interface ConversationSidebarProps {
   onCreateNew: (defaultTab?: 'dm' | 'group' | 'channel') => void
   onStatusChange: (status: PresenceStatus) => void
   onTogglePin: (conversationId: string, currentlyPinned: boolean) => void
-}
-
-const AVATAR_COLORS = [
-  'bg-blue-500',
-  'bg-emerald-500',
-  'bg-violet-500',
-  'bg-amber-500',
-  'bg-rose-500',
-  'bg-cyan-500',
-  'bg-indigo-500',
-  'bg-teal-500',
-]
-
-function getAvatarColor(name: string): string {
-  let hash = 0
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
 }
 
 function getDmDisplayName(conversation: Conversation, currentAgentId: string): string {
@@ -292,18 +274,23 @@ export default function ConversationSidebar({
                 >
                   {/* Avatar with presence */}
                   <div className="relative shrink-0 mt-0.5">
-                    <div
-                      className={cn(
-                        'w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold',
-                        getAvatarColor(displayName)
-                      )}
-                    >
-                      {conv.type === 'group_dm' ? (
-                        <Users className="w-4 h-4" />
-                      ) : (
-                        displayName.charAt(0).toUpperCase()
-                      )}
-                    </div>
+                    {conv.type === 'direct_dm' && conv.members ? (() => {
+                      const other = conv.members.find((m) => m.agent_id !== currentAgent.id)?.agent
+                      return <Avatar name={other?.name || displayName} url={other?.avatar_url} className="w-8 h-8 text-xs shadow-none" fallbackClassName="w-8 h-8 text-xs shadow-none" />
+                    })() : (
+                      <div
+                        className={cn(
+                          'w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold',
+                          getAvatarColor(displayName)
+                        )}
+                      >
+                        {conv.type === 'group_dm' ? (
+                          <Users className="w-4 h-4" />
+                        ) : (
+                          displayName.charAt(0).toUpperCase()
+                        )}
+                      </div>
+                    )}
                     {conv.type === 'direct_dm' && (
                       <div className="absolute -bottom-0.5 -right-0.5">
                         <UserPresenceBadge status={presence} size="sm" />
@@ -367,20 +354,7 @@ export default function ConversationSidebar({
       {/* Current User Footer */}
       <div className="border-t border-slate-100 p-3">
         <div className="flex items-center gap-2.5">
-          <div className="relative shrink-0 w-8 h-8">
-            {currentAgent.avatar_url ? (
-              <img src={currentAgent.avatar_url} alt={currentAgent.name} className="w-8 h-8 rounded-full object-cover shadow-sm bg-white" />
-            ) : (
-              <div
-                className={cn(
-                  'w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm',
-                  getAvatarColor(currentAgent.name)
-                )}
-              >
-                {currentAgent.name.charAt(0).toUpperCase()}
-              </div>
-            )}
-          </div>
+          <Avatar name={currentAgent.name} url={currentAgent.avatar_url} className="w-8 h-8 text-xs shadow-sm" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-slate-800 truncate leading-tight">
               {currentAgent.name}

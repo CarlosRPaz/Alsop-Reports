@@ -10,24 +10,7 @@ interface AgentPickerProps {
   onSelect: (agent: Agent) => void
 }
 
-const AVATAR_COLORS = [
-  'bg-blue-500',
-  'bg-emerald-500',
-  'bg-violet-500',
-  'bg-amber-500',
-  'bg-rose-500',
-  'bg-cyan-500',
-  'bg-indigo-500',
-  'bg-teal-500',
-]
-
-function getAvatarColor(name: string): string {
-  let hash = 0
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
-}
+import { Avatar } from "@/components/ui/Avatar"
 
 export default function AgentPicker({ onSelect }: AgentPickerProps) {
   const [agents, setAgents] = useState<Agent[]>([])
@@ -120,14 +103,7 @@ export default function AgentPicker({ onSelect }: AgentPickerProps) {
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 hover:bg-slate-50 active:bg-slate-100 group"
                 >
                   {/* Avatar */}
-                  <div
-                    className={cn(
-                      'w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0 transition-transform duration-200 group-hover:scale-105',
-                      getAvatarColor(agent.name)
-                    )}
-                  >
-                    {agent.name.charAt(0).toUpperCase()}
-                  </div>
+                  <Avatar name={agent.name} url={agent.avatar_url} className="w-9 h-9 text-sm shrink-0 transition-transform duration-200 group-hover:scale-105 shadow-none" fallbackClassName="w-9 h-9 text-sm shrink-0 transition-transform duration-200 group-hover:scale-105 shadow-none" />
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">

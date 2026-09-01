@@ -32,24 +32,7 @@ interface MessageBubbleProps {
   hasPermission: (key: string) => boolean
 }
 
-const AVATAR_COLORS = [
-  'bg-blue-500',
-  'bg-emerald-500',
-  'bg-violet-500',
-  'bg-amber-500',
-  'bg-rose-500',
-  'bg-cyan-500',
-  'bg-indigo-500',
-  'bg-teal-500',
-]
-
-function getAvatarColor(name: string): string {
-  let hash = 0
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
-}
+import { Avatar } from "@/components/ui/Avatar"
 
 function formatTime(dateStr: string): string {
   const d = new Date(dateStr)
@@ -452,14 +435,7 @@ export default function MessageBubble({
         {!isGrouped && (
           <UserHoverCard agent={message.sender ? { ...message.sender, id: senderId, presence: senderPresence, status_message: senderStatusMsg } : { id: senderId, name: senderName, presence: senderPresence, status_message: senderStatusMsg }} side="top" className="shrink-0 self-start">
             <div className="relative shrink-0 mt-0.5 w-8 h-8 cursor-pointer group/avatar">
-              <div
-                className={cn(
-                  'w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold select-none transition-transform group-hover/avatar:scale-105',
-                  getAvatarColor(senderName)
-                )}
-              >
-                {senderName.charAt(0).toUpperCase()}
-              </div>
+              <Avatar name={senderName} url={message.sender?.avatar_url} className="w-8 h-8 text-xs select-none transition-transform group-hover/avatar:scale-105 shadow-none" fallbackClassName="w-8 h-8 text-xs select-none transition-transform group-hover/avatar:scale-105 shadow-none" />
               <UserPresenceBadge
                 status={senderPresence as any}
                 size="sm"
