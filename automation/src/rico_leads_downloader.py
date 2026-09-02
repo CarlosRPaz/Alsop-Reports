@@ -1,14 +1,13 @@
 """
 rico_leads_downloader.py — Auto-download the Ricochet LeadSwami Report.
 
-Uses Playwright with a persistent Edge profile so login survives between runs.
-Includes automatic recovery for browser downloads.
+Uses Playwright to navigate to the Ricochet reports page and performs a direct,
+authenticated download of the LeadSwami snapshot CSV.
 """
 
 from __future__ import annotations
 
 import json
-import shutil
 import time
 import os
 from datetime import datetime, timedelta
@@ -16,13 +15,12 @@ from pathlib import Path
 
 
 DEFAULT_TIMEOUT_MS = 45_000
-DOWNLOAD_TIMEOUT_MS = 180_000  # large file, give it time
 
 
 def download_rico_leads(
     config: dict | str,
     target_date: str | None = None,
-    headless: bool = False,
+    headless: bool = True,
     save_to: str | None = None,
 ) -> str | None:
     if isinstance(config, str):
@@ -44,7 +42,6 @@ def download_rico_leads(
     username    = rico.get("username")
     password    = rico.get("password")
     org         = rico.get("org", "Alsop")
-    profile_dir = Path(rico.get("profile_dir", config.get("playwright_profile_dir", "data/playwright_profile"))).resolve()
 
     if not username or not password:
         raise ValueError("Ricochet credentials (username/password) are not set in config/config.json")
@@ -52,49 +49,19 @@ def download_rico_leads(
     if save_to is None:
         save_to = config.get("downloads_folder", "C:/Users/phoeb/Downloads")
 
-    profile_dir.mkdir(parents=True, exist_ok=True)
     Path(save_to).mkdir(parents=True, exist_ok=True)
 
-    print(f"[rico_leads_downloader] Starting browser automation for LeadSwami snapshot...")
+    print(f"[rico_leads_downloader] Starting automated fetch for LeadSwami snapshot...")
 
     with sync_playwright() as p:
-        ctx = None
-        browser_obj = None
-
-        # 1. Try launching persistent Edge context
+        browser = None
         try:
-            ctx = p.chromium.launch_persistent_context(
-                user_data_dir=str(profile_dir),
-                channel="msedge",
-                headless=headless,
-                accept_downloads=True,
-                viewport={"width": 1400, "height": 900},
-            )
-            print("[rico_leads_downloader] Launched persistent Edge context.")
-        except Exception as e1:
-            print(f"[rico_leads_downloader] Persistent Edge unavailable ({e1}). Trying bundled Chromium...")
-            try:
-                # 2. Try launching bundled Chromium with persistent context
-                ctx = p.chromium.launch_persistent_context(
-                    user_data_dir=str(profile_dir),
-                    headless=headless,
-                    accept_downloads=True,
-                    viewport={"width": 1400, "height": 900},
-                )
-                print("[rico_leads_downloader] Launched persistent Chromium context.")
-            except Exception as e2:
-                print(f"[rico_leads_downloader] Profile directory locked ({e2}). Launching fresh non-persistent session...")
-                # 3. Fall back to standard browser
-                try:
-                    browser_obj = p.chromium.launch(channel="msedge", headless=headless)
-                except Exception:
-                    browser_obj = p.chromium.launch(headless=headless)
-                ctx = browser_obj.new_context(
-                    accept_downloads=True,
-                    viewport={"width": 1400, "height": 900},
-                )
-                print("[rico_leads_downloader] Launched fresh browser session.")
+            browser = p.chromium.launch(channel="msedge", headless=headless)
+        except Exception as e:
+            print(f"[rico_leads_downloader] Could not launch msedge ({e}), launching bundled chromium...")
+            browser = p.chromium.launch(headless=headless)
 
+        ctx = browser.new_context(accept_downloads=True, viewport={"width": 1400, "height": 900})
         page = ctx.new_page()
         page.set_default_timeout(DEFAULT_TIMEOUT_MS)
 
@@ -110,7 +77,7 @@ def download_rico_leads(
                     page.goto(reports_url, wait_until="domcontentloaded")
                 time.sleep(2)
             else:
-                print("[rico_leads_downloader] Already signed in (reusing session)")
+                print("[rico_leads_downloader] Already signed in")
 
             print("[rico_leads_downloader] Waiting for reports table...")
             try:
@@ -119,40 +86,67 @@ def download_rico_leads(
                 pass
             time.sleep(2)
 
-            download_path = _click_newest_download(page, save_to, target_date)
+            # Expand Leads Report Card
+            _expand_leads_card(page)
 
-            if not download_path:
-                # Check fallback in downloads folder
-                recent = sorted(Path(save_to).glob("leads_report_*.csv"), key=lambda f: f.stat().st_mtime, reverse=True)
-                if recent and (time.time() - recent[0].stat().st_mtime) < 300 and recent[0].stat().st_size > 100_000:
-                    download_path = str(recent[0])
-                    print(f"[rico_leads_downloader] Recovered recently downloaded file from folder: {download_path}")
+            # Find matching LeadSwami Report row
+            target_row = _find_target_row(page, target_date)
+            if not target_row:
+                print("[rico_leads_downloader] No LeadSwami Report rows available.")
+                return None
 
-            if download_path:
-                print(f"[rico_leads_downloader] Downloaded: {download_path}")
+            # Extract direct download link href
+            link_el = target_row.locator("a[href*='download']").first
+            href = None
+            if link_el.count() > 0:
+                href = link_el.get_attribute("href")
+
+            if not href:
+                all_links = target_row.locator("a").all()
+                for l in all_links:
+                    h = l.get_attribute("href")
+                    if h and ("download" in h.lower() or "report" in h.lower()):
+                        href = h
+                        break
+
+            if not href:
+                raise ValueError("Could not find download URL in LeadSwami row.")
+
+            # Resolve full download URL
+            if href.startswith("http"):
+                download_url = href
+            elif href.startswith("/"):
+                download_url = "https://admin-allstate-mt3.ricochet.me" + href
             else:
-                print("[rico_leads_downloader] Download button click did not produce a file.")
+                download_url = "https://admin-allstate-mt3.ricochet.me/alsop/" + href
 
-            return download_path
+            print(f"[rico_leads_downloader] Downloading LeadSwami CSV directly via authenticated stream...")
+            t0 = time.time()
+            resp = page.request.get(download_url, timeout=120000)
+            if resp.status != 200:
+                raise RuntimeError(f"HTTP download failed with status {resp.status}")
+
+            filename = f"leads_report_{int(time.time())}.csv"
+            if "name=" in download_url:
+                filename = download_url.split("name=")[1].split("&")[0]
+
+            save_file = Path(save_to) / filename
+            data_bytes = resp.body()
+            if len(data_bytes) < 1000:
+                raise RuntimeError("Downloaded file is too small or invalid.")
+
+            save_file.write_bytes(data_bytes)
+            print(f"[rico_leads_downloader] [OK] Successfully saved {len(data_bytes):,} bytes to {save_file} in {time.time() - t0:.2f}s")
+            return str(save_file)
 
         except Exception as e:
-            print(f"[rico_leads_downloader] Error: {e}")
-            recent = sorted(Path(save_to).glob("leads_report_*.csv"), key=lambda f: f.stat().st_mtime, reverse=True)
-            if recent and (time.time() - recent[0].stat().st_mtime) < 300 and recent[0].stat().st_size > 100_000:
-                recovered = str(recent[0])
-                print(f"[rico_leads_downloader] Recovered recent download from disk after error: {recovered}")
-                return recovered
+            print(f"[rico_leads_downloader] Error during download: {e}")
             return None
         finally:
             try:
-                ctx.close()
+                browser.close()
             except Exception:
                 pass
-            if browser_obj:
-                try:
-                    browser_obj.close()
-                except Exception:
-                    pass
 
 
 def _is_login_page(page) -> bool:
@@ -203,7 +197,7 @@ def _perform_login(page, org: str, username: str, password: str) -> None:
     time.sleep(2)
 
 
-def _click_newest_download(page, save_to: str, target_date: str | None = None) -> str | None:
+def _expand_leads_card(page) -> None:
     print("[rico_leads_downloader] Expanding 'Leads Report' card...")
     try:
         leads_toolbar = page.locator('text="Leads Report"').first
@@ -222,8 +216,8 @@ def _click_newest_download(page, save_to: str, target_date: str | None = None) -
     except Exception as e:
         print(f"[rico_leads_downloader] Error expanding card: {e}")
 
-    _debug_screenshot(page, "rico_leads_expanded")
 
+def _find_target_row(page, target_date: str | None = None):
     print("[rico_leads_downloader] Looking for LeadSwami Report rows...")
     try:
         rows = page.locator('tr:has-text("LeadSwami Report"):visible')
@@ -237,8 +231,6 @@ def _click_newest_download(page, save_to: str, target_date: str | None = None) -
             print(f"[rico_leads_downloader] After extra wait: {row_count} rows")
 
         if row_count == 0:
-            print("[rico_leads_downloader] [WARN] No LeadSwami Report rows found")
-            _debug_screenshot(page, "rico_leads_no_rows")
             return None
 
         target_row = None
@@ -263,74 +255,7 @@ def _click_newest_download(page, save_to: str, target_date: str | None = None) -
             row_text = target_row.inner_text().strip().replace("\n", " | ")[:120]
             print(f"[rico_leads_downloader] Using newest row: {row_text}")
 
-        action_btns = target_row.locator("button.table-btn")
-        btn_count = action_btns.count()
-        print(f"[rico_leads_downloader] Found {btn_count} action buttons in row")
-
-        if btn_count < 3:
-            action_btns = target_row.locator("button")
-            btn_count = action_btns.count()
-            print(f"[rico_leads_downloader] Fallback: {btn_count} total buttons in row")
-
-        if btn_count >= 3:
-            download_btn = action_btns.nth(2)
-            print("[rico_leads_downloader] Clicking download button (3rd action button)...")
-
-            try:
-                with page.expect_download(timeout=DOWNLOAD_TIMEOUT_MS) as dl_info:
-                    download_btn.click()
-
-                download = dl_info.value
-                result_path = _save_download(download, save_to)
-                print(f"[rico_leads_downloader] [OK] Download complete: {result_path}")
-                return result_path
-            except Exception as dl_err:
-                print(f"[rico_leads_downloader] Warning during expect_download: {dl_err}")
-                time.sleep(3)
-                recent = sorted(Path(save_to).glob("leads_report_*.csv"), key=lambda f: f.stat().st_mtime, reverse=True)
-                if recent and (time.time() - recent[0].stat().st_mtime) < 300 and recent[0].stat().st_size > 100_000:
-                    print(f"[rico_leads_downloader] Successfully found downloaded file on disk: {recent[0]}")
-                    return str(recent[0])
-                raise dl_err
-        else:
-            print(f"[rico_leads_downloader] [WARN] Expected >=3 buttons but found {btn_count}")
-            _debug_screenshot(page, "rico_leads_wrong_btn_count")
-            return None
-
+        return target_row
     except Exception as e:
-        print(f"[rico_leads_downloader] Error during download: {e}")
-        _debug_screenshot(page, "rico_leads_download_error")
+        print(f"[rico_leads_downloader] Error finding target row: {e}")
         return None
-
-
-def _debug_screenshot(page, label: str) -> None:
-    try:
-        ts = int(time.time())
-        path = Path("data") / f"{label}_{ts}.png"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        page.screenshot(path=str(path))
-    except Exception:
-        pass
-
-
-def _save_download(download, save_to: str) -> str:
-    suggested = download.suggested_filename or f"leads_report_{int(time.time())}.csv"
-    target = Path(save_to) / suggested
-    try:
-        download.save_as(str(target))
-        return str(target)
-    except Exception as e:
-        print(f"[rico_leads_downloader] save_as exception ({e}), checking fallback...")
-        if target.exists() and target.stat().st_size > 100_000:
-            return str(target)
-        try:
-            dl_path = download.path()
-            if dl_path and Path(dl_path).exists():
-                shutil.copy2(dl_path, str(target))
-                return str(target)
-        except Exception:
-            pass
-        recent = sorted(Path(save_to).glob("leads_report_*.csv"), key=lambda f: f.stat().st_mtime, reverse=True)
-        if recent and (time.time() - recent[0].stat().st_mtime) < 300 and recent[0].stat().st_size > 100_000:
-            return str(recent[0])
-        raise
