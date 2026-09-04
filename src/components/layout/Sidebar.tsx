@@ -72,6 +72,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  { name: 'Overview', href: '/', icon: BarChart3, pageKey: 'overview' },
   { name: 'Daily Report', href: '/reports/daily', isLetter: true, letter: 'D' },
   { name: 'Weekly Report', href: '/reports/weekly', isLetter: true, letter: 'W' },
   { name: 'MTD Report', href: '/reports/mtd', isLetter: true, letter: 'M' },
